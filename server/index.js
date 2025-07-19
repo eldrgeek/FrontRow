@@ -6,12 +6,35 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
+// Get allowed origins from environment variable for production
+const getAllowedOrigins = () => {
+  if (process.env.NODE_ENV === 'production') {
+    // In production, use specific origins
+    const origins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+    console.log('Production mode - Allowed origins:', origins);
+    return origins;
+  } else {
+    // In development, allow all origins
+    console.log('Development mode - Allowing all origins');
+    return "*";
+  }
+};
+
 const io = new Server(server, {
   cors: {
-    origin: "*", // WARNING: For production, change to specific frontend URL (e.g., "https://your-front-row-app.netlify.app")
-    methods: ["GET", "POST"]
+    origin: getAllowedOrigins(),
+    methods: ["GET", "POST"],
+    credentials: false
   }
 });
+
+// --- MIDDLEWARE AND CORS ---
+app.use(cors({
+  origin: getAllowedOrigins(),
+  credentials: false
+}));
+app.use(express.json({ limit: '5mb' })); // Allows larger JSON bodies for Base64 image strings
 
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
@@ -25,8 +48,17 @@ const activeShow = {
 const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), selectedSeat } } // Temporary store for connected users
 
 // --- API Routes ---
-app.use(cors());
-app.use(express.json({ limit: '5mb' })); // Allows larger JSON bodies for Base64 image strings
+
+// Health check endpoint for monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    activeConnections: io.engine.clientsCount || 0
+  });
+});
 
 // Get all scheduled shows
 app.get('/api/shows', (req, res) => {

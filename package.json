@@ -8,7 +8,9 @@
     "backend": "cd server && npm start",
     "install-all": "cd server && npm install && cd ../front-row-vite && npm install --legacy-peer-deps",
     "build": "cd front-row-vite && npm run build",
-    "test": "cd tests && python auto_test.py"
+    "test": "cd tests && python auto_test.py",
+    "deploy-prep": "./deploy.sh",
+    "build-test": "npm run build && echo 'Build test completed successfully!'"
   },
   "devDependencies": {
     "concurrently": "^8.2.0"

@@ -2,3 +2,14 @@ node_modules
 __pycache__
 # Local Netlify folder
 .netlify
+
+# Environment variables
+.env.local
+.env.production
+
+# Deployment artifacts
+front-row-vite/dist/
+
+# Logs
+*.log
+npm-debug.log*

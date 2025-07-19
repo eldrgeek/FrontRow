@@ -1,12 +1,15 @@
 
 interface Config {
   artistName: string;
+  backendUrl: string;
+  socketUrl: string;
 }
 
 const config: Config = {
   artistName: "The Virtual Troubadour",
-  // In Rev 1, artistImage is not dynamically used here as it's for user profiles.
-  // This config is mostly for the static stage setup.
+  // Backend configuration - uses environment variables with fallbacks
+  backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
+  socketUrl: import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001',
 };
 
 export default config;

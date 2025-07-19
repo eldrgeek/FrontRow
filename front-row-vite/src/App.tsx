@@ -77,8 +77,8 @@ function App(): JSX.Element {
   // --- Socket.IO and WebRTC Setup ---
   useEffect(() => {
     // Connect to backend Socket.IO server
-    const backendURL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
-    socketRef.current = io(backendURL);
+    console.log('Connecting to backend:', config.socketUrl);
+    socketRef.current = io(config.socketUrl);
     socketRef.current.on('connect', () => {
       setMySocketId(socketRef.current?.id || '');
     });
