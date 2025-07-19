@@ -5,7 +5,8 @@
   "description": "Backend for FRONT ROW application (Rev 1: In-Memory)",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "echo 'No build step required for backend - using plain Node.js'"
   },
   "dependencies": {
     "cors": "^2.8.5",
