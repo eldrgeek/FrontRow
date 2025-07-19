@@ -11,6 +11,7 @@ interface StageProps {
   };
   showState: 'pre-show' | 'live' | 'post-show';
   fallbackVideoUrl?: string;
+  screenPosition?: [number,number,number];
 }
 
 // Semicircle stage platform component
@@ -34,20 +35,24 @@ function SemicircleStage(): JSX.Element {
       >
         <meshStandardMaterial color="#333333" />
       </Cylinder>
+      {/* Apron rectangle between stage flat edge and screen */}
+      <Plane args={[16.0, 4]} rotation-x={-Math.PI / 2} position={[0, 0.11, -10]}>
+        <meshStandardMaterial color="#444444" side={THREE.DoubleSide} />
+      </Plane>
     </group>
   );
 }
 
 // Flat screen component for the back wall
-function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g" }: { videoTexture: any; fallbackVideoId?: string }): JSX.Element {
+function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition } : { videoTexture: any; fallbackVideoId?: string; screenPosition:[number,number,number] }): JSX.Element {
   const hasLiveStream = !!videoTexture;
   
   return (
     <group>
       {/* Large flat screen at the back of the semicircle stage */}
       <Plane
-        args={[14, 8]} // Wide screen for better viewing
-        position={[0, 4, -12]} // Positioned at the back, higher up
+        args={[12, 5]}
+        position={screenPosition}
         rotation-x={0}
       >
         {hasLiveStream ? (
@@ -63,9 +68,7 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g" }: { video
       </Plane>
       
       {/* Screen frame */}
-      <Plane
-        args={[14.4, 8.4]}
-        position={[0, 4, -12.01]} // Slightly behind the screen
+      <Plane args={[12.4, 5.4]} position={[screenPosition[0], screenPosition[1], screenPosition[2]-0.01]}
         rotation-x={0}
       >
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
@@ -75,7 +78,7 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g" }: { video
       {!hasLiveStream && (
         <YouTubeScreen 
           videoId={fallbackVideoId}
-          position={[0, 4, -11.5]} // Positioned in front of the screen
+          position={[screenPosition[0], screenPosition[1], screenPosition[2]+0.5]} // slightly in front
           isLive={false}
         />
       )}
@@ -83,7 +86,7 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g" }: { video
   );
 }
 
-function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g" }: StageProps): JSX.Element {
+function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[-1,5.7,-12.5] }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
 
   // Create a video texture from the performer stream
@@ -106,8 +109,8 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
       {/* Semicircle Stage Platform */}
       <SemicircleStage />
 
-      {/* Curved backdrop / Performer Video Screen - positioned at back of semicircle stage */}
-      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} />
+      {/* Flat backdrop / Performer Video Screen */}
+      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} screenPosition={screenPosition} />
 
       {/* Artist name stencil on stage floor - moved forward to avoid overlap */}
       <Text

@@ -23,9 +23,10 @@ interface SeatSelectionProps {
   onSeatSelect: (seatId: string) => void;
   audienceSeats: AudienceSeats;
   allowSeatSwitching?: boolean;
+  mySocketId?: string;
 }
 
-function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true }: SeatSelectionProps): JSX.Element {
+function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId }: SeatSelectionProps): JSX.Element {
   const seatsData: SeatData[] = [];
   const frontRowRadius = 10; // Increased radius for better spacing
   const stageZOffset = -8; // Stage position in Z
@@ -53,6 +54,8 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
           isOccupied={!!audienceSeats[seat.id]}
           occupantName={audienceSeats[seat.id]?.name}
           occupantImage={audienceSeats[seat.id]?.imageUrl}
+          occupantSocketId={audienceSeats[seat.id]?.socketId}
+          mySocketId={mySocketId}
           onSelect={onSeatSelect}
           allowSwitching={allowSeatSwitching}
           hasSelectedSeat={!!selectedSeat}
@@ -68,12 +71,14 @@ interface SeatProps {
   isOccupied: boolean;
   occupantName?: string;
   occupantImage?: string;
+  occupantSocketId?: string;
+  mySocketId?: string;
   onSelect: (seatId: string) => void;
   allowSwitching?: boolean;
   hasSelectedSeat?: boolean;
 }
 
-function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
+function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, mySocketId, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
   const meshRef = useRef<THREE.Mesh>(null);
 
   const handleClick = () => {
@@ -89,8 +94,15 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, onSel
   };
 
   // Color logic: occupied=darkred, selected=gold, available for switching=lightblue, regular available=blue
-  const isClickableForSwitch = allowSwitching && hasSelectedSeat && !isOccupied && !isSelected;
-  const color = isOccupied ? 'darkred' : (isSelected ? 'gold' : (isClickableForSwitch ? 'lightblue' : 'blue'));
+  const occupiedByMe = isOccupied && occupantSocketId === mySocketId;
+  const isClickableForSwitch = allowSwitching && hasSelectedSeat && (!isOccupied || occupiedByMe) && !isSelected;
+  const color = occupiedByMe
+    ? 'gold'
+    : isOccupied
+      ? 'darkred'
+      : isSelected
+        ? 'gold'
+        : isClickableForSwitch ? 'lightblue' : 'blue';
 
   // Load image as a texture
   const texture = useRef(null);

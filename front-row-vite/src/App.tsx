@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment } from '@react-three/drei';
+import { OrbitControls, Environment, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 import Stage from './components/Stage';
 import SeatSelection from './components/SeatSelection';
@@ -15,6 +15,7 @@ import CameraControls from './components/CameraControls';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
+import * as THREE from 'three';
 
 // TypeScript interfaces
 interface AudienceSeat {
@@ -50,21 +51,20 @@ function App(): JSX.Element {
   const [userImage, setUserImage] = useState<string | null>(() => {
     return localStorage.getItem('frontrow_user_image') || null;
   });
-  const [selectedSeat, setSelectedSeat] = useState<string | null>(() => {
-    return localStorage.getItem('frontrow_selected_seat') || null;
-  });
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null); // user picks seat each session
   const [showState, setShowState] = useState<ShowState>('pre-show');
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [mySocketId, setMySocketId] = useState<string>('');
   
   // Camera position state - save positions when switching views
   const [savedCameraPositions, setSavedCameraPositions] = useState<{
     'eye-in-the-sky': { position: [number, number, number]; target: [number, number, number] };
     'user': { position: [number, number, number]; target: [number, number, number] };
   }>({
-    'eye-in-the-sky': { position: [0, 12, 18], target: [0, 2, -5] }, // Above and behind seats, looking at stage
+    'eye-in-the-sky': { position: [0, 14, -5], target: [0, 3, -10] },
     'user': { position: [0, 1.7, 0], target: [0, 3, -10] } // Will be updated when seat is selected - look at performer screen
   });
   
@@ -78,6 +78,9 @@ function App(): JSX.Element {
   useEffect(() => {
     // Connect to backend Socket.IO server
     socketRef.current = io('http://localhost:3001'); // Adjust URL for deployment
+    socketRef.current.on('connect', () => {
+      setMySocketId(socketRef.current?.id || '');
+    });
 
     // Socket listeners for show status and seat updates
     socketRef.current.on('show-status-update', (data) => {
@@ -226,11 +229,16 @@ function App(): JSX.Element {
     // Listen for the seat-selected response only once per selection attempt
     const handleSeatSelectedResponse = (response) => {
         if (response.success) {
+            // locally clear previous seat entry for this user
+            setAudienceSeats(prev=>{
+                const updated={...prev};
+                if(selectedSeat) delete updated[selectedSeat];
+                return updated;
+            });
             setSelectedSeat(seatId);
             setCurrentView('user'); // Auto switch to user view after selecting seat
             
-            // Save selected seat to localStorage
-            localStorage.setItem('frontrow_selected_seat', seatId);
+            // Do not persist seat between sessions – must pick each time
             
             console.log('Seat selected:', seatId);
         } else {
@@ -456,6 +464,7 @@ function App(): JSX.Element {
               selectedSeat={selectedSeat}
               onSeatSelect={handleSeatSelect}
               audienceSeats={audienceSeats}
+              mySocketId={mySocketId}
             />
 
             {isPerformer && (
@@ -463,6 +472,16 @@ function App(): JSX.Element {
             )}
             {!isPerformer && currentView === 'user' && (
               <UserView selectedSeat={selectedSeat} audienceSeats={audienceSeats} />
+            )}
+            {/* 3D Status Text */}
+            {showState === 'pre-show' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
+            )}
+            {showState === 'live' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
+            )}
+            {showState === 'post-show' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
             )}
           </Canvas>
         </Suspense>
@@ -541,9 +560,7 @@ function App(): JSX.Element {
             </div>
           )}
 
-          {showState === 'pre-show' && isLoggedIn && (selectedSeat || isPerformer) && <div className="countdown">Show Starts Soon!</div>}
-          {showState === 'live' && isLoggedIn && (selectedSeat || isPerformer) && <div className="live-indicator">LIVE</div>}
-          {showState === 'post-show' && isLoggedIn && (selectedSeat || isPerformer) && <div className="thank-you">Thank You!</div>}
+          {/* Removed countdawn/live-indicator/thank-you from here */}
         </div>,
         document.getElementById('overlay-root') as HTMLElement
       )}

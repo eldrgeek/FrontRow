@@ -39,6 +39,8 @@ canvas {
   pointer-events: auto; /* Re-enable pointer events for specific UI elements */
 }
 
+.ui-overlay p {pointer-events:none;}
+
 .user-input-form, .controls, .performer-controls {
   background: rgba(0, 0, 0, 0.8);
   padding: 25px;

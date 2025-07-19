@@ -61,7 +61,7 @@ function CameraControls(): JSX.Element {
     borderRadius: '15px',
     border: '2px solid rgba(255, 255, 255, 0.3)',
     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-    zIndex: 9997,
+    zIndex: 3000000500,
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
     gap: '8px',
@@ -69,7 +69,7 @@ function CameraControls(): JSX.Element {
   };
 
   return (
-    <div style={containerStyle}>
+    <div style={containerStyle} className="camera-controls">
       {/* Top row */}
       <div></div>
       <button

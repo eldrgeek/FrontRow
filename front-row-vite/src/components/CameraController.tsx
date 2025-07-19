@@ -24,7 +24,23 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
   const positionRef = useRef(new THREE.Vector3());
   const isTransitioning = useRef(false);
   const lastView = useRef(currentView);
-  
+  const lastSeatRef = useRef<string | null>(selectedSeat);
+  const transitionProgress = useRef(0);
+  const transitionDuration = 0.7; // seconds
+  const startPosRef = useRef(new THREE.Vector3());
+  const startTargetRef = useRef(new THREE.Vector3());
+  const targetPosRef = useRef(new THREE.Vector3());
+  const targetLookRef = useRef(new THREE.Vector3());
+
+  const beginTransition = (endPos: THREE.Vector3, endTarget: THREE.Vector3) => {
+    startPosRef.current.copy(camera.position);
+    if (isOrbitControls(controls)) startTargetRef.current.copy(controls.target);
+    targetPosRef.current.copy(endPos);
+    targetLookRef.current.copy(endTarget);
+    transitionProgress.current = 0;
+    isTransitioning.current = true;
+  };
+
   // Type guard to check if controls are OrbitControls
   const isOrbitControls = (ctrl: any): ctrl is OrbitControls => {
     return ctrl && typeof ctrl.target !== 'undefined' && typeof ctrl.update === 'function';
@@ -94,7 +110,7 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
               targetRef.current.set(0, 3, -10);
             }
           }
-          isTransitioning.current = true;
+          beginTransition(positionRef.current, targetRef.current);
           break;
       }
       
@@ -161,27 +177,35 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
       }
 
       // Smooth transition to new position
-      isTransitioning.current = true;
-      positionRef.current.set(...newPosition);
-      targetRef.current.set(...newTarget);
+      beginTransition(new THREE.Vector3(...newPosition), new THREE.Vector3(...newTarget));
 
       lastView.current = currentView;
     }
   }, [currentView, selectedSeat, savedPositions, camera, controls, onPositionChange]);
 
+  // Detect selectedSeat change within 'user' view and initiate smooth move
+  useEffect(() => {
+    if (currentView === 'user' && selectedSeat && selectedSeat !== lastSeatRef.current) {
+      const seatsData = getSeatsData();
+      const newSeat = seatsData.find(s => s.id === selectedSeat);
+      if (newSeat) {
+        positionRef.current.set(newSeat.position[0], newSeat.position[1] + 1.2, newSeat.position[2] + 0.5);
+        targetRef.current.set(0, 3, -10);
+        beginTransition(positionRef.current, targetRef.current);
+        lastSeatRef.current = selectedSeat;
+      }
+    }
+  }, [selectedSeat, currentView]);
+
   useFrame(() => {
     if (isTransitioning.current && isOrbitControls(controls)) {
-      // Smooth transition
-      camera.position.lerp(positionRef.current, 0.1);
-      controls.target.lerp(targetRef.current, 0.1);
-      
-      // Check if transition is complete
-      if (camera.position.distanceTo(positionRef.current) < 0.1 && 
-          controls.target.distanceTo(targetRef.current) < 0.1) {
-        isTransitioning.current = false;
-      }
-      
-      controls.update();
+       const dt = 1/60;
+       transitionProgress.current += dt/transitionDuration;
+       const t = Math.min(transitionProgress.current,1);
+       camera.position.lerpVectors(startPosRef.current, targetPosRef.current, t);
+       controls.target.lerpVectors(startTargetRef.current, targetLookRef.current, t);
+       if(t>=1){isTransitioning.current=false;}
+       controls.update();
     }
   });
 

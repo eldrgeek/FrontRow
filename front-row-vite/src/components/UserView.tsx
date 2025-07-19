@@ -47,14 +47,7 @@ function UserView({ selectedSeat, audienceSeats }: UserViewProps): JSX.Element {
   // Find the position of the selected seat
   const currentSeat = seatsData.find(s => s.id === selectedSeat);
 
-  useFrame(() => {
-    if (currentSeat) {
-      // Position camera at the seat location + slight offset for perspective
-      camera.position.set(currentSeat.position[0], currentSeat.position[1] + 1.2, currentSeat.position[2] + 0.5); // Eyesight height
-      camera.lookAt(target.current); // Look at the center of the stage screen
-      camera.up.copy(up.current); // Maintain upright orientation
-    }
-  });
+  // Camera movement handled centrally in CameraController for smooth easing
 
   return (
     <group>
