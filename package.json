@@ -1,0 +1,19 @@
+{
+  "name": "front-row-project",
+  "version": "1.0.0",
+  "description": "FRONT ROW Virtual Theater - Complete Project",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "frontend": "cd front-row-vite && npm run dev",
+    "backend": "cd server && npm start",
+    "install-all": "cd server && npm install && cd ../front-row-vite && npm install --legacy-peer-deps",
+    "build": "cd front-row-vite && npm run build",
+    "test": "cd tests && python auto_test.py"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "keywords": ["virtual-theater", "webrtc", "three.js", "typescript", "vite"],
+  "author": "FRONT ROW Team",
+  "license": "MIT"
+} 

@@ -1,0 +1,15 @@
+
+{
+  "name": "front-row-backend",
+  "version": "1.0.0",
+  "description": "Backend for FRONT ROW application (Rev 1: In-Memory)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
+  }
+}

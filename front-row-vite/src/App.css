@@ -1,0 +1,205 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root, .App {
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+}
+
+canvas {
+  display: block;
+}
+
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-family: 'Inter', sans-serif;
+  pointer-events: none; /* Allows R3F interactions underneath */
+  z-index: 10; /* Above canvas, below loading screen */
+}
+
+.ui-overlay > * {
+  pointer-events: auto; /* Re-enable pointer events for specific UI elements */
+}
+
+.user-input-form, .controls, .performer-controls {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-width: 90%;
+  margin: 20px;
+}
+
+/* Specific styling for controls to position them in the top corner */
+.controls {
+  position: fixed; /* Changed to fixed for better visibility */
+  top: 20px;
+  right: 20px;
+  max-width: 220px;
+  margin: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 9999; /* Ensure they're always on top of everything */
+  background: rgba(0, 0, 0, 0.9); /* More opaque background */
+  border-radius: 15px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.controls button {
+  width: 100%;
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 1em;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.controls button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: #007bff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 123, 255, 0.3);
+}
+
+.controls button:active,
+.controls button[active] {
+  background: #007bff;
+  border-color: #0056b3;
+  transform: translateY(0);
+}
+
+/* Keep user input form centered */
+.user-input-form {
+  /* Keep existing centered styling */
+}
+
+.user-input-form h2 {
+  color: #fff;
+  margin-bottom: 20px;
+  font-size: 1.8em;
+}
+
+.user-input-form input[type="text"],
+.user-input-form button,
+.controls button,
+.performer-controls button {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 10px auto;
+  padding: 12px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 1em;
+  cursor: pointer;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.user-input-form input[type="text"]::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.user-input-form input[type="text"]:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.custom-file-upload {
+    display: inline-block;
+    padding: 12px 15px;
+    cursor: pointer;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin: 10px auto;
+    width: calc(100% - 20px);
+    transition: background-color 0.3s ease;
+}
+
+.custom-file-upload:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.image-preview-container {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.image-preview {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #007bff;
+}
+
+.countdown, .live-indicator, .thank-you {
+  font-size: 2.5em;
+  font-weight: bold;
+  margin-top: 20px;
+  text-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+  position: fixed;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+}
+
+.live-indicator {
+  color: #ff3b3b;
+  animation: pulse 1.5s infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.7; transform: scale(1.05); }
+}
+
+.performer-controls {
+  position: absolute;
+  bottom: 20px;
+  width: auto;
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-overlay-bottom {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
