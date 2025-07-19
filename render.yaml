@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: frontrow-backend
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    autoDeploy: true 
