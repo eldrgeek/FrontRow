@@ -14,6 +14,7 @@ import VolumeControl from './components/VolumeControl';
 import CameraControls from './components/CameraControls';
 import config from './config';
 import './App.css';
+import { createPortal } from 'react-dom';
 
 // TypeScript interfaces
 interface AudienceSeat {
@@ -56,6 +57,7 @@ function App(): JSX.Element {
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   
   // Camera position state - save positions when switching views
   const [savedCameraPositions, setSavedCameraPositions] = useState<{
@@ -206,6 +208,7 @@ function App(): JSX.Element {
     
     console.log('User profile saved to localStorage:', { name, hasImage: !!imageBase64 });
     // User profile data is stored in-memory on backend via select-seat
+    setIsLoggedIn(true);
   };
 
   const handleSeatSelect = async (seatId) => {
@@ -420,7 +423,7 @@ function App(): JSX.Element {
 
   return (
     <div className="App">
-      {webglSupported && userName ? (
+      {webglSupported && isLoggedIn ? (
         <Suspense fallback={<LoadingScreen />}>
           <Canvas 
             camera={{ position: [0, 12, 18], fov: 50 }} // Default Eye-in-the-Sky position: above and behind seats
@@ -463,7 +466,7 @@ function App(): JSX.Element {
             )}
           </Canvas>
         </Suspense>
-      ) : !userName ? (
+      ) : !isLoggedIn ? (
         // Show login screen when no user is logged in
         <div className="login-background" style={{ 
           width: '100vw', 
@@ -477,6 +480,7 @@ function App(): JSX.Element {
           textAlign: 'center'
         }}>
           {/* Login form will be rendered in ui-overlay */}
+          <UserInputForm onSubmit={handleNameAndImageSubmit} />
         </div>
       ) : (
         // WebGL not supported fallback
@@ -498,54 +502,57 @@ function App(): JSX.Element {
       )}
 
       {/* HTML Overlay for UI elements - moved outside Canvas */}
-      <div className="ui-overlay">
-        {/* Conditional rendering of UI components */}
-        {!userName && !isPerformer && (
-          <UserInputForm onSubmit={handleNameAndImageSubmit} />
-        )}
-        {userName && !selectedSeat && !isPerformer && (
-          <div>
-            <p>Welcome, {userName}! Pick your seat.</p>
-          </div>
-        )}
-        {selectedSeat && !isPerformer && (
-          <div className="controls">
-            <button onClick={() => handleViewChange('eye-in-the-sky')}>Eye-in-the-Sky</button>
-            <button onClick={() => handleViewChange('user')}>Your Seat View</button>
-            {performerStream && ( // Only show record buttons if a stream is active
-              <>
-                <button onClick={() => startRecording(false)}>Record Performance</button>
-                <button onClick={() => startRecording(true)}>Record My Experience</button>
-                <button onClick={stopRecording}>Stop Recording</button>
-              </>
-            )}
-            {recordedChunksRef.current.length > 0 && (
-              <button onClick={downloadRecording}>Download Recording</button>
-            )}
-          </div>
-        )}
+      {createPortal(
+        <div className="ui-overlay">
+          {/* Conditional rendering of UI components */}
+          {!isLoggedIn && !isPerformer && (
+            <UserInputForm onSubmit={handleNameAndImageSubmit} />
+          )}
+          {isLoggedIn && !selectedSeat && !isPerformer && (
+            <div>
+              <p>Welcome, {userName}! Pick your seat.</p>
+            </div>
+          )}
+          {isLoggedIn && selectedSeat && !isPerformer && (
+            <div className="controls">
+              <button onClick={() => handleViewChange('eye-in-the-sky')}>Eye-in-the-Sky</button>
+              <button onClick={() => handleViewChange('user')}>Your Seat View</button>
+              {performerStream && ( // Only show record buttons if a stream is active
+                <>
+                  <button onClick={() => startRecording(false)}>Record Performance</button>
+                  <button onClick={() => startRecording(true)}>Record My Experience</button>
+                  <button onClick={stopRecording}>Stop Recording</button>
+                </>
+              )}
+              {recordedChunksRef.current.length > 0 && (
+                <button onClick={downloadRecording}>Download Recording</button>
+              )}
+            </div>
+          )}
 
-        {isPerformer && (
-          <div className="performer-controls ui-overlay-bottom">
-            {!performerStream ? (
-              <button onClick={startPerformerStream}>Go Live</button>
-            ) : (
-              <button onClick={stopPerformerStream}>End Show</button>
-            )}
-             <button onClick={() => alert("Scheduling UI Not Implemented in Rev 1")}>Schedule Show (Future)</button>
-          </div>
-        )}
+          {isPerformer && (
+            <div className="performer-controls ui-overlay-bottom">
+              {!performerStream ? (
+                <button onClick={startPerformerStream}>Go Live</button>
+              ) : (
+                <button onClick={stopPerformerStream}>End Show</button>
+              )}
+               <button onClick={() => alert("Scheduling UI Not Implemented in Rev 1")}>Schedule Show (Future)</button>
+            </div>
+          )}
 
-        {showState === 'pre-show' && (selectedSeat || isPerformer) && <div className="countdown">Show Starts Soon!</div>}
-        {showState === 'live' && (selectedSeat || isPerformer) && <div className="live-indicator">LIVE</div>}
-        {showState === 'post-show' && (selectedSeat || isPerformer) && <div className="thank-you">Thank You!</div>}
-      </div>
+          {showState === 'pre-show' && isLoggedIn && (selectedSeat || isPerformer) && <div className="countdown">Show Starts Soon!</div>}
+          {showState === 'live' && isLoggedIn && (selectedSeat || isPerformer) && <div className="live-indicator">LIVE</div>}
+          {showState === 'post-show' && isLoggedIn && (selectedSeat || isPerformer) && <div className="thank-you">Thank You!</div>}
+        </div>,
+        document.getElementById('overlay-root') as HTMLElement
+      )}
 
       {/* Camera Controls - only show when user is logged in */}
-      {userName && <CameraControls />}
+      {isLoggedIn && <CameraControls />}
       
       {/* Volume Control - only show when user is logged in */}
-      {userName && <VolumeControl />}
+      {isLoggedIn && <VolumeControl />}
     </div>
   );
 }

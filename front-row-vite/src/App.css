@@ -203,3 +203,41 @@ canvas {
   left: 50%;
   transform: translateX(-50%);
 }
+
+.r3f-html {
+  z-index: 8000 !important; /* Lower than UI overlays */
+}
+
+/* Elevate primary UI overlays */
+.controls,
+.volume-control,
+.countdown,
+.live-indicator,
+.thank-you,
+.volume-control,
+.volume-control *,
+.volume-control button,
+.volume-control input,
+.volume-control span,
+.volume-control div {
+  z-index: 12000 !important;
+  pointer-events: auto;
+}
+
+#overlay-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none; /* allow scene interaction everywhere by default */
+  z-index: 3000000000; /* on top of all scene/iframe layers */
+}
+
+/* Re-enable pointer events only on interactive panels inside overlay */
+#overlay-root .controls,
+#overlay-root .volume-control,
+#overlay-root .performer-controls,
+#overlay-root .user-input-form,
+#overlay-root .countdown,
+#overlay-root .live-indicator,
+#overlay-root .thank-you {
+  pointer-events: auto;
+}
