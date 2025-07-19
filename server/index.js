@@ -10,8 +10,15 @@ const server = http.createServer(app);
 // Get allowed origins from environment variable for production
 const getAllowedOrigins = () => {
   if (process.env.NODE_ENV === 'production') {
-    // In production, use specific origins
-    const origins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+    // In production, use specific origins from environment variable
+    const envOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [];
+    // Always allow localhost for testing during development
+    const origins = [
+      ...envOrigins,
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://localhost:5173'
+    ].filter(Boolean);
     console.log('Production mode - Allowed origins:', origins);
     return origins;
   } else {
