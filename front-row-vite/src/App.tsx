@@ -74,6 +74,17 @@ function App(): JSX.Element {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
+  // Helper function to check if current user is the artist
+  const isPerformer = () => {
+    return localStorage.getItem('frontrow_is_artist') === 'true';
+  };
+
+  // Helper function to reset artist status (for debugging/testing)
+  const resetArtistStatus = () => {
+    localStorage.removeItem('frontrow_is_artist');
+    window.location.reload();
+  };
+
   // --- Socket.IO and WebRTC Setup ---
   useEffect(() => {
     // Connect to backend Socket.IO server
@@ -118,7 +129,7 @@ function App(): JSX.Element {
         console.log('Received offer from:', data.offererSocketId);
         // Only audience members (non-artist) should process offers from artist
         // And only if they have a seat selected and don't already have a PC with this offerer
-        if (!window.location.search.includes('role=artist') && selectedSeat && !peerConnectionsRef.current[data.offererSocketId]) {
+        if (!isPerformer() && selectedSeat && !peerConnectionsRef.current[data.offererSocketId]) {
             await setupAudiencePeerConnection(data.offererSocketId, data.sdp);
         }
     });
@@ -145,7 +156,7 @@ function App(): JSX.Element {
 
     // Listener for artist to know when new audience members join
     socketRef.current.on('new-audience-member', async (audienceSocketId) => {
-        if (window.location.search.includes('role=artist')) { // Only artist should react to this
+        if (isPerformer()) { // Only artist should react to this
             console.log('Artist: New audience member joined:', audienceSocketId);
             // Artist initiates a new peer connection for this audience member
             const pc = new RTCPeerConnection({ iceServers: stunServers });
@@ -200,7 +211,7 @@ function App(): JSX.Element {
     console.log('User data cleared from localStorage');
   };
 
-  const handleNameAndImageSubmit = async (name, imageBase64) => {
+  const handleNameAndImageSubmit = async (name, imageBase64, isArtist) => {
     setUserName(name);
     setUserImage(imageBase64);
     
@@ -210,7 +221,10 @@ function App(): JSX.Element {
       localStorage.setItem('frontrow_user_image', imageBase64);
     }
     
-    console.log('User profile saved to localStorage:', { name, hasImage: !!imageBase64 });
+    // Store artist status - we'll use this instead of URL parameters
+    localStorage.setItem('frontrow_is_artist', isArtist.toString());
+    
+    console.log('User profile saved to localStorage:', { name, hasImage: !!imageBase64, isArtist });
     // User profile data is stored in-memory on backend via select-seat
     setIsLoggedIn(true);
   };
@@ -289,6 +303,12 @@ function App(): JSX.Element {
     if (socketRef.current) {
       socketRef.current.emit('artist-end-show');
     }
+    
+    // Clear artist status from localStorage when ending show
+    localStorage.removeItem('frontrow_is_artist');
+    
+    // Reload page to reset to audience view
+    window.location.reload();
   };
 
   // Audience side setup for receiving artist's stream
@@ -413,7 +433,7 @@ function App(): JSX.Element {
     recordedChunksRef.current = []; // Clear chunks after download
   };
 
-  const isPerformer = window.location.search.includes('role=artist'); // Simple check for artist role in Rev 1
+
 
   const [webglSupported, setWebglSupported] = React.useState(true);
 
@@ -460,7 +480,7 @@ function App(): JSX.Element {
               onPositionChange={handleCameraPositionChange}
             />
 
-            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" />
+            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" performerStream={performerStream} />
             <SeatSelection
               selectedSeat={selectedSeat}
               onSeatSelect={handleSeatSelect}
@@ -468,10 +488,10 @@ function App(): JSX.Element {
               mySocketId={mySocketId}
             />
 
-            {isPerformer && (
-              <PerformerView />
+            {isPerformer() && (
+              <PerformerView localStream={localStreamRef.current} />
             )}
-            {!isPerformer && currentView === 'user' && (
+            {!isPerformer() && currentView === 'user' && (
               <UserView selectedSeat={selectedSeat} audienceSeats={audienceSeats} />
             )}
             {/* 3D Status Text */}
@@ -525,15 +545,29 @@ function App(): JSX.Element {
       {createPortal(
         <div className="ui-overlay">
           {/* Conditional rendering of UI components */}
-          {!isLoggedIn && !isPerformer && (
+          {!isLoggedIn && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
-          {isLoggedIn && !selectedSeat && !isPerformer && (
+          {isLoggedIn && !selectedSeat && !isPerformer() && (
             <div>
               <p>Welcome, {userName}! Pick your seat.</p>
             </div>
           )}
-          {isLoggedIn && selectedSeat && !isPerformer && currentView !== 'performer' && (
+          {isLoggedIn && isPerformer() && (
+            <div style={{ 
+              position: 'fixed', 
+              top: '20px', 
+              left: '20px', 
+              color: 'white', 
+              background: 'rgba(0,0,0,0.7)', 
+              padding: '10px', 
+              borderRadius: '5px',
+              fontSize: '0.9em'
+            }}>
+              🎤 Artist Mode: {userName}
+            </div>
+          )}
+          {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (
             <ViewControls 
               currentView={currentView as 'eye-in-the-sky' | 'user'}
               onViewChange={handleViewChange}
@@ -545,7 +579,7 @@ function App(): JSX.Element {
             />
           )}
 
-          {isPerformer && (
+          {isPerformer() && (
             <div className="performer-controls ui-overlay-bottom">
               {!performerStream ? (
                 <button onClick={startPerformerStream}>Go Live</button>
@@ -553,6 +587,17 @@ function App(): JSX.Element {
                 <button onClick={stopPerformerStream}>End Show</button>
               )}
                <button onClick={() => alert("Scheduling UI Not Implemented in Rev 1")}>Schedule Show (Future)</button>
+               <button 
+                 onClick={resetArtistStatus}
+                 style={{ 
+                   fontSize: '0.8em', 
+                   padding: '5px 10px', 
+                   background: 'rgba(255,255,255,0.1)', 
+                   marginTop: '10px' 
+                 }}
+               >
+                 Switch to Audience
+               </button>
             </div>
           )}
 

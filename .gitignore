@@ -13,3 +13,4 @@ front-row-vite/dist/
 # Logs
 *.log
 npm-debug.log*
+chrome-debug-profile

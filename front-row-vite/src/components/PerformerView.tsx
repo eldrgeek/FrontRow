@@ -1,18 +1,23 @@
 
 import React, { useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
 
-function PerformerView(): JSX.Element {
+interface PerformerViewProps {
+  localStream?: MediaStream | null;
+}
+
+function PerformerView({ localStream }: PerformerViewProps): JSX.Element {
   const { camera } = useThree();
   const dummyTarget = useRef(new THREE.Vector3(0, 0.5, -5)); // Center of stage
   const dummyUp = useRef(new THREE.Vector3(0, 1, 0));
 
-  // Position camera directly in front of the stage, facing the audience
+  // Position camera on stage, facing the audience
   useFrame(() => {
-    camera.position.set(0, 1.7, -3); // Just in front of the stage, slightly above
-    camera.lookAt(dummyTarget.current); // Look at the center of the stage
+    camera.position.set(0, 1.7, -8); // On the stage, facing outward toward audience
+    camera.lookAt(0, 1.7, 15); // Look toward the audience seating area
     camera.up.copy(dummyUp.current); // Maintain upright orientation
   });
 
@@ -30,6 +35,65 @@ function PerformerView(): JSX.Element {
           YOUR PERFORMANCE VIEW
         </Text>
       </group>
+
+      {/* Local video preview for artist - positioned in bottom right */}
+      {localStream && (
+        <Html
+          position={[8, 2, 5]} // Bottom right of the performer's view
+          transform
+          occlude="blending"
+          style={{
+            width: '300px',
+            height: '200px',
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              boxShadow: '0 0 20px rgba(0,0,0,0.8)',
+              background: '#000',
+              border: '2px solid #ffd700'
+            }}
+          >
+            <video
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                objectFit: 'cover',
+                transform: 'scaleX(-1)' // Mirror the video for natural self-view
+              }}
+              autoPlay
+              muted
+              playsInline
+              ref={(video) => {
+                if (video && localStream) {
+                  video.srcObject = localStream;
+                }
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: '5px',
+                left: '5px',
+                background: 'rgba(0,0,0,0.7)',
+                color: 'white',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}
+            >
+              YOU
+            </div>
+          </div>
+        </Html>
+      )}
+      
       {/* Future: Render audience members from performer's perspective if desired */}
     </>
   );

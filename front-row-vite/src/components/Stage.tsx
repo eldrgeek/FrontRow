@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Text, Plane, Cylinder } from '@react-three/drei';
 import * as THREE from 'three';
 import YouTubeScreen from './YouTubeScreen';
+import useVideoTexture from '../hooks/useVideoTexture';
 
 interface StageProps {
   config: {
@@ -12,6 +13,7 @@ interface StageProps {
   showState: 'pre-show' | 'live' | 'post-show';
   fallbackVideoUrl?: string;
   screenPosition?: [number,number,number];
+  performerStream?: MediaStream | null;
 }
 
 // Semicircle stage platform component
@@ -44,7 +46,7 @@ function SemicircleStage(): JSX.Element {
 }
 
 // Flat screen component for the back wall
-function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition } : { videoTexture: any; fallbackVideoId?: string; screenPosition:[number,number,number] }): JSX.Element {
+function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number] }): JSX.Element {
   const hasLiveStream = !!videoTexture;
   
   return (
@@ -58,12 +60,12 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
         {hasLiveStream ? (
           <meshBasicMaterial 
             toneMapped={false}
-            side={THREE.DoubleSide}
+            side={THREE.FrontSide}
           >
             <primitive attach="map" object={videoTexture} />
           </meshBasicMaterial>
         ) : (
-          <meshBasicMaterial color="#111111" side={THREE.DoubleSide} />
+          <meshBasicMaterial color="#111111" side={THREE.FrontSide} />
         )}
       </Plane>
       
@@ -86,13 +88,11 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
   );
 }
 
-function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[-1,5.7,-12.5] }: StageProps): JSX.Element {
+function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[-1,5.7,-12.5], performerStream }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
 
   // Create a video texture from the performer stream
-  // Note: For now, we'll disable video texture to avoid conditional hook calls
-  // const videoTexture = useVideoTexture(performerStream, {...options});
-  const videoTexture = null;
+  const videoTexture = useVideoTexture(performerStream || null);
 
 
   // Animation for countdown or live indicator
