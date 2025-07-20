@@ -127,6 +127,13 @@ app.post('/api/artist-simulate-end', (req, res) => {
 // --- Socket.IO for WebRTC Signaling and Real-time Updates ---
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);
+  
+  // If an artist is already live, immediately notify them about this new connection
+  // This ensures WebRTC works even if audience doesn't select seats
+  if (activeShow.status === 'live' && activeShow.artistId && socket.id !== activeShow.artistId) {
+      console.log(`Auto-notifying artist ${activeShow.artistId} about new connection ${socket.id}`);
+      io.to(activeShow.artistId).emit('new-audience-member', socket.id);
+  }
 
   // WebRTC Signaling: Relays messages between peers
   socket.on('offer', (data) => {
@@ -210,14 +217,25 @@ io.on('connection', (socket) => {
     activeShow.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
     activeShow.startTime = Date.now();
     io.emit('show-status-update', { status: 'live', artistId: socket.id });
-    console.log(`Artist ${socket.id} is now LIVE!`);
+    console.log(`[LIVE] Artist ${socket.id} is now LIVE! Broadcasting to ${io.engine.clientsCount} connected clients.`);
 
     // Notify the ARTIST about all currently seated audience members
-    // Artist's frontend will generate offers to these audience members
     Object.values(activeShow.audienceSeats).forEach(audience => {
         io.to(socket.id).emit('new-audience-member', audience.socketId);
-        console.log(`Notifying artist ${socket.id} about seated audience member ${audience.socketId}.`);
+        console.log(`[WEBRTC] Notifying artist about seated audience: ${audience.socketId}`);
     });
+    
+    // Also notify about any other connected clients (for non-seated audience members)
+    let connectedAudience = 0;
+    io.sockets.sockets.forEach((clientSocket) => {
+        if (clientSocket.id !== socket.id) { // Don't send to artist themselves
+            io.to(socket.id).emit('new-audience-member', clientSocket.id);
+            connectedAudience++;
+            console.log(`[WEBRTC] Notifying artist about connected audience: ${clientSocket.id}`);
+        }
+    });
+    
+    console.log(`[LIVE] Setup complete. ${connectedAudience} audience members will receive offers.`);
   });
 
   socket.on('artist-end-show', () => {
