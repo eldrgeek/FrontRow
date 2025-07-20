@@ -140,15 +140,19 @@ function App(): JSX.Element {
 
     // WebRTC Signaling listeners
     socketRef.current.on('offer', async (data) => {
-        console.log('Received offer from:', data.offererSocketId);
-        console.log('Is performer:', isPerformer(), 'Selected seat:', selectedSeat, 'Existing PC:', !!peerConnectionsRef.current[data.offererSocketId]);
+        console.log('🎬 Audience: Received offer from:', data.offererSocketId);
+        console.log('🎬 Audience: isPerformer:', isPerformer(), 'selectedSeat:', selectedSeat);
+        
         // Only audience members (non-artist) should process offers from artist
-        // Removed selectedSeat requirement - allow live stream for any audience member
-        if (!isPerformer() && !peerConnectionsRef.current[data.offererSocketId]) {
-            console.log('Setting up audience peer connection...');
+        // And only if they have a seat selected and don't already have a PC with this offerer
+        if (!isPerformer() && selectedSeat && !peerConnectionsRef.current[data.offererSocketId]) {
+            console.log('🎬 Audience: Processing offer from artist...');
             await setupAudiencePeerConnection(data.offererSocketId, data.sdp);
         } else {
-            console.log('Skipping offer - conditions not met. IsPerformer:', isPerformer(), 'Has existing PC:', !!peerConnectionsRef.current[data.offererSocketId]);
+            console.log('🎬 Audience: Ignoring offer - conditions not met');
+            if (isPerformer()) console.log('  - Is performer (should not receive offers)');
+            if (!selectedSeat) console.log('  - No seat selected');
+            if (peerConnectionsRef.current[data.offererSocketId]) console.log('  - Peer connection already exists');
         }
     });
 
@@ -174,66 +178,70 @@ function App(): JSX.Element {
 
     // Listener for artist to know when new audience members join
     socketRef.current.on('new-audience-member', async (audienceSocketId) => {
-        console.log('Received new-audience-member event. audienceSocketId:', audienceSocketId, 'isPerformer:', isPerformer());
-        if (isPerformer()) { // Only artist should react to this
-            console.log('Artist: New audience member joined:', audienceSocketId);
-            console.log('Artist: Creating peer connection for audience member...');
-            // Artist initiates a new peer connection for this audience member
-            const pc = new RTCPeerConnection({ iceServers: stunServers });
-            peerConnectionsRef.current[audienceSocketId] = pc;
-
-            // Enhanced logging for artist side
-            pc.onconnectionstatechange = () => {
-              console.log('Artist: WebRTC connection state changed to:', pc.connectionState, 'for audience:', audienceSocketId);
-            };
-
-            pc.oniceconnectionstatechange = () => {
-              console.log('Artist: ICE connection state changed to:', pc.iceConnectionState, 'for audience:', audienceSocketId);
-            };
-
-            if (localStreamRef.current) {
-                console.log('Artist: Adding local stream tracks to peer connection');
-                localStreamRef.current.getTracks().forEach(track => {
-                    console.log('Artist: Adding track:', track.kind, track.enabled ? 'enabled' : 'disabled');
-                    pc.addTrack(track, localStreamRef.current!);
-                });
-            } else {
-                console.warn('Artist: No local stream available to add to new peer connection.');
-            }
-
-            pc.onicecandidate = (event) => {
-                if (event.candidate && socketRef.current) {
-                    console.log('Artist: Sending ICE candidate to audience:', audienceSocketId);
-                    socketRef.current.emit('ice-candidate', {
-                        candidate: event.candidate,
-                        targetSocketId: audienceSocketId,
-                        senderSocketId: socketRef.current.id,
-                    });
-                } else if (!event.candidate) {
-                    console.log('Artist: ICE candidate gathering complete for audience:', audienceSocketId);
-                }
-            };
-
-            try {
-                console.log('Artist: Creating offer for audience:', audienceSocketId);
-                const offer = await pc.createOffer();
-                
-                console.log('Artist: Setting local description (offer)');
-                await pc.setLocalDescription(offer);
-                
-                if (socketRef.current) {
-                    console.log('Artist: Sending offer to audience:', audienceSocketId);
-                    socketRef.current.emit('offer', {
-                        sdp: offer,
-                        targetSocketId: audienceSocketId,
-                        offererSocketId: socketRef.current.id,
-                    });
-                    console.log('Artist: Offer sent successfully!');
-                }
-            } catch (error) {
-                console.error('Artist: Error creating/sending offer to audience:', audienceSocketId, error);
-            }
+      if (isPerformer()) {
+        console.log('🎭 Artist: New audience member joined:', audienceSocketId);
+        
+        // Check if we already have a connection to this audience member
+        if (peerConnectionsRef.current[audienceSocketId]) {
+          console.log('🎭 Artist: Peer connection already exists for:', audienceSocketId);
+          return;
         }
+        
+        // Create new peer connection
+        const pc = new RTCPeerConnection({ iceServers: stunServers });
+        peerConnectionsRef.current[audienceSocketId] = pc;
+        
+        console.log('🎭 Artist: Created peer connection for:', audienceSocketId);
+        
+        // Add local stream tracks to peer connection
+        if (localStreamRef.current) {
+          console.log('🎭 Artist: Adding local stream tracks to peer connection');
+          localStreamRef.current.getTracks().forEach(track => {
+            console.log('🎭 Artist: Adding track:', track.kind, 'to peer connection');
+            pc.addTrack(track, localStreamRef.current!);
+          });
+        } else {
+          console.warn('🎭 Artist: No local stream available to add to peer connection');
+        }
+        
+        // Handle ICE candidates
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            console.log('🎭 Artist: Sending ICE candidate to:', audienceSocketId);
+            socketRef.current.emit('ice-candidate', {
+              candidate: event.candidate,
+              targetSocketId: audienceSocketId,
+              senderSocketId: socketRef.current.id,
+            });
+          }
+        };
+        
+        // Handle connection state changes
+        pc.onconnectionstatechange = () => {
+          console.log('🎭 Artist: Peer connection state changed:', audienceSocketId, '->', pc.connectionState);
+        };
+        
+        // Handle ICE connection state changes
+        pc.oniceconnectionstatechange = () => {
+          console.log('🎭 Artist: ICE connection state changed:', audienceSocketId, '->', pc.iceConnectionState);
+        };
+        
+        try {
+          // Create and send offer
+          console.log('🎭 Artist: Creating offer for:', audienceSocketId);
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          
+          console.log('🎭 Artist: Sending offer to:', audienceSocketId);
+          socketRef.current.emit('offer', {
+            sdp: offer,
+            targetSocketId: audienceSocketId,
+            offererSocketId: socketRef.current.id,
+          });
+        } catch (err) {
+          console.error('🎭 Artist: Error creating offer for:', audienceSocketId, err);
+        }
+      }
     });
 
     // Listen for artist rejection messages from backend
@@ -251,28 +259,38 @@ function App(): JSX.Element {
 
     // Countdown event listeners
     socketRef.current.on('countdown-started', (data) => {
-        console.log('Countdown started:', data);
+        console.log('🎬 Frontend: Countdown started event received:', data);
         setIsCountdownActive(true);
         setCountdownTime(data.timeRemaining);
         setShowState('pre-show');
     });
 
     socketRef.current.on('countdown-update', (data) => {
-        console.log('Countdown update:', data.timeRemaining);
+        console.log('⏰ Frontend: Countdown update event received:', data.timeRemaining);
         setCountdownTime(data.timeRemaining);
     });
 
     socketRef.current.on('countdown-finished', (data) => {
-        console.log('Countdown finished - show is live!');
+        console.log('🎭 Frontend: Countdown finished event received:', data);
         setIsCountdownActive(false);
         setCountdownTime(0);
-        setIsCameraPreview(false);
         setShowState('live');
         
-        // Artist panel should disappear when show goes live
+        // Automatically start camera and stream when countdown finishes
         if (isPerformer()) {
-            // Hide artist controls when live
-            // setIsExpanded(false); // This state variable is not defined in the original file
+            console.log('🎥 Countdown finished - automatically starting camera and stream...');
+            startCameraPreview().then(() => {
+                // After camera is started, start the live stream
+                if (localStreamRef.current) {
+                    console.log('🎥 Camera started - now starting live stream...');
+                    socketRef.current.emit('artist-go-live');
+                }
+            }).catch(err => {
+                console.error('❌ Failed to start camera automatically:', err);
+                alert('Failed to start camera automatically. Please turn on camera manually.');
+            });
+        } else {
+            console.log('🎥 Countdown finished - waiting for artist to start stream...');
         }
     });
 
@@ -416,24 +434,20 @@ function App(): JSX.Element {
   };
 
   // Countdown functions
-  const startCountdown = async (minutes: number) => {
-    if (!socketRef.current) return;
+  const startCountdown = async (seconds: number) => {
+    if (!socketRef.current) {
+      console.error('❌ No socket connection available for countdown');
+      return;
+    }
     
     try {
-      // Start camera preview first
-      console.log('🎥 Starting camera preview for countdown...');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      setPerformerStream(stream); // This will show in PerformerView for artist preview
-      setIsCameraPreview(true);
-      
-      // Signal backend to start countdown
-      socketRef.current.emit('start-countdown', { minutes });
-      console.log('⏰ Countdown started via backend');
+      // Send seconds to backend
+      console.log('⏰ Frontend: Starting countdown via backend...', { seconds, socketId: socketRef.current.id });
+      socketRef.current.emit('start-countdown', { seconds });
       
     } catch (err) {
-      console.error('Error starting camera preview:', err);
-      alert('Could not start camera/microphone. Please check permissions.');
+      console.error('❌ Error starting countdown:', err);
+      alert('Could not start countdown. Please try again.');
     }
   };
 
@@ -451,6 +465,46 @@ function App(): JSX.Element {
     setIsCameraPreview(false);
     setIsCountdownActive(false);
     setCountdownTime(0);
+  };
+
+  // Turn on camera during countdown
+  const startCameraPreview = async () => {
+    if (!socketRef.current) return;
+    
+    try {
+      console.log('🎥 Starting camera preview during countdown...');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      setPerformerStream(stream); // This will show in PerformerView for artist preview
+      setIsCameraPreview(true);
+      
+      // If show is already live, start streaming immediately
+      if (showState === 'live') {
+        console.log('🎥 Show is live - starting stream immediately...');
+        socketRef.current.emit('artist-go-live');
+      }
+      
+    } catch (err) {
+      console.error('Error starting camera preview:', err);
+      alert('Could not start camera/microphone. Please check permissions.');
+    }
+  };
+
+  const stopCameraPreview = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+      setPerformerStream(null);
+    }
+    setIsCameraPreview(false);
+  };
+
+  // Start live stream when camera is turned on during live show
+  const startLiveStream = () => {
+    if (!socketRef.current || !localStreamRef.current) return;
+    
+    console.log('🎥 Camera turned on during live show - starting stream...');
+    socketRef.current.emit('artist-go-live'); // Signal backend that artist is going live
   };
 
   // --- WebRTC Functions ---
@@ -494,63 +548,66 @@ function App(): JSX.Element {
 
   // Audience side setup for receiving artist's stream
   const setupAudiencePeerConnection = async (offererSocketId, offerSdp) => {
-    console.log('Audience: Creating new RTCPeerConnection for artist:', offererSocketId);
+    console.log('🎬 Audience: Setting up peer connection for artist:', offererSocketId);
+    
     const pc = new RTCPeerConnection({ iceServers: stunServers });
     peerConnectionsRef.current[offererSocketId] = pc;
-
-    // Enhanced logging for connection state changes
-    pc.onconnectionstatechange = () => {
-      console.log('Audience: WebRTC connection state changed to:', pc.connectionState);
-    };
-
-    pc.oniceconnectionstatechange = () => {
-      console.log('Audience: ICE connection state changed to:', pc.iceConnectionState);
-    };
-
+    
+    console.log('🎬 Audience: Created peer connection for artist:', offererSocketId);
+    
+    // Handle ICE candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('Audience: Sending ICE candidate to artist');
+        console.log('🎬 Audience: Sending ICE candidate to artist:', offererSocketId);
         socketRef.current.emit('ice-candidate', {
           candidate: event.candidate,
           targetSocketId: offererSocketId,
           senderSocketId: socketRef.current.id,
         });
-      } else {
-        console.log('Audience: ICE candidate gathering complete');
       }
     };
-
+    
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('🎬 Audience: Peer connection state changed:', offererSocketId, '->', pc.connectionState);
+    };
+    
+    // Handle ICE connection state changes
+    pc.oniceconnectionstatechange = () => {
+      console.log('🎬 Audience: ICE connection state changed:', offererSocketId, '->', pc.iceConnectionState);
+    };
+    
+    // Handle incoming tracks (this is where we receive the artist's stream)
     pc.ontrack = (event) => {
-      console.log('Audience: Received remote stream from artist!', event.streams[0]);
-      console.log('Audience: Stream has', event.streams[0].getTracks().length, 'tracks');
+      console.log('🎬 Audience: Received track from artist:', offererSocketId, 'Track kind:', event.track.kind);
       if (event.streams && event.streams[0]) {
+        console.log('🎬 Audience: Setting performer stream from artist:', offererSocketId);
         setPerformerStream(event.streams[0]); // This stream will be attached to the Stage component's video element
-        console.log('Audience: Performer stream set successfully - live video should now appear!');
       } else {
-        console.error('Audience: No stream in track event');
+        console.warn('🎬 Audience: Received track but no stream:', event);
       }
     };
-
+    
     try {
-      console.log('Audience: Setting remote description (offer)');
+      // Set remote description (artist's offer)
+      console.log('🎬 Audience: Setting remote description from artist:', offererSocketId);
       await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
       
-      console.log('Audience: Creating answer');
+      // Create and send answer
+      console.log('🎬 Audience: Creating answer for artist:', offererSocketId);
       const answer = await pc.createAnswer();
-      
-      console.log('Audience: Setting local description (answer)');
       await pc.setLocalDescription(answer);
-
-      console.log('Audience: Sending answer to artist');
+      
+      console.log('🎬 Audience: Sending answer to artist:', offererSocketId);
       socketRef.current.emit('answer', {
         sdp: answer,
         targetSocketId: offererSocketId,
         answererSocketId: socketRef.current.id,
       });
       
-      console.log('Audience: WebRTC setup complete, waiting for connection...');
-    } catch (error) {
-      console.error('Audience: Error setting up WebRTC connection:', error);
+      console.log('🎬 Audience: Answer sent successfully to artist:', offererSocketId);
+    } catch (err) {
+      console.error('🎬 Audience: Error setting up peer connection for artist:', offererSocketId, err);
     }
   };
 
@@ -763,7 +820,7 @@ function App(): JSX.Element {
               <p>Welcome, {userName}! Pick your seat.</p>
             </div>
           )}
-          {isLoggedIn && isPerformer() && showState !== 'live' && (
+          {isLoggedIn && isPerformer() && (
             <ArtistControls 
               performerStream={performerStream}
               onStartStream={startPerformerStream}
@@ -774,9 +831,12 @@ function App(): JSX.Element {
               onEndShow={handleEndShow}
               onStartCountdown={startCountdown}
               onStopCountdown={stopCountdown}
+              onStartCameraPreview={startCameraPreview}
+              onStopCameraPreview={stopCameraPreview}
               isCountdownActive={isCountdownActive}
               countdownTime={countdownTime}
               isCameraPreview={isCameraPreview}
+              showState={showState}
             />
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (

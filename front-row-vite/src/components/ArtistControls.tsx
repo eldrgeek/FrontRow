@@ -9,11 +9,14 @@ interface ArtistControlsProps {
   userName: string;
   onResetShow: () => void;
   onEndShow: () => void;
-  onStartCountdown?: (minutes: number) => void;
+  onStartCountdown?: (seconds: number) => void;
   onStopCountdown?: () => void;
+  onStartCameraPreview?: () => void;
+  onStopCameraPreview?: () => void;
   isCountdownActive?: boolean;
   countdownTime?: number;
   isCameraPreview?: boolean;
+  showState?: 'idle' | 'pre-show' | 'live' | 'post-show';
 }
 
 export default function ArtistControls({ 
@@ -26,11 +29,14 @@ export default function ArtistControls({
   onEndShow,
   onStartCountdown,
   onStopCountdown,
+  onStartCameraPreview,
+  onStopCameraPreview,
   isCountdownActive = false,
   countdownTime = 0,
-  isCameraPreview = false
+  isCameraPreview = false,
+  showState = 'idle'
 }: ArtistControlsProps) {
-  const [countdownMinutes, setCountdownMinutes] = useState(5);
+  const [countdownSeconds, setCountdownSeconds] = useState(120); // Default to 2 minutes (120 seconds)
   const [showCountdownInput, setShowCountdownInput] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -42,17 +48,13 @@ export default function ArtistControls({
 
   const handleStartCountdown = () => {
     if (onStartCountdown) {
-      onStartCountdown(countdownMinutes);
+      // Pass seconds directly to backend
+      onStartCountdown(countdownSeconds);
       setShowCountdownInput(false);
     }
   };
 
-  // Auto-collapse when stream starts
-  React.useEffect(() => {
-    if (performerStream && isExpanded) {
-      setIsExpanded(false);
-    }
-  }, [performerStream, isExpanded]);
+  // Keep panel expanded during live shows - no auto-collapse
 
   return (
     <div
@@ -69,12 +71,12 @@ export default function ArtistControls({
         zIndex: 3000000502,
         minWidth: '200px',
       }}
-      onMouseEnter={() => !performerStream && setIsExpanded(true)}
-      onMouseLeave={() => !performerStream && setIsExpanded(false)}
-      onTouchStart={() => !performerStream && setIsExpanded(true)}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+      onTouchStart={() => setIsExpanded(true)}
     >
       {/* Collapsed state - artist mode indicator */}
-      {(!isExpanded || performerStream) && (
+      {(!isExpanded || (performerStream && !isCountdownActive && showState === 'live' && !isExpanded)) && (
         <div style={{ 
           padding: '8px 12px', 
           color: 'white',
@@ -84,16 +86,17 @@ export default function ArtistControls({
           gap: '8px',
           cursor: 'pointer'
         }}
-        onClick={() => !performerStream && setIsExpanded(true)}
+        onClick={() => setIsExpanded(true)}
         >
           <span>🎤</span>
           <span>Artist Mode: {userName}</span>
-          {performerStream && <span style={{color: '#ff3b3b'}}>🔴 LIVE</span>}
+          {performerStream && !isCountdownActive && showState === 'live' && <span style={{color: '#ff3b3b'}}>🔴 LIVE</span>}
+          {isCountdownActive && <span style={{color: '#ff3b3b'}}>⏰ {formatCountdown(countdownTime)}</span>}
         </div>
       )}
 
       {/* Expanded state - full controls */}
-      {isExpanded && !performerStream && (
+      {isExpanded && (
         <div style={{
           padding: '20px',
           minWidth: '300px',
@@ -103,8 +106,8 @@ export default function ArtistControls({
         }}>
           <h3 style={{ margin: '0 0 15px 0', color: '#ffd700' }}>🎭 Artist Controls</h3>
           
-          {/* Countdown Section */}
-          {isCountdownActive ? (
+          {/* Countdown Display in Controls */}
+          {isCountdownActive && (
             <div style={{
               textAlign: 'center',
               padding: '15px',
@@ -118,8 +121,25 @@ export default function ArtistControls({
               <div style={{ fontSize: '0.9em', color: '#ffcccc' }}>
                 Show starting...
               </div>
+              <button 
+                onClick={onStopCountdown}
+                style={{
+                  background: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  marginTop: '8px'
+                }}
+              >
+                ⏹️ Stop Countdown
+              </button>
             </div>
-          ) : (
+          )}
+          
+          {/* Countdown Section - only show when not active */}
+          {!isCountdownActive && (
             <div style={{ marginBottom: '15px' }}>
               {!showCountdownInput ? (
                 <button 
@@ -140,22 +160,72 @@ export default function ArtistControls({
               ) : (
                 <div style={{ marginBottom: '10px' }}>
                   <label style={{ display: 'block', marginBottom: '5px' }}>
-                    Countdown (minutes):
+                    Countdown (seconds):
                   </label>
                   <input
                     type="number"
                     min="1"
-                    max="60"
-                    value={countdownMinutes}
-                    onChange={(e) => setCountdownMinutes(parseInt(e.target.value) || 5)}
+                    max="3600"
+                    value={countdownSeconds}
+                    onChange={(e) => setCountdownSeconds(parseInt(e.target.value) || 120)}
                     style={{
-                      width: '60px',
+                      width: '80px',
                       padding: '5px',
                       marginRight: '10px',
                       borderRadius: '3px',
                       border: '1px solid #ccc'
                     }}
                   />
+                  <span style={{ fontSize: '0.8em', color: '#666' }}>
+                    ({formatCountdown(countdownSeconds)})
+                  </span>
+                  <div style={{ marginTop: '5px', marginBottom: '5px' }}>
+                    <button 
+                      onClick={() => setCountdownSeconds(30)}
+                      style={{
+                        background: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        padding: '3px 8px',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        marginRight: '5px',
+                        fontSize: '0.8em'
+                      }}
+                    >
+                      30s
+                    </button>
+                    <button 
+                      onClick={() => setCountdownSeconds(60)}
+                      style={{
+                        background: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        padding: '3px 8px',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        marginRight: '5px',
+                        fontSize: '0.8em'
+                      }}
+                    >
+                      1m
+                    </button>
+                    <button 
+                      onClick={() => setCountdownSeconds(120)}
+                      style={{
+                        background: '#17a2b8',
+                        color: 'white',
+                        border: 'none',
+                        padding: '3px 8px',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        marginRight: '5px',
+                        fontSize: '0.8em'
+                      }}
+                    >
+                      2m
+                    </button>
+                  </div>
                   <button 
                     onClick={handleStartCountdown}
                     style={{
@@ -191,31 +261,71 @@ export default function ArtistControls({
           {/* Stream Controls */}
           <div style={{ marginBottom: '15px' }}>
             {!performerStream ? (
-              <button 
-                onClick={onStartStream}
-                style={{
-                  background: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  padding: '10px 15px',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  width: '100%',
-                  marginBottom: '10px'
-                }}
-              >
-                🔴 Go Live
-              </button>
-            ) : isCameraPreview ? (
-              <div style={{ textAlign: 'center', padding: '10px', background: 'rgba(0, 255, 0, 0.1)', borderRadius: '5px' }}>
-                <div style={{ fontSize: '1.2em', color: '#28a745', marginBottom: '5px' }}>
-                  📹 Camera On
+              isCountdownActive ? (
+                // During countdown, show Camera On/Off buttons
+                <div>
+                  {!isCameraPreview ? (
+                    <button 
+                      onClick={onStartCameraPreview}
+                      style={{
+                        background: '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 15px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        marginBottom: '10px'
+                      }}
+                    >
+                      📹 Camera On
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={onStopCameraPreview}
+                      style={{
+                        background: '#dc3545',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 15px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        width: '100%',
+                        marginBottom: '10px'
+                      }}
+                    >
+                      📹 Camera Off
+                    </button>
+                  )}
+                  <div style={{ textAlign: 'center', padding: '10px', background: 'rgba(255, 0, 0, 0.1)', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '0.9em', color: '#ff3b3b', marginBottom: '5px' }}>
+                      ⏰ Countdown Active
+                    </div>
+                    <div style={{ fontSize: '0.8em', color: '#666' }}>
+                      Turn on camera to start streaming when countdown ends
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: '0.8em', color: '#666' }}>
-                  Preview active - countdown in progress
-                </div>
-              </div>
-            ) : (
+              ) : (
+                // Normal Go Live button when not in countdown
+                <button 
+                  onClick={onStartStream}
+                  style={{
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 15px',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    width: '100%',
+                    marginBottom: '10px'
+                  }}
+                >
+                  🔴 Go Live
+                </button>
+              )
+            ) : showState === 'live' ? (
+              // Live stream is active
               <button 
                 onClick={onStopStream}
                 style={{
@@ -231,6 +341,30 @@ export default function ArtistControls({
               >
                 ⏹️ Stop Stream
               </button>
+            ) : (
+              // Camera preview during countdown
+              <div style={{ textAlign: 'center', padding: '10px', background: 'rgba(0, 255, 0, 0.1)', borderRadius: '5px' }}>
+                <div style={{ fontSize: '1.2em', color: '#28a745', marginBottom: '5px' }}>
+                  📹 Camera On
+                </div>
+                <div style={{ fontSize: '0.8em', color: '#666' }}>
+                  Preview active - stream will start when countdown ends
+                </div>
+                <button 
+                  onClick={onStopCameraPreview}
+                  style={{
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    padding: '5px 10px',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    marginTop: '8px'
+                  }}
+                >
+                  📹 Turn Off Camera
+                </button>
+              </div>
             )}
           </div>
 

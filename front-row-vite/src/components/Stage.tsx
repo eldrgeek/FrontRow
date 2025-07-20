@@ -131,6 +131,7 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
   console.log('Stage: showState =', showState);
   console.log('Stage: YouTube fallback will show =', !videoTexture);
   console.log('Stage: countdown =', isCountdownActive ? countdownTime : 'not active');
+  console.log('Stage: countdown props =', { isCountdownActive, countdownTime, showState });
 
   const formatCountdown = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -167,17 +168,6 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
         {config.artistName}
       </Text>
 
-            {/* 3D Status Text */}
-            {showState === 'pre-show' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
-            )}
-            {showState === 'live' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
-            )}
-            {showState === 'post-show' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
-            )}
-            
             {/* Countdown Display */}
             {isCountdownActive && (
               <group>
@@ -193,6 +183,17 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
                   SHOW STARTING...
                 </Text>
               </group>
+            )}
+            
+            {/* 3D Status Text - only show when not in countdown */}
+            {showState === 'pre-show' && !isCountdownActive && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
+            )}
+            {showState === 'live' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
+            )}
+            {showState === 'post-show' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
             )}
 
     </group>

@@ -541,13 +541,22 @@ io.on('connection', (socket) => {
 
   // Countdown management
   socket.on('start-countdown', (data) => {
-    const { minutes } = data;
+    const { minutes, seconds } = data;
+    
+    // Set this socket as the artist if not already set
+    if (!activeShow.artistId) {
+      activeShow.artistId = socket.id;
+      console.log(`🎭 Artist ${socket.id} set as active artist`);
+    }
+    
+    // Only allow the current artist to start countdown
     if (activeShow.artistId !== socket.id) {
       console.warn('Non-artist tried to start countdown');
       return;
     }
     
-    const totalSeconds = minutes * 60;
+    // Use seconds if provided, otherwise convert minutes to seconds
+    const totalSeconds = seconds || (minutes * 60);
     activeShow.countdown = {
       isActive: true,
       timeRemaining: totalSeconds,
@@ -555,7 +564,9 @@ io.on('connection', (socket) => {
     };
     activeShow.status = 'pre-show';
     
-    console.log(`🎬 Countdown started: ${minutes} minutes`);
+    const minutesDisplay = Math.floor(totalSeconds / 60);
+    const secondsDisplay = totalSeconds % 60;
+    console.log(`🎬 Countdown started: ${minutesDisplay}:${secondsDisplay.toString().padStart(2, '0')} (${totalSeconds}s) by artist ${socket.id}`);
     io.emit('countdown-started', { 
       timeRemaining: totalSeconds, 
       totalTime: totalSeconds,
