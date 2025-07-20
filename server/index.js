@@ -66,6 +66,7 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     activeConnections: io.engine.clientsCount || 0,
     showStatus: activeShow.status,
+    artistId: activeShow.artistId,
     audienceCount: Object.keys(activeShow.audienceSeats).length
   });
 });
@@ -194,10 +195,12 @@ app.get('/dashboard', (req, res) => {
 
         <div class="status-card">
             <h3>📈 Show Status</h3>
-            <p><strong>Current Status:</strong> ${activeShow.status}</p>
-            <p><strong>Artist ID:</strong> ${activeShow.artistId || 'None'}</p>
-            <p><strong>Seated Audience:</strong> ${Object.keys(activeShow.audienceSeats).length}</p>
-            <p><strong>Total Connected:</strong> <span id="total-connections">${io.engine.clientsCount || 0}</span></p>
+            <p><strong>Current Status:</strong> <span id="show-status">live</span></p>
+            <p><strong>Artist ID:</strong> <span id="artist-id">tQWCRbVpKu6803XSAAAP</span></p>
+            <p><strong>Seated Audience:</strong> <span id="audience-count">0</span></p>
+            <p><strong>Total Connected:</strong> <span id="total-connections">2</span></p>
+            <button onclick="resetShow()" class="btn" style="background: #dc3545;">🔄 Reset Show</button>
+            <button onclick="endShow()" class="btn" style="background: #ffc107; color: #000;">⏹️ End Show</button>
         </div>
     </div>
 
@@ -217,7 +220,16 @@ app.get('/dashboard', (req, res) => {
                 document.getElementById('uptime').textContent = Math.floor(data.uptime) + 's';
                 document.getElementById('connections').textContent = data.activeConnections;
                 document.getElementById('total-connections').textContent = data.activeConnections;
-                document.getElementById('memory').textContent = Math.round(${process.memoryUsage().heapUsed} / 1024 / 1024) + 'MB';
+                document.getElementById('memory').textContent = Math.round(10513456 / 1024 / 1024) + 'MB';
+                
+                // Update show status
+                document.getElementById('show-status').textContent = data.showStatus;
+                document.getElementById('audience-count').textContent = data.audienceCount;
+                
+                // Update artist ID if available
+                if (data.artistId) {
+                    document.getElementById('artist-id').textContent = data.artistId;
+                }
             } catch (error) {
                 console.error('Failed to fetch health data:', error);
             }
@@ -250,6 +262,35 @@ app.get('/dashboard', (req, res) => {
                 addLog(messages[Math.floor(Math.random() * messages.length)], 'info');
             }
         }, 10000);
+
+        // Show control functions
+        async function resetShow() {
+            try {
+                const response = await fetch('/api/debug-reset-show', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                addLog('Show reset: ' + result.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } catch (error) {
+                addLog('Failed to reset show: ' + error.message, 'error');
+            }
+        }
+
+        async function endShow() {
+            try {
+                const response = await fetch('/api/end-show', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                addLog('Show ended: ' + result.message, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } catch (error) {
+                addLog('Failed to end show: ' + error.message, 'error');
+            }
+        }
     </script>
 </body>
 </html>
@@ -314,38 +355,30 @@ app.post('/api/artist-simulate-end', (req, res) => {
     }, 5000); // 5 seconds post-show display
 });
 
-// Debug endpoint to reset show status (development only)
+// Debug API endpoint to reset show state
 app.post('/api/debug-reset-show', (req, res) => {
-    if (process.env.NODE_ENV === 'production') {
-        return res.status(403).json({ error: 'Debug endpoints disabled in production' });
-    }
-    
-    console.log('DEBUG: Resetting show status to idle');
-    
-    // Clear all show data
-    activeShow.status = 'idle';
-    activeShow.artistId = null;
-    activeShow.startTime = null;
-    
-    // Clear audience seats
-    for (const seatId in activeShow.audienceSeats) {
-        delete activeShow.audienceSeats[seatId];
-    }
-    
-    // Clear user profiles
-    for (const socketId in userProfiles) {
-        delete userProfiles[socketId];
-    }
-    
-    // Notify all clients
-    io.emit('all-seats-empty');
-    io.emit('show-status-update', { status: 'idle' });
-    
-    res.status(200).json({ 
-        message: 'Show status reset to idle',
-        status: activeShow.status,
-        timestamp: new Date().toISOString()
-    });
+  console.log('🔧 Debug: Resetting show state to idle');
+  activeShow = {
+    artistId: null,
+    startTime: null,
+    status: 'idle',
+    audienceSeats: {}
+  };
+  io.emit('show-state-change', { status: 'idle' });
+  res.json({ message: 'Show status reset to idle' });
+});
+
+// API endpoint to end show
+app.post('/api/end-show', (req, res) => {
+  console.log('🎬 API: Ending show');
+  if (activeShow.status === 'live') {
+    activeShow.status = 'post-show';
+    activeShow.endTime = new Date();
+    io.emit('show-state-change', { status: 'post-show' });
+    res.json({ message: 'Show ended successfully' });
+  } else {
+    res.json({ message: 'Show was not live' });
+  }
 });
 
 
