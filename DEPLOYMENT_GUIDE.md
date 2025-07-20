@@ -48,11 +48,9 @@ In your Render service dashboard, go to **Environment** and add:
 
 ```bash
 NODE_ENV=production
-ALLOWED_ORIGINS=https://your-netlify-app.netlify.app
+ALLOWED_ORIGINS=https://frontrowtheater.netlify.app
 PORT=10000
 ```
-
-> **Important**: Replace `your-netlify-app` with your actual Netlify subdomain
 
 ### Step 4: Deploy and Test Backend
 
@@ -99,12 +97,10 @@ In your Netlify site dashboard, go to **Site settings** → **Environment variab
 
 ```bash
 NODE_ENV=production
-VITE_BACKEND_URL=https://your-render-backend-url.onrender.com
-VITE_SOCKET_URL=https://your-render-backend-url.onrender.com
+VITE_BACKEND_URL=https://frontrow-tvu6.onrender.com
+VITE_SOCKET_URL=https://frontrow-tvu6.onrender.com
 NODE_VERSION=18
 ```
-
-> **Important**: Replace `your-render-backend-url` with your actual Render service URL
 
 ### Step 4: Deploy and Test Frontend
 

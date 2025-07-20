@@ -106,23 +106,23 @@ socket.on('disconnect', () => {
 
 ## 🚀 Deployment Configuration
 
-### Production URLs (After Deployment)
-- **Frontend**: `https://frontrow-theater.netlify.app` (Netlify)
-- **Backend**: `https://frontrow-backend.onrender.com` (Render)
+### Production URLs (Deployed)
+- **Frontend**: `https://frontrowtheater.netlify.app` (Netlify)
+- **Backend**: `https://frontrow-tvu6.onrender.com` (Render)
 
 ### Environment Variables Setup
 
 **Netlify (Frontend):**
 ```bash
-VITE_SOCKET_URL=https://frontrow-backend.onrender.com
-VITE_BACKEND_URL=https://frontrow-backend.onrender.com
+VITE_SOCKET_URL=https://frontrow-tvu6.onrender.com
+VITE_BACKEND_URL=https://frontrow-tvu6.onrender.com
 NODE_VERSION=18
 ```
 
 **Render (Backend):**
 ```bash
 NODE_ENV=production
-ALLOWED_ORIGINS=https://frontrow-theater.netlify.app
+ALLOWED_ORIGINS=https://frontrowtheater.netlify.app
 PORT=10000
 ```
 
