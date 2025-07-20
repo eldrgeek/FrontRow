@@ -7,7 +7,7 @@
     "dev:local": "npm run dev",
     "dev:hybrid": "cp front-row-vite/.env.production-backend front-row-vite/.env.local && cd front-row-vite && npm run dev",
     "dev:production": "echo 'Opening production environment...' && open https://frontrowtheater.netlify.app",
-    "dashboard": "open dev-dashboard.html",
+    "dashboard": "open http://localhost:3001/dashboard",
     "frontend": "cd front-row-vite && npm run dev",
     "backend": "cd server && npm start",
     "install-all": "cd server && npm install && cd ../front-row-vite && npm install --legacy-peer-deps",

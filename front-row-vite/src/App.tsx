@@ -106,6 +106,7 @@ function App(): JSX.Element {
       console.log('Show Status Update:', data);
       setShowState(data.status);
       if (data.status === 'live') {
+        console.log('🔴 SHOW IS NOW LIVE! Audience should expect WebRTC offers soon...');
         // Start applause sound at end of show (20 minutes for performance + 2 min encore)
         setTimeout(() => {
           const applause = new Audio('/audio/applause.mp3'); // Assuming audio is in public folder

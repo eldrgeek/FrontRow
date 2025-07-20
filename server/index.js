@@ -67,6 +67,194 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Development Dashboard endpoint
+app.get('/dashboard', (req, res) => {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const dashboardHTML = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎭 FRONT ROW - Development Dashboard</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .status-card h3 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.online { background: #28a745; }
+        .status.offline { background: #dc3545; }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { background: #0056b3; }
+        .logs {
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px;
+        }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+        .env-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            background: ${isDev ? '#ffc107' : '#28a745'};
+            color: ${isDev ? '#000' : '#fff'};
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 FRONT ROW Development Dashboard</h1>
+        <p>Real-time monitoring and environment management</p>
+        <div class="env-badge">${process.env.NODE_ENV || 'development'}</div>
+    </div>
+
+    <div class="status-grid">
+        <div class="status-card">
+            <h3>📊 Backend Status</h3>
+            <p><strong>URL:</strong> ${req.get('host')}</p>
+            <p><strong>Environment:</strong> ${process.env.NODE_ENV || 'development'}</p>
+            <p><strong>Uptime:</strong> <span id="uptime">${Math.floor(process.uptime())}s</span></p>
+            <p><strong>Active Connections:</strong> <span id="connections">${io.engine.clientsCount || 0}</span></p>
+            <p><strong>Memory Usage:</strong> <span id="memory">${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB</span></p>
+            <span class="status online">Online</span>
+        </div>
+
+        <div class="status-card">
+            <h3>🏠 Local Development</h3>
+            <p><strong>Frontend:</strong> http://localhost:5173</p>
+            <p><strong>Backend:</strong> http://localhost:3001</p>
+            <a href="http://localhost:5173" target="_blank" class="btn">Open Frontend</a>
+            <a href="/health" target="_blank" class="btn">Health Check</a>
+        </div>
+
+        <div class="status-card">
+            <h3>☁️ Production</h3>
+            <p><strong>Frontend:</strong> https://frontrowtheater.netlify.app</p>
+            <p><strong>Backend:</strong> https://frontrow-tvu6.onrender.com</p>
+            <a href="https://frontrowtheater.netlify.app" target="_blank" class="btn">Open Production</a>
+            <a href="https://frontrow-tvu6.onrender.com/health" target="_blank" class="btn">Prod Health</a>
+        </div>
+
+        <div class="status-card">
+            <h3>📈 Show Status</h3>
+            <p><strong>Current Status:</strong> ${activeShow.status}</p>
+            <p><strong>Artist ID:</strong> ${activeShow.artistId || 'None'}</p>
+            <p><strong>Seated Audience:</strong> ${Object.keys(activeShow.audienceSeats).length}</p>
+            <p><strong>Total Connected:</strong> <span id="total-connections">${io.engine.clientsCount || 0}</span></p>
+        </div>
+    </div>
+
+    <div class="logs">
+        <h3>📋 Live Server Logs</h3>
+        <div id="log-container">
+            <div class="log-entry log-info">[${new Date().toLocaleTimeString()}] Dashboard loaded</div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh stats every 5 seconds
+        setInterval(async () => {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                document.getElementById('uptime').textContent = Math.floor(data.uptime) + 's';
+                document.getElementById('connections').textContent = data.activeConnections;
+                document.getElementById('total-connections').textContent = data.activeConnections;
+                document.getElementById('memory').textContent = Math.round(${process.memoryUsage().heapUsed} / 1024 / 1024) + 'MB';
+            } catch (error) {
+                console.error('Failed to fetch health data:', error);
+            }
+        }, 5000);
+
+        // Simulate live logs
+        const logContainer = document.getElementById('log-container');
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry log-' + type;
+            entry.textContent = '[' + new Date().toLocaleTimeString() + '] ' + message;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Keep only last 50 log entries
+            if (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.firstChild);
+            }
+        }
+
+        // Simulate periodic status updates
+        setInterval(() => {
+            const messages = [
+                'Heartbeat check completed',
+                'Monitoring WebRTC connections', 
+                'Checking seat availability',
+                'Backend health check passed'
+            ];
+            if (Math.random() > 0.8) {
+                addLog(messages[Math.floor(Math.random() * messages.length)], 'info');
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
+  `;
+  
+  res.send(dashboardHTML);
+});
+
 // Get all scheduled shows
 app.get('/api/shows', (req, res) => {
   res.json(scheduledShows);

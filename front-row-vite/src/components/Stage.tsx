@@ -46,7 +46,7 @@ function SemicircleStage(): JSX.Element {
 }
 
 // Flat screen component for the back wall
-function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number] }): JSX.Element {
+function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition, showState } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number]; showState: 'pre-show' | 'live' | 'post-show' }): JSX.Element {
   const hasLiveStream = !!videoTexture;
   
   console.log('CurvedScreen: hasLiveStream =', hasLiveStream, 'videoTexture =', videoTexture);
@@ -78,8 +78,8 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
       </Plane>
       
-      {/* YouTube fallback when no live stream */}
-      {!hasLiveStream && (
+      {/* YouTube fallback when no live stream AND show is not live */}
+      {!hasLiveStream && showState !== 'live' && (
         <YouTubeScreen 
           videoId={fallbackVideoId}
           position={[screenPosition[0], screenPosition[1], screenPosition[2]+0.5]} // slightly in front
@@ -116,7 +116,7 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
       <SemicircleStage />
 
       {/* Flat backdrop / Performer Video Screen */}
-      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} screenPosition={screenPosition} />
+      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} screenPosition={screenPosition} showState={showState} />
 
       {/* Artist name stencil on stage floor - moved forward to avoid overlap */}
       <Text
