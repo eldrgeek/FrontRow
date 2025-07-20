@@ -212,16 +212,9 @@ canvas {
 
 /* Elevate primary UI overlays */
 .controls,
-.volume-control,
 .countdown,
 .live-indicator,
-.thank-you,
-.volume-control,
-.volume-control *,
-.volume-control button,
-.volume-control input,
-.volume-control span,
-.volume-control div {
+.thank-you {
   z-index: 12000 !important;
   pointer-events: auto;
 }
@@ -235,7 +228,6 @@ canvas {
 
 /* Re-enable pointer events only on interactive panels inside overlay */
 #overlay-root .controls,
-#overlay-root .volume-control,
 #overlay-root .performer-controls,
 #overlay-root .user-input-form,
 #overlay-root .countdown,

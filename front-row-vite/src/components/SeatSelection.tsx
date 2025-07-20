@@ -1,6 +1,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Text, Box } from '@react-three/drei';
+import { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface AudienceSeat {
@@ -93,6 +94,12 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
     }
   };
 
+  const handlePointerDown = (event: ThreeEvent<MouseEvent>) => {
+    // Prevent event bubbling and ensure touch events work on mobile
+    event.stopPropagation();
+    handleClick();
+  };
+
   // Color logic: occupied=darkred, selected=gold, available for switching=lightblue, regular available=blue
   const occupiedByMe = isOccupied && occupantSocketId === mySocketId;
   const isClickableForSwitch = allowSwitching && hasSelectedSeat && (!isOccupied || occupiedByMe) && !isSelected;
@@ -129,32 +136,78 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
     }
   }, [occupantImage]);
 
+  // Mobile-friendly seat size - larger for easier touch
+  const seatSize = window.innerWidth < 768 ? 1.3 : 1; // Larger seats on mobile
+  const nameTextSize = window.innerWidth < 768 ? 0.15 : 0.12; // Much smaller text to avoid obscuring view
 
   return (
     <group position={seat.position} rotation-y={-Math.atan2(seat.position[0], seat.position[2] - (-5))}> {/* Rotate to face center/stage */}
       <Box
-        args={[1, 1, 1]}
+        args={[seatSize, seatSize, seatSize]}
         ref={meshRef}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerOver={(e) => {
+          // Visual feedback on hover/touch
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'default';
+        }}
         castShadow
         receiveShadow
       >
-        <meshStandardMaterial color={color} map={texture.current} />
+        <meshStandardMaterial 
+          color={color} 
+          map={texture.current}
+          transparent={true}
+          opacity={0.9}
+        />
       </Box>
+      
+      {/* Add a subtle glow effect for interactive seats */}
+      {(!isOccupied || (allowSwitching && hasSelectedSeat && !isSelected)) && (
+        <Box
+          args={[seatSize * 1.1, seatSize * 1.1, seatSize * 1.1]}
+          position={[0, 0, 0]}
+        >
+          <meshStandardMaterial 
+            color={isClickableForSwitch ? 'lightblue' : 'blue'}
+            transparent={true}
+            opacity={0.2}
+            emissive={isClickableForSwitch ? 'lightblue' : 'blue'}
+            emissiveIntensity={0.1}
+          />
+        </Box>
+      )}
+
       {isOccupied && (
         <>
           <Text
-            position={[0, 1.2, 0]}
-            fontSize={0.3}
+            position={[0, -0.3, 0.8]}
+            fontSize={nameTextSize}
             color="white"
             anchorX="center"
             anchorY="middle"
-            rotation-x={-Math.PI / 2}
           >
             {occupantName}
           </Text>
         </>
       )}
+      
+      {/* Add seat number for easier identification on mobile */}
+      <Text
+        position={[0, -0.7, 0]}
+        fontSize={0.2}
+        color="rgba(255, 255, 255, 0.7)"
+        anchorX="center"
+        anchorY="middle"
+        rotation-x={-Math.PI / 2}
+      >
+        {seat.id.replace('seat-', 'Seat ')}
+      </Text>
     </group>
   );
 }

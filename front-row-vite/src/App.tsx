@@ -10,8 +10,8 @@ import PerformerView from './components/PerformerView';
 import UserView from './components/UserView';
 import LoadingScreen from './components/LoadingScreen';
 import CameraController from './components/CameraController';
-import VolumeControl from './components/VolumeControl';
 import CameraControls from './components/CameraControls';
+import ViewControls from './components/ViewControls';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
@@ -64,7 +64,7 @@ function App(): JSX.Element {
     'eye-in-the-sky': { position: [number, number, number]; target: [number, number, number] };
     'user': { position: [number, number, number]; target: [number, number, number] };
   }>({
-    'eye-in-the-sky': { position: [0, 14, -5], target: [0, 3, -10] },
+    'eye-in-the-sky': { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
     'user': { position: [0, 1.7, 0], target: [0, 3, -10] } // Will be updated when seat is selected - look at performer screen
   });
   
@@ -435,7 +435,7 @@ function App(): JSX.Element {
       {webglSupported && isLoggedIn ? (
         <Suspense fallback={<LoadingScreen />}>
           <Canvas 
-            camera={{ position: [0, 12, 18], fov: 50 }} // Default Eye-in-the-Sky position: above and behind seats
+            camera={{ position: [-0.57, 6.69, 20.30], fov: 50 }} // Default Eye-in-the-Sky position: updated to user preference
             onCreated={({ gl }) => {
               // Canvas created successfully
               console.log('WebGL context created successfully');
@@ -533,21 +533,16 @@ function App(): JSX.Element {
               <p>Welcome, {userName}! Pick your seat.</p>
             </div>
           )}
-          {isLoggedIn && selectedSeat && !isPerformer && (
-            <div className="controls">
-              <button onClick={() => handleViewChange('eye-in-the-sky')}>Eye-in-the-Sky</button>
-              <button onClick={() => handleViewChange('user')}>Your Seat View</button>
-              {performerStream && ( // Only show record buttons if a stream is active
-                <>
-                  <button onClick={() => startRecording(false)}>Record Performance</button>
-                  <button onClick={() => startRecording(true)}>Record My Experience</button>
-                  <button onClick={stopRecording}>Stop Recording</button>
-                </>
-              )}
-              {recordedChunksRef.current.length > 0 && (
-                <button onClick={downloadRecording}>Download Recording</button>
-              )}
-            </div>
+          {isLoggedIn && selectedSeat && !isPerformer && currentView !== 'performer' && (
+            <ViewControls 
+              currentView={currentView as 'eye-in-the-sky' | 'user'}
+              onViewChange={handleViewChange}
+              performerStream={performerStream}
+              recordedChunks={recordedChunksRef.current}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
+              onDownloadRecording={downloadRecording}
+            />
           )}
 
           {isPerformer && (
@@ -569,8 +564,6 @@ function App(): JSX.Element {
       {/* Camera Controls - only show when user is logged in */}
       {isLoggedIn && <CameraControls />}
       
-      {/* Volume Control - only show when user is logged in */}
-      {isLoggedIn && <VolumeControl />}
     </div>
   );
 }

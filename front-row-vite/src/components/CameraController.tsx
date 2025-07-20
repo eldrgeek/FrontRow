@@ -26,7 +26,7 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
   const lastView = useRef(currentView);
   const lastSeatRef = useRef<string | null>(selectedSeat);
   const transitionProgress = useRef(0);
-  const transitionDuration = 0.7; // seconds
+  const transitionDuration = 1.2; // seconds - slower transitions
   const startPosRef = useRef(new THREE.Vector3());
   const startTargetRef = useRef(new THREE.Vector3());
   const targetPosRef = useRef(new THREE.Vector3());
@@ -71,8 +71,8 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
       if (!isOrbitControls(controls)) return;
       
       const eventType = event.type;
-      const zoomSpeed = 2;
-      const rotateSpeed = 0.2;
+      const orbitSpeed = 0.05; // Much smaller increments for orbit controls
+      const moveSpeed = 0.3; // Smaller increments for up/down movement
       
       switch (eventType) {
         case 'camera-zoom-in':
@@ -81,18 +81,35 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
         case 'camera-zoom-out':
           camera.position.multiplyScalar(1.1);
           break;
-        case 'camera-rotate-left':
-          // Rotate camera around target
-          camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotateSpeed);
+        case 'camera-orbit-left':
+          // Orbit camera around the target point
+          const leftDirection = new THREE.Vector3();
+          leftDirection.subVectors(camera.position, controls.target);
+          leftDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), orbitSpeed);
+          camera.position.copy(controls.target).add(leftDirection);
           break;
-        case 'camera-rotate-right':
-          camera.position.applyAxisAngle(new THREE.Vector3(0, 1, 0), -rotateSpeed);
+        case 'camera-orbit-right':
+          // Orbit camera around the target point
+          const rightDirection = new THREE.Vector3();
+          rightDirection.subVectors(camera.position, controls.target);
+          rightDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), -orbitSpeed);
+          camera.position.copy(controls.target).add(rightDirection);
           break;
-        case 'camera-rotate-up':
-          camera.position.y += 1;
+        case 'camera-move-up':
+          // Move camera directly up
+          camera.position.y += moveSpeed;
           break;
-        case 'camera-rotate-down':
-          camera.position.y -= 1;
+        case 'camera-move-down':
+          // Move camera directly down
+          camera.position.y -= moveSpeed;
+          break;
+        case 'camera-show-position':
+          // Show current camera position and target in console and alert
+          const pos = camera.position;
+          const target = controls.target;
+          const positionInfo = `Camera Position: [${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}]\nTarget: [${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)}]`;
+          console.log('📍 Current Camera Position:', positionInfo);
+          alert(positionInfo);
           break;
         case 'camera-reset':
           if (currentView === 'eye-in-the-sky') {
@@ -120,20 +137,22 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
     // Add event listeners
     window.addEventListener('camera-zoom-in', handleCameraEvents);
     window.addEventListener('camera-zoom-out', handleCameraEvents);
-    window.addEventListener('camera-rotate-left', handleCameraEvents);
-    window.addEventListener('camera-rotate-right', handleCameraEvents);
-    window.addEventListener('camera-rotate-up', handleCameraEvents);
-    window.addEventListener('camera-rotate-down', handleCameraEvents);
+    window.addEventListener('camera-orbit-left', handleCameraEvents);
+    window.addEventListener('camera-orbit-right', handleCameraEvents);
+    window.addEventListener('camera-move-up', handleCameraEvents);
+    window.addEventListener('camera-move-down', handleCameraEvents);
+    window.addEventListener('camera-show-position', handleCameraEvents);
     window.addEventListener('camera-reset', handleCameraEvents);
 
     return () => {
       // Cleanup event listeners
       window.removeEventListener('camera-zoom-in', handleCameraEvents);
       window.removeEventListener('camera-zoom-out', handleCameraEvents);
-      window.removeEventListener('camera-rotate-left', handleCameraEvents);
-      window.removeEventListener('camera-rotate-right', handleCameraEvents);
-      window.removeEventListener('camera-rotate-up', handleCameraEvents);
-      window.removeEventListener('camera-rotate-down', handleCameraEvents);
+      window.removeEventListener('camera-orbit-left', handleCameraEvents);
+      window.removeEventListener('camera-orbit-right', handleCameraEvents);
+      window.removeEventListener('camera-move-up', handleCameraEvents);
+      window.removeEventListener('camera-move-down', handleCameraEvents);
+      window.removeEventListener('camera-show-position', handleCameraEvents);
       window.removeEventListener('camera-reset', handleCameraEvents);
     };
   }, [controls, currentView, selectedSeat, savedPositions]);
