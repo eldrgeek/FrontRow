@@ -9,7 +9,7 @@ function VolumeControl({ onVolumeChange }: VolumeControlProps): JSX.Element {
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
   useEffect(() => {
-    // Load saved volume from localStorage
+    // Load saved volume from localStorage (keep persistent across sessions)
     const savedVolume = localStorage.getItem('frontrow_volume');
     const savedMuted = localStorage.getItem('frontrow_muted');
     

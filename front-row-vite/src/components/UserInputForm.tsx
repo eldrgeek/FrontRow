@@ -6,17 +6,17 @@ interface UserInputFormProps {
 }
 
 function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
-  // Initialize name from localStorage if available
+  // Initialize name from sessionStorage if available (per-tab isolation)
   const [name, setName] = useState<string>(() => {
-    return localStorage.getItem('frontrow_user_name') || '';
+    return sessionStorage.getItem('frontrow_user_name') || '';
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(() => {
-    return localStorage.getItem('frontrow_user_image') || null;
+    return sessionStorage.getItem('frontrow_user_image') || null;
   });
   const [isArtist, setIsArtist] = useState<boolean>(() => {
     // Check if user was previously set as artist
-    return localStorage.getItem('frontrow_is_artist') === 'true';
+    return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {

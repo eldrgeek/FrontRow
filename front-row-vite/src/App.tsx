@@ -45,12 +45,12 @@ const stunServers = [
 ];
 
 function App(): JSX.Element {
-  // Initialize state from localStorage
+  // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
-    return localStorage.getItem('frontrow_user_name') || '';
+    return sessionStorage.getItem('frontrow_user_name') || '';
   });
   const [userImage, setUserImage] = useState<string | null>(() => {
-    return localStorage.getItem('frontrow_user_image') || null;
+    return sessionStorage.getItem('frontrow_user_image') || null;
   });
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null); // user picks seat each session
   const [showState, setShowState] = useState<ShowState>('pre-show');
@@ -77,7 +77,7 @@ function App(): JSX.Element {
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
-    return localStorage.getItem('frontrow_is_artist') === 'true';
+    return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
   
   const isPerformer = () => {
@@ -86,7 +86,7 @@ function App(): JSX.Element {
 
   // Helper function to reset artist status (for debugging/testing)
   const resetArtistStatus = () => {
-    localStorage.removeItem('frontrow_is_artist');
+    sessionStorage.removeItem('frontrow_is_artist');
     setIsArtist(false);
     window.location.reload();
   };
@@ -241,30 +241,30 @@ function App(): JSX.Element {
 
   // --- User Flow Functions ---
   const clearUserData = () => {
-    localStorage.removeItem('frontrow_user_name');
-    localStorage.removeItem('frontrow_user_image');
-    localStorage.removeItem('frontrow_selected_seat');
+    sessionStorage.removeItem('frontrow_user_name');
+    sessionStorage.removeItem('frontrow_user_image');
+    sessionStorage.removeItem('frontrow_selected_seat');
     setUserName('');
     setUserImage(null);
     setSelectedSeat(null);
-    console.log('User data cleared from localStorage');
+    console.log('User data cleared from sessionStorage');
   };
 
   const handleNameAndImageSubmit = async (name, imageBase64, isArtist) => {
     setUserName(name);
     setUserImage(imageBase64);
     
-    // Save to localStorage for persistence
-    localStorage.setItem('frontrow_user_name', name);
+    // Save to sessionStorage for per-tab isolation
+    sessionStorage.setItem('frontrow_user_name', name);
     if (imageBase64) {
-      localStorage.setItem('frontrow_user_image', imageBase64);
+      sessionStorage.setItem('frontrow_user_image', imageBase64);
     }
     
     // Store artist status - we'll use this instead of URL parameters
-    localStorage.setItem('frontrow_is_artist', isArtist.toString());
+    sessionStorage.setItem('frontrow_is_artist', isArtist.toString());
     setIsArtist(isArtist); // Update state immediately
     
-    console.log('User profile saved to localStorage:', { name, hasImage: !!imageBase64, isArtist });
+    console.log('User profile saved to sessionStorage:', { name, hasImage: !!imageBase64, isArtist });
     // User profile data is stored in-memory on backend via select-seat
     setIsLoggedIn(true);
   };
@@ -348,8 +348,8 @@ function App(): JSX.Element {
       socketRef.current.emit('artist-end-show');
     }
     
-    // Clear artist status from localStorage when ending show
-    localStorage.removeItem('frontrow_is_artist');
+    // Clear artist status from sessionStorage when ending show
+    sessionStorage.removeItem('frontrow_is_artist');
     
     // Reload page to reset to audience view
     window.location.reload();
