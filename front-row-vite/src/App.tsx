@@ -12,6 +12,7 @@ import LoadingScreen from './components/LoadingScreen';
 import CameraController from './components/CameraController';
 import CameraControls from './components/CameraControls';
 import ViewControls from './components/ViewControls';
+import ArtistControls from './components/ArtistControls';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
@@ -75,13 +76,18 @@ function App(): JSX.Element {
   const recordedChunksRef = useRef<Blob[]>([]);
 
   // Helper function to check if current user is the artist
-  const isPerformer = () => {
+  const [isArtist, setIsArtist] = useState(() => {
     return localStorage.getItem('frontrow_is_artist') === 'true';
+  });
+  
+  const isPerformer = () => {
+    return isArtist;
   };
 
   // Helper function to reset artist status (for debugging/testing)
   const resetArtistStatus = () => {
     localStorage.removeItem('frontrow_is_artist');
+    setIsArtist(false);
     window.location.reload();
   };
 
@@ -91,6 +97,7 @@ function App(): JSX.Element {
     console.log('Connecting to backend:', config.socketUrl);
     socketRef.current = io(config.socketUrl);
     socketRef.current.on('connect', () => {
+      console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');
     });
 
@@ -127,10 +134,14 @@ function App(): JSX.Element {
     // WebRTC Signaling listeners
     socketRef.current.on('offer', async (data) => {
         console.log('Received offer from:', data.offererSocketId);
+        console.log('Is performer:', isPerformer(), 'Selected seat:', selectedSeat, 'Existing PC:', !!peerConnectionsRef.current[data.offererSocketId]);
         // Only audience members (non-artist) should process offers from artist
         // And only if they have a seat selected and don't already have a PC with this offerer
         if (!isPerformer() && selectedSeat && !peerConnectionsRef.current[data.offererSocketId]) {
+            console.log('Setting up audience peer connection...');
             await setupAudiencePeerConnection(data.offererSocketId, data.sdp);
+        } else {
+            console.log('Skipping offer - conditions not met');
         }
     });
 
@@ -156,8 +167,10 @@ function App(): JSX.Element {
 
     // Listener for artist to know when new audience members join
     socketRef.current.on('new-audience-member', async (audienceSocketId) => {
+        console.log('Received new-audience-member event. audienceSocketId:', audienceSocketId, 'isPerformer:', isPerformer());
         if (isPerformer()) { // Only artist should react to this
             console.log('Artist: New audience member joined:', audienceSocketId);
+            console.log('Artist: Creating peer connection for audience member...');
             // Artist initiates a new peer connection for this audience member
             const pc = new RTCPeerConnection({ iceServers: stunServers });
             peerConnectionsRef.current[audienceSocketId] = pc;
@@ -223,6 +236,7 @@ function App(): JSX.Element {
     
     // Store artist status - we'll use this instead of URL parameters
     localStorage.setItem('frontrow_is_artist', isArtist.toString());
+    setIsArtist(isArtist); // Update state immediately
     
     console.log('User profile saved to localStorage:', { name, hasImage: !!imageBase64, isArtist });
     // User profile data is stored in-memory on backend via select-seat
@@ -239,6 +253,7 @@ function App(): JSX.Element {
     }
 
     // This is where the client requests a seat
+    console.log('Audience: Selecting seat and requesting to join audience...');
     socketRef.current.emit('select-seat', { seatId, userName, userImage });
 
     // Listen for the seat-selected response only once per selection attempt
@@ -279,11 +294,14 @@ function App(): JSX.Element {
   const startPerformerStream = async () => {
     if (!socketRef.current) return;
     try {
+      console.log('Artist: Starting performer stream...');
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localStreamRef.current = stream;
       setPerformerStream(stream); // Set stream for PerformerView to display local camera
 
+      console.log('Artist: Emitting artist-go-live signal...');
       socketRef.current.emit('artist-go-live'); // Signal backend that artist is going live
+      console.log('Artist: Go live signal sent');
 
     } catch (err) {
       console.error('Error starting performer stream:', err);
@@ -328,8 +346,12 @@ function App(): JSX.Element {
 
     pc.ontrack = (event) => {
       console.log('Audience received remote stream:', event.streams[0]);
+      console.log('Setting performer stream for audience...');
       if (event.streams && event.streams[0]) {
         setPerformerStream(event.streams[0]); // This stream will be attached to the Stage component's video element
+        console.log('Performer stream set successfully');
+      } else {
+        console.error('No stream in track event');
       }
     };
 
@@ -554,18 +576,13 @@ function App(): JSX.Element {
             </div>
           )}
           {isLoggedIn && isPerformer() && (
-            <div style={{ 
-              position: 'fixed', 
-              top: '20px', 
-              left: '20px', 
-              color: 'white', 
-              background: 'rgba(0,0,0,0.7)', 
-              padding: '10px', 
-              borderRadius: '5px',
-              fontSize: '0.9em'
-            }}>
-              🎤 Artist Mode: {userName}
-            </div>
+            <ArtistControls 
+              performerStream={performerStream}
+              onStartStream={startPerformerStream}
+              onStopStream={stopPerformerStream}
+              onResetArtistStatus={resetArtistStatus}
+              userName={userName}
+            />
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (
             <ViewControls 
@@ -579,27 +596,7 @@ function App(): JSX.Element {
             />
           )}
 
-          {isPerformer() && (
-            <div className="performer-controls ui-overlay-bottom">
-              {!performerStream ? (
-                <button onClick={startPerformerStream}>Go Live</button>
-              ) : (
-                <button onClick={stopPerformerStream}>End Show</button>
-              )}
-               <button onClick={() => alert("Scheduling UI Not Implemented in Rev 1")}>Schedule Show (Future)</button>
-               <button 
-                 onClick={resetArtistStatus}
-                 style={{ 
-                   fontSize: '0.8em', 
-                   padding: '5px 10px', 
-                   background: 'rgba(255,255,255,0.1)', 
-                   marginTop: '10px' 
-                 }}
-               >
-                 Switch to Audience
-               </button>
-            </div>
-          )}
+
 
           {/* Removed countdawn/live-indicator/thank-you from here */}
         </div>,

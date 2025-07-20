@@ -49,6 +49,8 @@ function SemicircleStage(): JSX.Element {
 function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number] }): JSX.Element {
   const hasLiveStream = !!videoTexture;
   
+  console.log('CurvedScreen: hasLiveStream =', hasLiveStream, 'videoTexture =', videoTexture);
+  
   return (
     <group>
       {/* Large flat screen at the back of the semicircle stage */}
@@ -93,6 +95,10 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
 
   // Create a video texture from the performer stream
   const videoTexture = useVideoTexture(performerStream || null);
+  
+  // Debug logging
+  console.log('Stage: performerStream =', performerStream ? 'Stream present' : 'No stream');
+  console.log('Stage: videoTexture =', videoTexture ? 'Texture created' : 'No texture');
 
 
   // Animation for countdown or live indicator

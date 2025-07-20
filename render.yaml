@@ -7,6 +7,6 @@ services:
     buildCommand: npm install
     startCommand: node index.js
     autoDeploy: true
-    envVars:
+    env:
       - key: NODE_ENV
         value: production 

@@ -1,11 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 export function useVideoTexture(stream: MediaStream | null): THREE.VideoTexture | null {
   const [texture, setTexture] = useState<THREE.VideoTexture | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  // Update texture on every frame when video is playing
+  useFrame(() => {
+    if (texture && videoRef.current && videoRef.current.readyState >= videoRef.current.HAVE_CURRENT_DATA) {
+      texture.needsUpdate = true;
+    }
+  });
+
   useEffect(() => {
+    console.log('useVideoTexture: Stream changed', stream ? 'Stream received' : 'No stream');
+    
     if (!stream) {
       // Clean up existing texture
       if (texture) {
@@ -25,6 +35,9 @@ export function useVideoTexture(stream: MediaStream | null): THREE.VideoTexture 
     video.muted = true; // Mute to avoid echo
     video.playsInline = true;
     video.autoplay = true;
+    video.loop = true;
+    video.style.display = 'none'; // Hide from DOM but keep functional
+    document.body.appendChild(video); // Add to DOM to ensure proper video loading
     videoRef.current = video;
 
     // Create texture once video can play
@@ -44,7 +57,9 @@ export function useVideoTexture(stream: MediaStream | null): THREE.VideoTexture 
     video.addEventListener('canplay', handleCanPlay);
 
     // Start playing the video
-    video.play().catch(error => {
+    video.play().then(() => {
+      console.log('Video started playing successfully');
+    }).catch(error => {
       console.error('Error playing video for texture:', error);
     });
 
@@ -55,6 +70,9 @@ export function useVideoTexture(stream: MediaStream | null): THREE.VideoTexture 
       }
       if (video) {
         video.srcObject = null;
+        if (video.parentNode) {
+          video.parentNode.removeChild(video); // Remove from DOM
+        }
       }
     };
   }, [stream]);
