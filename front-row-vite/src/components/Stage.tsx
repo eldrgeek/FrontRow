@@ -10,7 +10,7 @@ interface StageProps {
   config: {
     artistName: string;
   };
-  showState: 'pre-show' | 'live' | 'post-show';
+  showState: 'idle' | 'pre-show' | 'live' | 'post-show';
   fallbackVideoUrl?: string;
   screenPosition?: [number,number,number];
   performerStream?: MediaStream | null;
@@ -46,7 +46,7 @@ function SemicircleStage(): JSX.Element {
 }
 
 // Flat screen component for the back wall
-function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition, showState } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number]; showState: 'pre-show' | 'live' | 'post-show' }): JSX.Element {
+function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition, showState } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number]; showState: 'idle' | 'pre-show' | 'live' | 'post-show' }): JSX.Element {
   const hasLiveStream = !!videoTexture;
   
   console.log('CurvedScreen: hasLiveStream =', hasLiveStream, 'videoTexture =', videoTexture);

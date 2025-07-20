@@ -29,7 +29,7 @@ interface AudienceSeats {
   [seatId: string]: AudienceSeat;
 }
 
-type ShowState = 'pre-show' | 'live' | 'post-show';
+type ShowState = 'idle' | 'pre-show' | 'live' | 'post-show';
 type ViewState = 'eye-in-the-sky' | 'performer' | 'user';
 
 // Define STUN servers directly in the frontend for WebRTC
@@ -53,7 +53,7 @@ function App(): JSX.Element {
     return sessionStorage.getItem('frontrow_user_image') || null;
   });
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null); // user picks seat each session
-  const [showState, setShowState] = useState<ShowState>('pre-show');
+  const [showState, setShowState] = useState<ShowState>('idle');
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
@@ -74,6 +74,11 @@ function App(): JSX.Element {
   const peerConnectionsRef = useRef<{ [socketId: string]: RTCPeerConnection }>({});
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+
+  // Countdown state
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [countdownTime, setCountdownTime] = useState(0);
+  const [countdownInterval, setCountdownInterval] = useState<NodeJS.Timeout | null>(null);
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
@@ -250,6 +255,11 @@ function App(): JSX.Element {
       }
       // Close all peer connections on unmount
       Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+      
+      // Clean up countdown interval
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
     };
   }, [selectedSeat]); // Re-run effect if seat selected, to initiate audience PC for artist
 
@@ -360,6 +370,47 @@ function App(): JSX.Element {
       socketRef.current.emit('artist-end-show');
       console.log('Artist ending show via controls');
     }
+  };
+
+  // Countdown functions
+  const startCountdown = (minutes: number) => {
+    const totalSeconds = minutes * 60;
+    setCountdownTime(totalSeconds);
+    setIsCountdownActive(true);
+    setShowState('pre-show');
+    
+    // Stop any existing stream during countdown
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+      setPerformerStream(null);
+    }
+    
+    const interval = setInterval(() => {
+      setCountdownTime(prev => {
+        if (prev <= 1) {
+          // Countdown finished, start the stream
+          clearInterval(interval);
+          setIsCountdownActive(false);
+          setCountdownInterval(null);
+          startPerformerStream();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    setCountdownInterval(interval);
+  };
+
+  const stopCountdown = () => {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      setCountdownInterval(null);
+    }
+    setIsCountdownActive(false);
+    setCountdownTime(0);
+    setShowState('idle');
   };
 
   // --- WebRTC Functions ---
@@ -681,6 +732,9 @@ function App(): JSX.Element {
               userName={userName}
               onResetShow={handleResetShow}
               onEndShow={handleEndShow}
+              onStartCountdown={startCountdown}
+              isCountdownActive={isCountdownActive}
+              countdownTime={countdownTime}
             />
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (
