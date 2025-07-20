@@ -51,6 +51,11 @@ let activeShow = {
   startTime: null,
   status: 'idle', // 'idle', 'pre-show', 'live', 'post-show'
   audienceSeats: {}, // { seatId: { name, imageUrl (base64 string), socketId } }
+  countdown: {
+    isActive: false,
+    timeRemaining: 0,
+    totalTime: 0
+  }
 };
 const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), selectedSeat } } // Temporary store for connected users
 
@@ -67,7 +72,8 @@ app.get('/health', (req, res) => {
     activeConnections: io.engine.clientsCount || 0,
     showStatus: activeShow.status,
     artistId: activeShow.artistId,
-    audienceCount: Object.keys(activeShow.audienceSeats).length
+    audienceCount: Object.keys(activeShow.audienceSeats).length,
+    countdown: activeShow.countdown
   });
 });
 
@@ -528,8 +534,75 @@ io.on('connection', (socket) => {
         }
         io.emit('all-seats-empty');
         activeShow.status = 'idle';
+        activeShow.countdown = { isActive: false, timeRemaining: 0, totalTime: 0 };
         console.log('Show cycle reset to idle after post-show.');
     }, 5000); // 5 seconds post-show display
+  });
+
+  // Countdown management
+  socket.on('start-countdown', (data) => {
+    const { minutes } = data;
+    if (activeShow.artistId !== socket.id) {
+      console.warn('Non-artist tried to start countdown');
+      return;
+    }
+    
+    const totalSeconds = minutes * 60;
+    activeShow.countdown = {
+      isActive: true,
+      timeRemaining: totalSeconds,
+      totalTime: totalSeconds
+    };
+    activeShow.status = 'pre-show';
+    
+    console.log(`🎬 Countdown started: ${minutes} minutes`);
+    io.emit('countdown-started', { 
+      timeRemaining: totalSeconds, 
+      totalTime: totalSeconds,
+      artistId: socket.id 
+    });
+    
+    // Start countdown timer
+    const countdownInterval = setInterval(() => {
+      activeShow.countdown.timeRemaining--;
+      
+      if (activeShow.countdown.timeRemaining <= 0) {
+        // Countdown finished - start the show
+        clearInterval(countdownInterval);
+        activeShow.countdown.isActive = false;
+        activeShow.status = 'live';
+        activeShow.startTime = Date.now();
+        
+        console.log('🎭 Countdown finished - show is now LIVE!');
+        io.emit('countdown-finished', { artistId: socket.id });
+        io.emit('show-status-update', { status: 'live', artistId: socket.id });
+        
+        // Notify artist about audience members for WebRTC
+        Object.values(activeShow.audienceSeats).forEach(audience => {
+          io.to(socket.id).emit('new-audience-member', audience.socketId);
+        });
+      } else {
+        // Update countdown for all clients
+        io.emit('countdown-update', { 
+          timeRemaining: activeShow.countdown.timeRemaining,
+          artistId: socket.id 
+        });
+      }
+    }, 1000);
+  });
+
+  socket.on('stop-countdown', () => {
+    if (activeShow.artistId !== socket.id) {
+      console.warn('Non-artist tried to stop countdown');
+      return;
+    }
+    
+    activeShow.countdown = { isActive: false, timeRemaining: 0, totalTime: 0 };
+    activeShow.status = 'idle';
+    
+    console.log('⏹️ Countdown stopped');
+    io.emit('countdown-stopped', { artistId: socket.id });
+    io.emit('show-status-update', { status: 'idle' });
   });
 
 

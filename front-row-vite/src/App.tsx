@@ -79,6 +79,7 @@ function App(): JSX.Element {
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [countdownTime, setCountdownTime] = useState(0);
   const [countdownInterval, setCountdownInterval] = useState<NodeJS.Timeout | null>(null);
+  const [isCameraPreview, setIsCameraPreview] = useState(false);
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
@@ -248,6 +249,48 @@ function App(): JSX.Element {
         }
     });
 
+    // Countdown event listeners
+    socketRef.current.on('countdown-started', (data) => {
+        console.log('Countdown started:', data);
+        setIsCountdownActive(true);
+        setCountdownTime(data.timeRemaining);
+        setShowState('pre-show');
+    });
+
+    socketRef.current.on('countdown-update', (data) => {
+        console.log('Countdown update:', data.timeRemaining);
+        setCountdownTime(data.timeRemaining);
+    });
+
+    socketRef.current.on('countdown-finished', (data) => {
+        console.log('Countdown finished - show is live!');
+        setIsCountdownActive(false);
+        setCountdownTime(0);
+        setIsCameraPreview(false);
+        setShowState('live');
+        
+        // Artist panel should disappear when show goes live
+        if (isPerformer()) {
+            // Hide artist controls when live
+            // setIsExpanded(false); // This state variable is not defined in the original file
+        }
+    });
+
+    socketRef.current.on('countdown-stopped', (data) => {
+        console.log('Countdown stopped');
+        setIsCountdownActive(false);
+        setCountdownTime(0);
+        setIsCameraPreview(false);
+        setShowState('idle');
+        
+        // Stop camera preview
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current = null;
+            setPerformerStream(null);
+        }
+    });
+
 
     return () => {
       if (socketRef.current) {
@@ -373,44 +416,41 @@ function App(): JSX.Element {
   };
 
   // Countdown functions
-  const startCountdown = (minutes: number) => {
-    const totalSeconds = minutes * 60;
-    setCountdownTime(totalSeconds);
-    setIsCountdownActive(true);
-    setShowState('pre-show');
+  const startCountdown = async (minutes: number) => {
+    if (!socketRef.current) return;
     
-    // Stop any existing stream during countdown
+    try {
+      // Start camera preview first
+      console.log('🎥 Starting camera preview for countdown...');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      setPerformerStream(stream); // This will show in PerformerView for artist preview
+      setIsCameraPreview(true);
+      
+      // Signal backend to start countdown
+      socketRef.current.emit('start-countdown', { minutes });
+      console.log('⏰ Countdown started via backend');
+      
+    } catch (err) {
+      console.error('Error starting camera preview:', err);
+      alert('Could not start camera/microphone. Please check permissions.');
+    }
+  };
+
+  const stopCountdown = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('stop-countdown');
+    }
+    
+    // Stop camera preview
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
       setPerformerStream(null);
     }
-    
-    const interval = setInterval(() => {
-      setCountdownTime(prev => {
-        if (prev <= 1) {
-          // Countdown finished, start the stream
-          clearInterval(interval);
-          setIsCountdownActive(false);
-          setCountdownInterval(null);
-          startPerformerStream();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    
-    setCountdownInterval(interval);
-  };
-
-  const stopCountdown = () => {
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
-      setCountdownInterval(null);
-    }
+    setIsCameraPreview(false);
     setIsCountdownActive(false);
     setCountdownTime(0);
-    setShowState('idle');
   };
 
   // --- WebRTC Functions ---
@@ -650,7 +690,7 @@ function App(): JSX.Element {
               onPositionChange={handleCameraPositionChange}
             />
 
-            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" performerStream={performerStream} />
+            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" performerStream={performerStream} countdownTime={countdownTime} isCountdownActive={isCountdownActive} />
             <SeatSelection
               selectedSeat={selectedSeat}
               onSeatSelect={handleSeatSelect}
@@ -723,7 +763,7 @@ function App(): JSX.Element {
               <p>Welcome, {userName}! Pick your seat.</p>
             </div>
           )}
-          {isLoggedIn && isPerformer() && (
+          {isLoggedIn && isPerformer() && showState !== 'live' && (
             <ArtistControls 
               performerStream={performerStream}
               onStartStream={startPerformerStream}
@@ -733,8 +773,10 @@ function App(): JSX.Element {
               onResetShow={handleResetShow}
               onEndShow={handleEndShow}
               onStartCountdown={startCountdown}
+              onStopCountdown={stopCountdown}
               isCountdownActive={isCountdownActive}
               countdownTime={countdownTime}
+              isCameraPreview={isCameraPreview}
             />
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (

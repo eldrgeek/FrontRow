@@ -14,6 +14,8 @@ interface StageProps {
   fallbackVideoUrl?: string;
   screenPosition?: [number,number,number];
   performerStream?: MediaStream | null;
+  countdownTime?: number;
+  isCountdownActive?: boolean;
 }
 
 // Semicircle stage platform component
@@ -117,7 +119,7 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
   );
 }
 
-function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[0,3.5,-12], performerStream }: StageProps): JSX.Element {
+function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[0,3.5,-12], performerStream, countdownTime = 0, isCountdownActive = false }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
 
   // Create a video texture from the performer stream
@@ -128,7 +130,13 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
   console.log('Stage: videoTexture =', videoTexture ? 'Texture created' : 'No texture');
   console.log('Stage: showState =', showState);
   console.log('Stage: YouTube fallback will show =', !videoTexture);
+  console.log('Stage: countdown =', isCountdownActive ? countdownTime : 'not active');
 
+  const formatCountdown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   // Animation for countdown or live indicator
   useFrame(() => {
@@ -158,6 +166,34 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
       >
         {config.artistName}
       </Text>
+
+            {/* 3D Status Text */}
+            {showState === 'pre-show' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
+            )}
+            {showState === 'live' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
+            )}
+            {showState === 'post-show' && (
+              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
+            )}
+            
+            {/* Countdown Display */}
+            {isCountdownActive && (
+              <group>
+                {/* Countdown background */}
+                <Plane args={[8, 3]} position={[0, 4, -10]} rotation-x={0}>
+                  <meshBasicMaterial color="#000000" opacity={0.8} transparent />
+                </Plane>
+                {/* Countdown text */}
+                <Text position={[0, 4, -9.5]} fontSize={1.2} color="#ff3b3b" anchorX="center" anchorY="middle" fontWeight="bold">
+                  {formatCountdown(countdownTime)}
+                </Text>
+                <Text position={[0, 2.5, -9.5]} fontSize={0.6} color="white" anchorX="center" anchorY="middle">
+                  SHOW STARTING...
+                </Text>
+              </group>
+            )}
 
     </group>
   );
