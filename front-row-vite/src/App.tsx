@@ -136,12 +136,12 @@ function App(): JSX.Element {
         console.log('Received offer from:', data.offererSocketId);
         console.log('Is performer:', isPerformer(), 'Selected seat:', selectedSeat, 'Existing PC:', !!peerConnectionsRef.current[data.offererSocketId]);
         // Only audience members (non-artist) should process offers from artist
-        // And only if they have a seat selected and don't already have a PC with this offerer
-        if (!isPerformer() && selectedSeat && !peerConnectionsRef.current[data.offererSocketId]) {
+        // Removed selectedSeat requirement - allow live stream for any audience member
+        if (!isPerformer() && !peerConnectionsRef.current[data.offererSocketId]) {
             console.log('Setting up audience peer connection...');
             await setupAudiencePeerConnection(data.offererSocketId, data.sdp);
         } else {
-            console.log('Skipping offer - conditions not met');
+            console.log('Skipping offer - conditions not met. IsPerformer:', isPerformer(), 'Has existing PC:', !!peerConnectionsRef.current[data.offererSocketId]);
         }
     });
 
@@ -175,30 +175,56 @@ function App(): JSX.Element {
             const pc = new RTCPeerConnection({ iceServers: stunServers });
             peerConnectionsRef.current[audienceSocketId] = pc;
 
+            // Enhanced logging for artist side
+            pc.onconnectionstatechange = () => {
+              console.log('Artist: WebRTC connection state changed to:', pc.connectionState, 'for audience:', audienceSocketId);
+            };
+
+            pc.oniceconnectionstatechange = () => {
+              console.log('Artist: ICE connection state changed to:', pc.iceConnectionState, 'for audience:', audienceSocketId);
+            };
+
             if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => pc.addTrack(track, localStreamRef.current!));
+                console.log('Artist: Adding local stream tracks to peer connection');
+                localStreamRef.current.getTracks().forEach(track => {
+                    console.log('Artist: Adding track:', track.kind, track.enabled ? 'enabled' : 'disabled');
+                    pc.addTrack(track, localStreamRef.current!);
+                });
             } else {
                 console.warn('Artist: No local stream available to add to new peer connection.');
             }
 
             pc.onicecandidate = (event) => {
                 if (event.candidate && socketRef.current) {
+                    console.log('Artist: Sending ICE candidate to audience:', audienceSocketId);
                     socketRef.current.emit('ice-candidate', {
                         candidate: event.candidate,
                         targetSocketId: audienceSocketId,
                         senderSocketId: socketRef.current.id,
                     });
+                } else if (!event.candidate) {
+                    console.log('Artist: ICE candidate gathering complete for audience:', audienceSocketId);
                 }
             };
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            if (socketRef.current) {
-                socketRef.current.emit('offer', {
-                    sdp: offer,
-                    targetSocketId: audienceSocketId,
-                    offererSocketId: socketRef.current.id,
-                });
+            try {
+                console.log('Artist: Creating offer for audience:', audienceSocketId);
+                const offer = await pc.createOffer();
+                
+                console.log('Artist: Setting local description (offer)');
+                await pc.setLocalDescription(offer);
+                
+                if (socketRef.current) {
+                    console.log('Artist: Sending offer to audience:', audienceSocketId);
+                    socketRef.current.emit('offer', {
+                        sdp: offer,
+                        targetSocketId: audienceSocketId,
+                        offererSocketId: socketRef.current.id,
+                    });
+                    console.log('Artist: Offer sent successfully!');
+                }
+            } catch (error) {
+                console.error('Artist: Error creating/sending offer to audience:', audienceSocketId, error);
             }
         }
     });
@@ -331,39 +357,64 @@ function App(): JSX.Element {
 
   // Audience side setup for receiving artist's stream
   const setupAudiencePeerConnection = async (offererSocketId, offerSdp) => {
+    console.log('Audience: Creating new RTCPeerConnection for artist:', offererSocketId);
     const pc = new RTCPeerConnection({ iceServers: stunServers });
     peerConnectionsRef.current[offererSocketId] = pc;
 
+    // Enhanced logging for connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('Audience: WebRTC connection state changed to:', pc.connectionState);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('Audience: ICE connection state changed to:', pc.iceConnectionState);
+    };
+
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log('Audience: Sending ICE candidate to artist');
         socketRef.current.emit('ice-candidate', {
           candidate: event.candidate,
           targetSocketId: offererSocketId,
           senderSocketId: socketRef.current.id,
         });
+      } else {
+        console.log('Audience: ICE candidate gathering complete');
       }
     };
 
     pc.ontrack = (event) => {
-      console.log('Audience received remote stream:', event.streams[0]);
-      console.log('Setting performer stream for audience...');
+      console.log('Audience: Received remote stream from artist!', event.streams[0]);
+      console.log('Audience: Stream has', event.streams[0].getTracks().length, 'tracks');
       if (event.streams && event.streams[0]) {
         setPerformerStream(event.streams[0]); // This stream will be attached to the Stage component's video element
-        console.log('Performer stream set successfully');
+        console.log('Audience: Performer stream set successfully - live video should now appear!');
       } else {
-        console.error('No stream in track event');
+        console.error('Audience: No stream in track event');
       }
     };
 
-    await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+    try {
+      console.log('Audience: Setting remote description (offer)');
+      await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
+      
+      console.log('Audience: Creating answer');
+      const answer = await pc.createAnswer();
+      
+      console.log('Audience: Setting local description (answer)');
+      await pc.setLocalDescription(answer);
 
-    socketRef.current.emit('answer', {
-      sdp: answer,
-      targetSocketId: offererSocketId,
-      answererSocketId: socketRef.current.id,
-    });
+      console.log('Audience: Sending answer to artist');
+      socketRef.current.emit('answer', {
+        sdp: answer,
+        targetSocketId: offererSocketId,
+        answererSocketId: socketRef.current.id,
+      });
+      
+      console.log('Audience: WebRTC setup complete, waiting for connection...');
+    } catch (error) {
+      console.error('Audience: Error setting up WebRTC connection:', error);
+    }
   };
 
   // --- Local Browser Recording ---
