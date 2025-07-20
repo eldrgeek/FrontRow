@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎭 FRONT ROW - Development Dashboard</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .environments {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .env-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .env-card h3 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.online { background: #28a745; }
+        .status.offline { background: #dc3545; }
+        .status.loading { background: #ffc107; color: #000; }
+        .quick-actions {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:hover { background: #0056b3; }
+        .btn.success { background: #28a745; }
+        .btn.warning { background: #ffc107; color: #000; }
+        .logs {
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Monaco', monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px;
+        }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+        .log-error { color: #dc3545; }
+        .log-success { color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 FRONT ROW Development Dashboard</h1>
+        <p>Monitor all environments and collect logs in real-time</p>
+    </div>
+
+    <div class="quick-actions">
+        <h3>🚀 Quick Actions</h3>
+        <button class="btn" onclick="switchEnvironment('local')">Local Frontend + Local Backend</button>
+        <button class="btn warning" onclick="switchEnvironment('hybrid')">Local Frontend + Production Backend</button>
+        <button class="btn success" onclick="switchEnvironment('production')">Production Frontend + Backend</button>
+        <button class="btn" onclick="refreshStatus()">🔄 Refresh Status</button>
+        <button class="btn" onclick="clearLogs()">🗑️ Clear Logs</button>
+    </div>
+
+    <div class="environments">
+        <div class="env-card">
+            <h3>🏠 Local Development</h3>
+            <p><strong>Frontend:</strong> http://localhost:5173</p>
+            <p><strong>Backend:</strong> http://localhost:3001</p>
+            <p><strong>Status:</strong> <span id="local-status" class="status loading">Checking...</span></p>
+            <p><strong>Last Check:</strong> <span id="local-last-check">-</span></p>
+            <a href="http://localhost:5173" target="_blank" class="btn">Open Frontend</a>
+            <a href="http://localhost:3001/health" target="_blank" class="btn">Backend Health</a>
+        </div>
+
+        <div class="env-card">
+            <h3>🌐 Hybrid (Local + Prod Backend)</h3>
+            <p><strong>Frontend:</strong> http://localhost:5173</p>
+            <p><strong>Backend:</strong> https://frontrow-tvu6.onrender.com</p>
+            <p><strong>Status:</strong> <span id="hybrid-status" class="status loading">Checking...</span></p>
+            <p><strong>Last Check:</strong> <span id="hybrid-last-check">-</span></p>
+            <button class="btn" onclick="startHybridMode()">Start Hybrid Mode</button>
+            <a href="https://frontrow-tvu6.onrender.com/health" target="_blank" class="btn">Backend Health</a>
+        </div>
+
+        <div class="env-card">
+            <h3>☁️ Production</h3>
+            <p><strong>Frontend:</strong> https://frontrowtheater.netlify.app</p>
+            <p><strong>Backend:</strong> https://frontrow-tvu6.onrender.com</p>
+            <p><strong>Status:</strong> <span id="production-status" class="status loading">Checking...</span></p>
+            <p><strong>Last Check:</strong> <span id="production-last-check">-</span></p>
+            <a href="https://frontrowtheater.netlify.app" target="_blank" class="btn">Open Frontend</a>
+            <a href="https://frontrow-tvu6.onrender.com/health" target="_blank" class="btn">Backend Health</a>
+        </div>
+    </div>
+
+    <div class="logs">
+        <h3>📋 Live Logs & Events</h3>
+        <div id="log-container">
+            <div class="log-entry log-info">[INFO] Dashboard initialized</div>
+        </div>
+    </div>
+
+    <script>
+        let logContainer = document.getElementById('log-container');
+        
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function clearLogs() {
+            logContainer.innerHTML = '<div class="log-entry log-info">[INFO] Logs cleared</div>';
+        }
+
+        async function checkStatus(url, env) {
+            try {
+                const response = await fetch(url + '/health', { mode: 'cors' });
+                const data = await response.json();
+                document.getElementById(`${env}-status`).textContent = 'Online';
+                document.getElementById(`${env}-status`).className = 'status online';
+                document.getElementById(`${env}-last-check`).textContent = new Date().toLocaleTimeString();
+                log(`${env.toUpperCase()}: Backend online (${data.activeConnections} connections)`, 'success');
+                return true;
+            } catch (error) {
+                document.getElementById(`${env}-status`).textContent = 'Offline';
+                document.getElementById(`${env}-status`).className = 'status offline';
+                document.getElementById(`${env}-last-check`).textContent = new Date().toLocaleTimeString();
+                log(`${env.toUpperCase()}: Backend offline - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function refreshStatus() {
+            log('Refreshing all environment status...', 'info');
+            await checkStatus('http://localhost:3001', 'local');
+            await checkStatus('https://frontrow-tvu6.onrender.com', 'hybrid');
+            await checkStatus('https://frontrow-tvu6.onrender.com', 'production');
+        }
+
+        function switchEnvironment(env) {
+            log(`Switching to ${env} environment...`, 'warning');
+            
+            switch(env) {
+                case 'local':
+                    log('To use local environment: npm run dev (default)', 'info');
+                    break;
+                case 'hybrid':
+                    startHybridMode();
+                    break;
+                case 'production':
+                    window.open('https://frontrowtheater.netlify.app', '_blank');
+                    log('Opened production environment in new tab', 'success');
+                    break;
+            }
+        }
+
+        function startHybridMode() {
+            log('Starting hybrid mode (local frontend + production backend)...', 'warning');
+            log('Run: cp .env.production-backend .env.local && npm run dev', 'info');
+            log('This will connect local frontend to production backend', 'info');
+        }
+
+        // Auto-refresh status every 30 seconds
+        setInterval(refreshStatus, 30000);
+        
+        // Initial status check
+        refreshStatus();
+        
+        // Simulate WebRTC events (in real implementation, these would come from WebSocket)
+        setInterval(() => {
+            const events = [
+                'WebRTC connection established',
+                'New audience member joined',
+                'Artist went live',
+                'Seat selected successfully'
+            ];
+            if (Math.random() > 0.7) {
+                log(events[Math.floor(Math.random() * events.length)], 'info');
+            }
+        }, 10000);
+    </script>
+</body>
+</html> 
