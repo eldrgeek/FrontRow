@@ -46,7 +46,7 @@ app.use(express.json({ limit: '5mb' })); // Allows larger JSON bodies for Base64
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
 const scheduledShows = []; // { id, artistId, title, dateTime, status: 'scheduled' | 'live' | 'ended' }
-const activeShow = {
+let activeShow = {
   artistId: null,
   startTime: null,
   status: 'idle', // 'idle', 'pre-show', 'live', 'post-show'
@@ -467,15 +467,19 @@ io.on('connection', (socket) => {
   // and handle WebRTC peer connection creation for each audience member.
   // The backend primarily orchestrates the signaling and broadcast of status.
   socket.on('artist-go-live', () => {
+    // Auto-reset show if it's not in idle state
     if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') {
-      console.warn('Artist tried to go live when show is not idle/pre-show.');
-      socket.emit('artist-rejected', { 
-        reason: `Cannot go live when show status is "${activeShow.status}". Show must be idle or pre-show.`,
-        currentStatus: activeShow.status,
-        artistId: activeShow.artistId 
-      });
-      return;
+      console.log('🔧 Auto-resetting show state to idle for new artist');
+      activeShow = {
+        artistId: null,
+        startTime: null,
+        status: 'idle',
+        audienceSeats: {}
+      };
+      io.emit('show-state-change', { status: 'idle' });
     }
+    
+    // Now proceed with going live
     activeShow.status = 'live';
     activeShow.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
     activeShow.startTime = Date.now();
