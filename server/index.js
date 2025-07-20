@@ -132,30 +132,30 @@ io.on('connection', (socket) => {
   socket.on('offer', (data) => {
     // Data: { sdp, targetSocketId } (offerer is socket.id)
     if (data.targetSocketId && io.sockets.sockets.has(data.targetSocketId)) {
-        console.log(`Relaying offer from ${socket.id} to ${data.targetSocketId}`);
+        console.log(`[WebRTC] Relaying OFFER from ${socket.id} to ${data.targetSocketId}`);
         io.to(data.targetSocketId).emit('offer', { sdp: data.sdp, offererSocketId: socket.id });
     } else {
-        console.warn(`Offer target ${data.targetSocketId} not found or invalid.`);
+        console.warn(`[WebRTC] Offer target ${data.targetSocketId} not found or invalid.`);
     }
   });
 
   socket.on('answer', (data) => {
     // Data: { sdp, targetSocketId } (answerer is socket.id)
     if (data.targetSocketId && io.sockets.sockets.has(data.targetSocketId)) {
-        console.log(`Relaying answer from ${socket.id} to ${data.targetSocketId}`);
+        console.log(`[WebRTC] Relaying ANSWER from ${socket.id} to ${data.targetSocketId}`);
         io.to(data.targetSocketId).emit('answer', { sdp: data.sdp, answererSocketId: socket.id });
     } else {
-        console.warn(`Answer target ${data.targetSocketId} not found or invalid.`);
+        console.warn(`[WebRTC] Answer target ${data.targetSocketId} not found or invalid.`);
     }
   });
 
   socket.on('ice-candidate', (data) => {
     // Data: { candidate, targetSocketId } (sender is socket.id)
     if (data.targetSocketId && io.sockets.sockets.has(data.targetSocketId)) {
-        console.log(`Relaying ICE candidate from ${socket.id} to ${data.targetSocketId}`);
+        console.log(`[WebRTC] Relaying ICE candidate from ${socket.id} to ${data.targetSocketId}`);
         io.to(data.targetSocketId).emit('ice-candidate', { candidate: data.candidate, senderSocketId: socket.id });
     } else {
-        console.warn(`ICE candidate target ${data.targetSocketId} not found or invalid.`);
+        console.warn(`[WebRTC] ICE candidate target ${data.targetSocketId} not found or invalid.`);
     }
   });
 
@@ -212,11 +212,11 @@ io.on('connection', (socket) => {
     io.emit('show-status-update', { status: 'live', artistId: socket.id });
     console.log(`Artist ${socket.id} is now LIVE!`);
 
-    // Notify all *currently seated* audience members to set up peer connection with artist
-    // Artist's frontend will generate offers to these
+    // Notify the ARTIST about all currently seated audience members
+    // Artist's frontend will generate offers to these audience members
     Object.values(activeShow.audienceSeats).forEach(audience => {
-        io.to(audience.socketId).emit('new-audience-member', socket.id);
-        console.log(`Notifying seated audience ${audience.socketId} about artist ${socket.id} going live.`);
+        io.to(socket.id).emit('new-audience-member', audience.socketId);
+        console.log(`Notifying artist ${socket.id} about seated audience member ${audience.socketId}.`);
     });
   });
 
