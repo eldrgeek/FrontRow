@@ -230,6 +230,19 @@ function App(): JSX.Element {
         }
     });
 
+    // Listen for artist rejection messages from backend
+    socketRef.current.on('artist-rejected', (data) => {
+        console.warn('Artist: Go live request rejected by backend:', data.reason);
+        alert(`Cannot go live: ${data.reason}\n\nCurrent show status: ${data.currentStatus}\n\nPlease wait for the current show to end or contact support.`);
+        
+        // Stop any local stream that was started
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => track.stop());
+            localStreamRef.current = null;
+            setPerformerStream(null);
+        }
+    });
+
 
     return () => {
       if (socketRef.current) {
@@ -315,6 +328,38 @@ function App(): JSX.Element {
       ...prev,
       [view]: { position, target }
     }));
+  };
+
+  // --- Show Control Functions ---
+  const handleResetShow = async () => {
+    try {
+      const response = await fetch(`${config.backendUrl}/api/debug-reset-show`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Show reset successfully:', result.message);
+        alert('Show status reset to idle');
+      } else {
+        const error = await response.json();
+        console.error('Failed to reset show:', error);
+        alert(`Failed to reset show: ${error.error}`);
+      }
+    } catch (error) {
+      console.error('Error resetting show:', error);
+      alert('Error connecting to server');
+    }
+  };
+
+  const handleEndShow = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('artist-end-show');
+      console.log('Artist ending show via controls');
+    }
   };
 
   // --- WebRTC Functions ---
@@ -634,6 +679,8 @@ function App(): JSX.Element {
               onStopStream={stopPerformerStream}
               onResetArtistStatus={resetArtistStatus}
               userName={userName}
+              onResetShow={handleResetShow}
+              onEndShow={handleEndShow}
             />
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (

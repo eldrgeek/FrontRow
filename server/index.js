@@ -60,10 +60,13 @@ const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), select
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'healthy', 
+    version: '1.2.0',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
-    activeConnections: io.engine.clientsCount || 0
+    activeConnections: io.engine.clientsCount || 0,
+    showStatus: activeShow.status,
+    audienceCount: Object.keys(activeShow.audienceSeats).length
   });
 });
 
@@ -311,6 +314,40 @@ app.post('/api/artist-simulate-end', (req, res) => {
     }, 5000); // 5 seconds post-show display
 });
 
+// Debug endpoint to reset show status (development only)
+app.post('/api/debug-reset-show', (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(403).json({ error: 'Debug endpoints disabled in production' });
+    }
+    
+    console.log('DEBUG: Resetting show status to idle');
+    
+    // Clear all show data
+    activeShow.status = 'idle';
+    activeShow.artistId = null;
+    activeShow.startTime = null;
+    
+    // Clear audience seats
+    for (const seatId in activeShow.audienceSeats) {
+        delete activeShow.audienceSeats[seatId];
+    }
+    
+    // Clear user profiles
+    for (const socketId in userProfiles) {
+        delete userProfiles[socketId];
+    }
+    
+    // Notify all clients
+    io.emit('all-seats-empty');
+    io.emit('show-status-update', { status: 'idle' });
+    
+    res.status(200).json({ 
+        message: 'Show status reset to idle',
+        status: activeShow.status,
+        timestamp: new Date().toISOString()
+    });
+});
+
 
 // --- Socket.IO for WebRTC Signaling and Real-time Updates ---
 io.on('connection', (socket) => {
@@ -399,6 +436,11 @@ io.on('connection', (socket) => {
   socket.on('artist-go-live', () => {
     if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') {
       console.warn('Artist tried to go live when show is not idle/pre-show.');
+      socket.emit('artist-rejected', { 
+        reason: `Cannot go live when show status is "${activeShow.status}". Show must be idle or pre-show.`,
+        currentStatus: activeShow.status,
+        artistId: activeShow.artistId 
+      });
       return;
     }
     activeShow.status = 'live';

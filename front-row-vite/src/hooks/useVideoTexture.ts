@@ -48,9 +48,19 @@ export function useVideoTexture(stream: MediaStream | null): THREE.VideoTexture 
       videoTexture.minFilter = THREE.LinearFilter;
       videoTexture.magFilter = THREE.LinearFilter;
       videoTexture.generateMipmaps = false;
-      videoTexture.flipY = true; // Flip Y to correct video orientation
+      videoTexture.flipY = true; // Try flipping Y to fix upside-down video
       videoTexture.wrapS = THREE.ClampToEdgeWrapping;
       videoTexture.wrapT = THREE.ClampToEdgeWrapping;
+      
+      // Store aspect ratio for proper scaling
+      videoTexture.userData = {
+        aspectRatio: video.videoWidth / video.videoHeight,
+        originalWidth: video.videoWidth,
+        originalHeight: video.videoHeight
+      };
+      
+      console.log('Video aspect ratio:', videoTexture.userData.aspectRatio);
+      console.log('Video flipY setting:', videoTexture.flipY);
       setTexture(videoTexture);
     };
 

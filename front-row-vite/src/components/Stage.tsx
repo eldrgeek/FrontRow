@@ -51,15 +51,41 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
   
   console.log('CurvedScreen: hasLiveStream =', hasLiveStream, 'videoTexture =', videoTexture);
   
+  // Calculate screen dimensions based on video aspect ratio
+  let screenWidth = 12; // Default width
+  let screenHeight = 5; // Default height
+  
+  if (hasLiveStream && videoTexture && videoTexture.userData.aspectRatio) {
+    const aspectRatio = videoTexture.userData.aspectRatio;
+    console.log('Using video aspect ratio:', aspectRatio);
+    
+    // Keep width constant, adjust height to maintain aspect ratio
+    screenWidth = 12;
+    screenHeight = screenWidth / aspectRatio;
+    
+    // Ensure reasonable size limits
+    if (screenHeight > 8) {
+      screenHeight = 8;
+      screenWidth = screenHeight * aspectRatio;
+    }
+    if (screenHeight < 3) {
+      screenHeight = 3;
+      screenWidth = screenHeight * aspectRatio;
+    }
+    
+    console.log('Adjusted screen dimensions:', screenWidth, 'x', screenHeight);
+  }
+  
   return (
     <group>
       {/* Large flat screen at the back of the semicircle stage */}
       <Plane
-        args={[12, 5]}
+        args={[screenWidth, screenHeight]}
         position={screenPosition}
         rotation-x={0}
       >
         {hasLiveStream ? (
+          // Live stream mode - show video with corrected orientation
           <meshBasicMaterial 
             toneMapped={false}
             side={THREE.FrontSide}
@@ -67,19 +93,20 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
             <primitive attach="map" object={videoTexture} />
           </meshBasicMaterial>
         ) : (
+          // Default mode - dark screen
           <meshBasicMaterial color="#111111" side={THREE.FrontSide} />
         )}
       </Plane>
       
-      {/* Screen frame */}
-      <Plane args={[12.4, 5.4]} position={[screenPosition[0], screenPosition[1], screenPosition[2]-0.01]}
+      {/* Screen frame - slightly larger than the screen */}
+      <Plane args={[screenWidth + 0.4, screenHeight + 0.4]} position={[screenPosition[0], screenPosition[1], screenPosition[2]-0.01]}
         rotation-x={0}
       >
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
       </Plane>
       
-      {/* YouTube fallback when no live stream AND show is not live */}
-      {!hasLiveStream && showState !== 'live' && (
+      {/* YouTube fallback when no live stream */}
+      {!hasLiveStream && (
         <YouTubeScreen 
           videoId={fallbackVideoId}
           position={[screenPosition[0], screenPosition[1], screenPosition[2]+0.5]} // slightly in front
@@ -90,7 +117,7 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
   );
 }
 
-function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[-1,5.7,-12.5], performerStream }: StageProps): JSX.Element {
+function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[0,3.5,-12], performerStream }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
 
   // Create a video texture from the performer stream
@@ -99,6 +126,8 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
   // Debug logging
   console.log('Stage: performerStream =', performerStream ? 'Stream present' : 'No stream');
   console.log('Stage: videoTexture =', videoTexture ? 'Texture created' : 'No texture');
+  console.log('Stage: showState =', showState);
+  console.log('Stage: YouTube fallback will show =', !videoTexture);
 
 
   // Animation for countdown or live indicator

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BUILD_INFO } from '../buildInfo';
 
 interface ArtistControlsProps {
   performerStream: MediaStream | null;
@@ -6,6 +7,8 @@ interface ArtistControlsProps {
   onStopStream: () => void;
   onResetArtistStatus: () => void;
   userName: string;
+  onResetShow?: () => void;
+  onEndShow?: () => void;
 }
 
 function ArtistControls({ 
@@ -13,12 +16,22 @@ function ArtistControls({
   onStartStream, 
   onStopStream, 
   onResetArtistStatus,
-  userName
+  userName,
+  onResetShow,
+  onEndShow
 }: ArtistControlsProps): JSX.Element {
-  const [isExpanded, setIsExpanded] = useState(true); // Start expanded for testing
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const toggleExpanded = () => {
-    setIsExpanded(!isExpanded);
+  const handleResetShow = () => {
+    if (onResetShow) {
+      onResetShow();
+    }
+  };
+
+  const handleEndShow = () => {
+    if (onEndShow) {
+      onEndShow();
+    }
   };
 
   const iconStyle: React.CSSProperties = {
@@ -165,6 +178,75 @@ function ArtistControls({
           >
             👥 Switch to Audience
           </button>
+          
+          {/* Show Control Buttons */}
+          <button 
+            style={{
+              ...buttonStyle, 
+              fontSize: '0.8em', 
+              padding: '6px 10px',
+              background: 'rgba(255, 87, 34, 0.2)',
+              borderColor: '#FF5722'
+            }}
+            onClick={handleEndShow}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 87, 34, 0.3)';
+              e.currentTarget.style.borderColor = '#FF7043';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 87, 34, 0.2)';
+              e.currentTarget.style.borderColor = '#FF5722';
+            }}
+          >
+            🛑 End Show
+          </button>
+          
+          <button 
+            style={{
+              ...buttonStyle, 
+              fontSize: '0.8em', 
+              padding: '6px 10px',
+              background: 'rgba(156, 39, 176, 0.2)',
+              borderColor: '#9C27B0'
+            }}
+            onClick={handleResetShow}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(156, 39, 176, 0.3)';
+              e.currentTarget.style.borderColor = '#BA68C8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(156, 39, 176, 0.2)';
+              e.currentTarget.style.borderColor = '#9C27B0';
+            }}
+          >
+            🔄 Reset Show
+          </button>
+          
+          {/* Audience Screen Status Indicator */}
+          <div style={{
+            padding: '8px 10px',
+            fontSize: '0.7em',
+            color: 'rgba(255, 255, 255, 0.8)',
+            textAlign: 'center',
+            borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+            marginTop: '8px'
+          }}>
+            📺 Audience sees: {
+              performerStream ? '🔴 Live Stream' : '📺 YouTube Video'
+            }
+          </div>
+          
+          {/* Version Information */}
+          <div style={{
+            padding: '6px 10px',
+            fontSize: '0.6em',
+            color: 'rgba(255, 255, 255, 0.6)',
+            textAlign: 'center',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            marginTop: '4px'
+          }}>
+            v{BUILD_INFO.version} • {BUILD_INFO.commit} • {new Date(BUILD_INFO.buildTime).toLocaleDateString()}
+          </div>
         </div>
       )}
     </div>
