@@ -15,6 +15,7 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
   const startCamera = useCallback(async () => {
     try {
       setError(null);
+      console.log('Requesting camera access...');
       
       // Request camera access with user-facing camera preference
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -26,18 +27,44 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
         audio: false
       });
       
+      console.log('Camera access granted, stream received:', mediaStream);
       setStream(mediaStream);
       
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        videoRef.current.play();
-        setIsStreamActive(true);
+        const video = videoRef.current;
+        video.srcObject = mediaStream;
+        
+        // Wait for video metadata to load before showing controls
+        const handleLoadedMetadata = () => {
+          console.log('Video metadata loaded, setting stream active');
+          setIsStreamActive(true);
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        };
+        
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        
+        // Fallback timeout in case loadedmetadata doesn't fire
+        setTimeout(() => {
+          if (!isStreamActive) {
+            console.log('Fallback: Setting stream active after timeout');
+            setIsStreamActive(true);
+          }
+        }, 1000);
+        
+        try {
+          await video.play();
+          console.log('Video play started');
+        } catch (playError) {
+          console.error('Error playing video:', playError);
+          // Still try to show controls even if play fails
+          setIsStreamActive(true);
+        }
       }
     } catch (err) {
       console.error('Error accessing camera:', err);
       setError('Unable to access camera. Please make sure camera permissions are granted.');
     }
-  }, []);
+  }, [isStreamActive]);
 
   const stopCamera = useCallback(() => {
     if (stream) {
@@ -90,6 +117,9 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
     <div className="camera-capture-modal">
       <div className="camera-capture-content">
         <h3>Take Your Photo</h3>
+        <p style={{ fontSize: '12px', opacity: 0.7 }}>
+          Debug: Stream: {stream ? 'Yes' : 'No'}, Active: {isStreamActive ? 'Yes' : 'No'}
+        </p>
         
         {error && (
           <div className="error-message">
@@ -121,6 +151,10 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
                 playsInline
                 muted
                 className="camera-video"
+                style={{ display: 'block', backgroundColor: '#333' }}
+                onError={(e) => console.error('Video error:', e)}
+                onLoadStart={() => console.log('Video load started')}
+                onCanPlay={() => console.log('Video can play')}
               />
             </div>
             <div className="camera-controls">
