@@ -18,9 +18,16 @@
     "build-test": "npm run build && echo 'Build test completed successfully!'"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.0",
+    "typescript": "^5.8.3"
   },
-  "keywords": ["virtual-theater", "webrtc", "three.js", "typescript", "vite"],
+  "keywords": [
+    "virtual-theater",
+    "webrtc",
+    "three.js",
+    "typescript",
+    "vite"
+  ],
   "author": "FRONT ROW Team",
   "license": "MIT"
-} 
+}

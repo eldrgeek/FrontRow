@@ -14,3 +14,4 @@ front-row-vite/dist/
 *.log
 npm-debug.log*
 chrome-debug-profile
+package-lock.json
