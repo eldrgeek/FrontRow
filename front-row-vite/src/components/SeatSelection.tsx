@@ -3,6 +3,7 @@ import React, { useRef, useEffect } from 'react';
 import { Text, Box } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
+import PhotoCube from './PhotoCube';
 
 interface AudienceSeat {
   name: string;
@@ -80,8 +81,6 @@ interface SeatProps {
 }
 
 function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, mySocketId, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
-  const meshRef = useRef<THREE.Mesh>(null);
-
   const handleClick = () => {
     // Allow clicking if:
     // 1. Seat is not occupied by someone else AND not currently selected, OR
@@ -111,40 +110,13 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
         ? 'gold'
         : isClickableForSwitch ? 'lightblue' : 'blue';
 
-  // Load image as a texture
-  const texture = useRef(null);
-  useEffect(() => {
-    if (occupantImage) {
-      const img = new Image();
-      img.src = occupantImage;
-      img.onload = () => {
-        texture.current = new THREE.Texture(img);
-        texture.current.needsUpdate = true;
-        if (meshRef.current && meshRef.current.material) {
-            const material = meshRef.current.material as THREE.MeshStandardMaterial;
-            material.map = texture.current;
-            material.needsUpdate = true;
-        }
-      };
-    } else {
-        texture.current = null; // Clear texture if no image
-        if (meshRef.current && meshRef.current.material) {
-            const material = meshRef.current.material as THREE.MeshStandardMaterial;
-            material.map = null;
-            material.needsUpdate = true;
-        }
-    }
-  }, [occupantImage]);
-
   // Mobile-friendly seat size - larger for easier touch
   const seatSize = window.innerWidth < 768 ? 1.3 : 1; // Larger seats on mobile
   const nameTextSize = window.innerWidth < 768 ? 0.15 : 0.12; // Much smaller text to avoid obscuring view
 
   return (
     <group position={seat.position} rotation-y={-Math.atan2(seat.position[0], seat.position[2] - (-5))}> {/* Rotate to face center/stage */}
-      <Box
-        args={[seatSize, seatSize, seatSize]}
-        ref={meshRef}
+      <group
         onClick={handleClick}
         onPointerDown={handlePointerDown}
         onPointerOver={(e) => {
@@ -156,16 +128,15 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
           e.stopPropagation();
           document.body.style.cursor = 'default';
         }}
-        castShadow
-        receiveShadow
       >
-        <meshStandardMaterial 
-          color={color} 
-          map={texture.current}
-          transparent={true}
+        <PhotoCube
+          imageUrl={occupantImage}
+          position={[0, 0, 0]}
+          size={seatSize}
+          color={color}
           opacity={0.9}
         />
-      </Box>
+      </group>
       
       {/* Add a subtle glow effect for interactive seats */}
       {(!isOccupied || (allowSwitching && hasSelectedSeat && !isSelected)) && (

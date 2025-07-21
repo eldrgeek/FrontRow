@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import CameraCapture from './CameraCapture';
 
 interface UserInputFormProps {
   onSubmit: (name: string, imageBase64: string, isArtist: boolean) => void;
@@ -10,7 +11,6 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
   const [name, setName] = useState<string>(() => {
     return sessionStorage.getItem('frontrow_user_name') || '';
   });
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(() => {
     return sessionStorage.getItem('frontrow_user_image') || null;
   });
@@ -18,20 +18,19 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
     // Check if user was previously set as artist
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
+  const [showCamera, setShowCamera] = useState<boolean>(false);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string); // Base64 string for preview
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setImageFile(null);
-      setImagePreview(null);
-    }
+  const handleTakePicture = () => {
+    setShowCamera(true);
+  };
+
+  const handlePhotoCapture = (photoDataUrl: string) => {
+    setImagePreview(photoDataUrl);
+    setShowCamera(false);
+  };
+
+  const handleCameraCancel = () => {
+    setShowCamera(false);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -57,17 +56,9 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
           onChange={(e) => setName(e.target.value)}
           required
         />
-        <label htmlFor="file-upload" className="custom-file-upload">
+        <button type="button" onClick={handleTakePicture} className="custom-file-upload">
           {imagePreview ? 'Change Photo' : 'Take a Picture'}
-        </label>
-        <input
-          id="file-upload"
-          type="file"
-          accept="image/*"
-          capture="user" // Open front camera on mobile
-          onChange={handleImageChange}
-          style={{ display: 'none' }}
-        />
+        </button>
         {imagePreview && (
           <div className="image-preview-container">
             <img src={imagePreview} alt="User Preview" className="image-preview" />
@@ -86,6 +77,13 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
         </div>
         <button type="submit">Enter FRONT ROW</button>
       </form>
+      
+      {showCamera && (
+        <CameraCapture
+          onPhotoCapture={handlePhotoCapture}
+          onCancel={handleCameraCancel}
+        />
+      )}
     </div>
   );
 }

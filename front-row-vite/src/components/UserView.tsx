@@ -1,8 +1,9 @@
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { Box, Text } from '@react-three/drei';
 import * as THREE from 'three';
+import PhotoCube from './PhotoCube';
 
 interface AudienceSeat {
   name: string;
@@ -54,11 +55,16 @@ function UserView({ selectedSeat, audienceSeats }: UserViewProps): JSX.Element {
       {/* Render peripheral awareness of other audience members */}
       {seatsData.map(seat => {
         if (seat.id !== selectedSeat && audienceSeats[seat.id]) {
+          const occupant = audienceSeats[seat.id];
           return (
             <group key={seat.id} position={seat.position}>
-              <Box args={[1, 1, 1]}>
-                <meshStandardMaterial color="darkgrey" /> {/* Simple placeholder for other occupied seats */}
-              </Box>
+              <PhotoCube
+                imageUrl={occupant.imageUrl}
+                position={[0, 0, 0]}
+                size={1}
+                color="darkgrey"
+                opacity={0.9}
+              />
               <Text
                 position={[0, 1.2, 0]}
                 fontSize={0.2}
@@ -67,7 +73,7 @@ function UserView({ selectedSeat, audienceSeats }: UserViewProps): JSX.Element {
                 anchorY="middle"
                 rotation-x={-Math.PI / 2}
               >
-                {audienceSeats[seat.id]?.name}
+                {occupant.name}
               </Text>
             </group>
           );
