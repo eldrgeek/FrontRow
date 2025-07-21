@@ -61,14 +61,14 @@
 [context.production.environment]
   NODE_ENV = "production"
   # These will be set in Netlify dashboard
-  # VITE_BACKEND_URL = "https://your-render-app-url.onrender.com"
-  # VITE_SOCKET_URL = "https://your-render-app-url.onrender.com"
+  VITE_BACKEND_URL = https://frontrow-tvu6.onrender.com
+  VITE_SOCKET_URL = https://frontrow-tvu6.onrender.com
 
 [context.deploy-preview.environment]
   NODE_ENV = "development"
   # Preview deployments use production backend for testing
-  # VITE_BACKEND_URL = "https://your-render-app-url.onrender.com"
-  # VITE_SOCKET_URL = "https://your-render-app-url.onrender.com"
+  VITE_BACKEND_URL = https://frontrow-tvu6.onrender.com
+  VITE_SOCKET_URL = https://frontrow-tvu6.onrender.com
 
 # Branch-specific environment variables
 [context.branch-deploy.environment]
