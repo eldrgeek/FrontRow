@@ -1,0 +1,44 @@
+{
+  "name": "FrontRow Virtual Theater",
+  "description": "A virtual theater application with WebRTC, Three.js, and React",
+  "root": ".",
+  "important_files": [
+    "package.json",
+    "front-row-vite/package.json",
+    "server/package.json",
+    "front-row-vite/src/App.tsx",
+    "front-row-vite/src/main.tsx",
+    "front-row-vite/vite.config.ts",
+    "front-row-vite/tsconfig.json",
+    "server/index.js",
+    "server/config.js",
+    "deploy.sh",
+    "start-dev.sh",
+    "README.md"
+  ],
+  "file_patterns": {
+    "source": [
+      "front-row-vite/src/**/*.{ts,tsx,js,jsx}",
+      "server/**/*.{js,jsx}",
+      "tests/**/*.{py,js,ts}"
+    ],
+    "config": [
+      "**/*.json",
+      "**/*.config.{js,ts}",
+      "**/*.toml",
+      "**/*.yaml",
+      "**/*.yml"
+    ],
+    "docs": [
+      "**/*.md",
+      "docs/**/*"
+    ]
+  },
+  "tasks": {
+    "setup": "npm run install-all",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "test": "npm run test",
+    "deploy": "npm run deploy-prep"
+  }
+} 

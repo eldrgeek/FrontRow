@@ -1,0 +1,104 @@
+{
+  "commands": {
+    "dev": {
+      "description": "Start the development server",
+      "command": "npm run dev",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    "frontend": {
+      "description": "Start only the frontend development server",
+      "command": "npm run frontend",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    "backend": {
+      "description": "Start only the backend server",
+      "command": "npm run backend",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    "build": {
+      "description": "Build the application for production",
+      "command": "npm run build",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "production"
+      }
+    },
+    "test": {
+      "description": "Run tests",
+      "command": "npm run test",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "test"
+      }
+    },
+    "lint": {
+      "description": "Run linting",
+      "command": "cd front-row-vite && npm run lint",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    "preview": {
+      "description": "Preview the built application",
+      "command": "cd front-row-vite && npm run preview",
+      "cwd": ".",
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  },
+  "tasks": {
+    "start-development": {
+      "description": "Start the full development environment",
+      "steps": [
+        {
+          "name": "Install dependencies",
+          "command": "npm run install-all"
+        },
+        {
+          "name": "Start development servers",
+          "command": "npm run dev"
+        }
+      ]
+    },
+    "deploy": {
+      "description": "Deploy the application",
+      "steps": [
+        {
+          "name": "Build the application",
+          "command": "npm run build"
+        },
+        {
+          "name": "Deploy preparation",
+          "command": "npm run deploy-prep"
+        }
+      ]
+    }
+  },
+  "environments": {
+    "development": {
+      "description": "Development environment",
+      "env": {
+        "NODE_ENV": "development",
+        "VITE_API_URL": "http://localhost:3001"
+      }
+    },
+    "production": {
+      "description": "Production environment",
+      "env": {
+        "NODE_ENV": "production",
+        "VITE_API_URL": "https://your-production-api.com"
+      }
+    }
+  }
+} 
