@@ -54,7 +54,8 @@ let activeShow = {
   countdown: {
     isActive: false,
     timeRemaining: 0,
-    totalTime: 0
+    totalTime: 0,
+    interval: null
   }
 };
 const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), selectedSeat } } // Temporary store for connected users
@@ -545,12 +546,18 @@ io.on('connection', (socket) => {
   // Reset show state (called when artist connects)
   socket.on('reset-show', () => {
     console.log(`🎭 Artist ${socket.id} requesting show reset`);
+    
+    // Clear any existing countdown interval
+    if (activeShow.countdown.interval) {
+      clearInterval(activeShow.countdown.interval);
+    }
+    
     activeShow = {
       artistId: null,
       startTime: null,
       status: 'idle',
       audienceSeats: {},
-      countdown: { isActive: false, timeRemaining: 0, totalTime: 0 }
+      countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null }
     };
     io.emit('show-state-change', { status: 'idle' });
     console.log('Show state reset to idle');
@@ -592,13 +599,19 @@ io.on('connection', (socket) => {
       artistId: socket.id 
     });
     
+    // Clear any existing countdown interval
+    if (activeShow.countdown.interval) {
+      clearInterval(activeShow.countdown.interval);
+    }
+    
     // Start countdown timer
-    const countdownInterval = setInterval(() => {
+    activeShow.countdown.interval = setInterval(() => {
       activeShow.countdown.timeRemaining--;
       
       if (activeShow.countdown.timeRemaining <= 0) {
         // Countdown finished - start the show
-        clearInterval(countdownInterval);
+        clearInterval(activeShow.countdown.interval);
+        activeShow.countdown.interval = null;
         activeShow.countdown.isActive = false;
         activeShow.status = 'live';
         activeShow.startTime = Date.now();
@@ -627,7 +640,12 @@ io.on('connection', (socket) => {
       return;
     }
     
-    activeShow.countdown = { isActive: false, timeRemaining: 0, totalTime: 0 };
+    // Clear countdown interval
+    if (activeShow.countdown.interval) {
+      clearInterval(activeShow.countdown.interval);
+    }
+    
+    activeShow.countdown = { isActive: false, timeRemaining: 0, totalTime: 0, interval: null };
     activeShow.status = 'idle';
     
     console.log('⏹️ Countdown stopped');

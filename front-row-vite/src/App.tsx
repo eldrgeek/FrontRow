@@ -159,17 +159,16 @@ function App(): JSX.Element {
     // WebRTC Signaling listeners
     socketRef.current.on('offer', async (data) => {
         console.log('🎬 Audience: Received offer from:', data.offererSocketId);
-        console.log('🎬 Audience: isPerformer:', isPerformer(), 'selectedSeat:', selectedSeat);
+        console.log('🎬 Audience: isPerformer:', isPerformer());
         
         // Only audience members (non-artist) should process offers from artist
-        // And only if they have a seat selected and don't already have a PC with this offerer
-        if (!isPerformer() && selectedSeat && !peerConnectionsRef.current[data.offererSocketId]) {
+        // Don't require a seat - all audience should be able to receive stream
+        if (!isPerformer() && !peerConnectionsRef.current[data.offererSocketId]) {
             console.log('🎬 Audience: Processing offer from artist...');
             await setupAudiencePeerConnection(data.offererSocketId, data.sdp);
         } else {
             console.log('🎬 Audience: Ignoring offer - conditions not met');
             if (isPerformer()) console.log('  - Is performer (should not receive offers)');
-            if (!selectedSeat) console.log('  - No seat selected');
             if (peerConnectionsRef.current[data.offererSocketId]) console.log('  - Peer connection already exists');
         }
     });
