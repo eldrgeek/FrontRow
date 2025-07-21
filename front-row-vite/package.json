@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:stamp && npm run build:tsc && vite build",
-    "build:tsc": "npx tsc -b || echo 'TypeScript check skipped'",
+    "build": "npm run build:stamp && tsc -b && vite build",
     "build:stamp": "echo \"export const BUILD_INFO = { version: '1.2.0', buildTime: '$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")', commit: '$(git rev-parse --short HEAD 2>/dev/null || echo \"unknown\")', branch: '$(git branch --show-current 2>/dev/null || echo \"unknown\")' };\" > src/buildInfo.ts",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -14,10 +13,13 @@
   "dependencies": {
     "@react-three/drei": "^9.0.0",
     "@react-three/fiber": "^8.0.0",
+    "@vitejs/plugin-react": "^4.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "socket.io-client": "^4.0.0",
     "three": "^0.150.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4",
     "webrtc-adapter": "^8.0.0"
   },
   "devDependencies": {
@@ -26,13 +28,10 @@
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@types/three": "^0.150.0",
-    "@vitejs/plugin-react": "^4.6.0",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
-    "typescript": "~5.8.3",
-    "typescript-eslint": "^8.35.1",
-    "vite": "^7.0.4"
+    "typescript-eslint": "^8.35.1"
   }
 }
