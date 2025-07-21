@@ -44,15 +44,26 @@ status = 200
 [build.processing.html]
   pretty_urls = true
 
+# Production environment (master branch only)
 [context.production.environment]
   NODE_ENV = "production"
   VITE_BACKEND_URL = "https://frontrow-tvu6.onrender.com"
   VITE_SOCKET_URL = "https://frontrow-tvu6.onrender.com"
 
-[context.deploy-preview.environment]
-  NODE_ENV = "development"
-  VITE_BACKEND_URL = "https://frontrow-tvu6.onrender.com"
-  VITE_SOCKET_URL = "https://frontrow-tvu6.onrender.com"
+# Staging environment (develop branch)
+[context.develop.environment]
+  NODE_ENV = "staging"
+  VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
+  VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"
 
+# Deploy previews (pull requests)
+[context.deploy-preview.environment]
+  NODE_ENV = "preview"
+  VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
+  VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"
+
+# Branch deployments (other branches)
 [context.branch-deploy.environment]
   NODE_ENV = "development"
+  VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
+  VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"

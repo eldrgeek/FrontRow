@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run build:stamp && tsc -b && vite build",
-    "build:stamp": "echo \"export const BUILD_INFO = { version: '1.2.0', buildTime: '$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")', commit: '$(git rev-parse --short HEAD 2>/dev/null || echo \"unknown\")', branch: '$(git branch --show-current 2>/dev/null || echo \"unknown\")' };\" > src/buildInfo.ts",
+    "build:stamp": "echo \"export const BUILD_INFO = { version: '1.2.0', buildTime: '$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")', commit: '$(git rev-parse --short HEAD 2>/dev/null || echo \"unknown\")', branch: '$(git branch --show-current 2>/dev/null || echo \"unknown\")', environment: '${NODE_ENV:-development}' };\" > src/buildInfo.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
