@@ -473,6 +473,8 @@ io.on('connection', (socket) => {
   // and handle WebRTC peer connection creation for each audience member.
   // The backend primarily orchestrates the signaling and broadcast of status.
   socket.on('artist-go-live', () => {
+    console.log(`🎭 Artist ${socket.id} attempting to go live. Current show status: ${activeShow.status}`);
+    
     // Auto-reset show if it's not in idle state
     if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') {
       console.log('🔧 Auto-resetting show state to idle for new artist');
@@ -480,7 +482,8 @@ io.on('connection', (socket) => {
         artistId: null,
         startTime: null,
         status: 'idle',
-        audienceSeats: {}
+        audienceSeats: {},
+        countdown: { isActive: false, timeRemaining: 0, totalTime: 0 }
       };
       io.emit('show-state-change', { status: 'idle' });
     }
@@ -539,9 +542,25 @@ io.on('connection', (socket) => {
     }, 5000); // 5 seconds post-show display
   });
 
+  // Reset show state (called when artist connects)
+  socket.on('reset-show', () => {
+    console.log(`🎭 Artist ${socket.id} requesting show reset`);
+    activeShow = {
+      artistId: null,
+      startTime: null,
+      status: 'idle',
+      audienceSeats: {},
+      countdown: { isActive: false, timeRemaining: 0, totalTime: 0 }
+    };
+    io.emit('show-state-change', { status: 'idle' });
+    console.log('Show state reset to idle');
+  });
+
   // Countdown management
   socket.on('start-countdown', (data) => {
     const { minutes, seconds } = data;
+    
+    console.log(`🎬 Artist ${socket.id} requesting countdown start:`, data);
     
     // Set this socket as the artist if not already set
     if (!activeShow.artistId) {

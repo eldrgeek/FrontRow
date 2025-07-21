@@ -105,6 +105,12 @@ function App(): JSX.Element {
     socketRef.current.on('connect', () => {
       console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');
+      
+      // Auto-reset show when artist connects
+      if (isPerformer()) {
+        console.log('�� Artist connected - requesting show reset from backend');
+        socketRef.current.emit('reset-show');
+      }
     });
 
     // Socket listeners for show status and seat updates
@@ -118,6 +124,18 @@ function App(): JSX.Element {
           const applause = new Audio('/audio/applause.mp3'); // Assuming audio is in public folder
           applause.play().catch(e => console.log('Could not play applause audio:', e));
         }, 22 * 60 * 1000); // 22 minutes (20 min performance + 2 min encore)
+      }
+    });
+
+    socketRef.current.on('show-state-change', (data) => {
+      console.log('Show State Change:', data);
+      setShowState(data.status);
+      // Clear performer stream when show state changes to idle
+      if (data.status === 'idle') {
+        setPerformerStream(null);
+        setIsCountdownActive(false);
+        setCountdownTime(0);
+        setIsCameraPreview(false);
       }
     });
 
@@ -263,6 +281,11 @@ function App(): JSX.Element {
         setIsCountdownActive(true);
         setCountdownTime(data.timeRemaining);
         setShowState('pre-show');
+        
+        // Clear any existing performer stream during countdown
+        if (!isPerformer()) {
+          setPerformerStream(null);
+        }
     });
 
     socketRef.current.on('countdown-update', (data) => {
@@ -301,7 +324,7 @@ function App(): JSX.Element {
         setIsCameraPreview(false);
         setShowState('idle');
         
-        // Stop camera preview
+        // Stop camera preview and clear stream
         if (localStreamRef.current) {
             localStreamRef.current.getTracks().forEach(track => track.stop());
             localStreamRef.current = null;
@@ -440,6 +463,11 @@ function App(): JSX.Element {
       return;
     }
     
+    if (!isPerformer()) {
+      console.error('❌ Only artists can start countdown');
+      return;
+    }
+    
     try {
       // Send seconds to backend
       console.log('⏰ Frontend: Starting countdown via backend...', { seconds, socketId: socketRef.current.id });
@@ -527,17 +555,36 @@ function App(): JSX.Element {
   };
 
   const stopPerformerStream = () => {
+    console.log('🎭 Artist: Stopping performer stream...');
+    
+    // Stop local stream tracks
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+      localStreamRef.current.getTracks().forEach(track => {
+        console.log('🎭 Artist: Stopping track:', track.kind);
+        track.stop();
+      });
       localStreamRef.current = null;
-      setPerformerStream(null);
     }
+    
+    // Clear performer stream immediately to remove frozen frame
+    setPerformerStream(null);
+    
     // Close all peer connections
-    Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
+    Object.values(peerConnectionsRef.current).forEach(pc => {
+      console.log('🎭 Artist: Closing peer connection');
+      pc.close();
+    });
     peerConnectionsRef.current = {};
+    
+    // Signal backend to end show
     if (socketRef.current) {
       socketRef.current.emit('artist-end-show');
     }
+    
+    // Reset local state
+    setIsCameraPreview(false);
+    setIsCountdownActive(false);
+    setCountdownTime(0);
     
     // Clear artist status from sessionStorage when ending show
     sessionStorage.removeItem('frontrow_is_artist');
@@ -583,10 +630,24 @@ function App(): JSX.Element {
       if (event.streams && event.streams[0]) {
         console.log('🎬 Audience: Setting performer stream from artist:', offererSocketId);
         setPerformerStream(event.streams[0]); // This stream will be attached to the Stage component's video element
+        
+        // Listen for track ended events on the received track
+        event.track.onended = () => {
+          console.log('🎬 Audience: Track ended from artist:', offererSocketId, 'Track kind:', event.track.kind);
+          // Clear the stream when tracks end
+          setPerformerStream(null);
+        };
       } else {
         console.warn('🎬 Audience: Received track but no stream:', event);
       }
     };
+    
+    // Handle track ended events to clear stream when artist stops
+    // pc.ontrackended = (event) => { // This line is removed as per the new_code
+    //   console.log('🎬 Audience: Track ended from artist:', offererSocketId, 'Track kind:', event.track.kind);
+    //   // Clear the stream when tracks end
+    //   setPerformerStream(null);
+    // };
     
     try {
       // Set remote description (artist's offer)
