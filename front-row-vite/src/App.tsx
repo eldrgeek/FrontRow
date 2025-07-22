@@ -119,11 +119,17 @@ function App(): JSX.Element {
       setShowState(data.status);
       if (data.status === 'live') {
         console.log('🔴 SHOW IS NOW LIVE! Audience should expect WebRTC offers soon...');
-        // Start applause sound at end of show (20 minutes for performance + 2 min encore)
-        setTimeout(() => {
-          const applause = new Audio('/audio/applause.mp3'); // Assuming audio is in public folder
-          applause.play().catch(e => console.log('Could not play applause audio:', e));
-        }, 22 * 60 * 1000); // 22 minutes (20 min performance + 2 min encore)
+        
+        // Only play applause for audience members, not for the performer
+        if (!isPerformer()) {
+          // Start applause sound at end of show (20 minutes for performance + 2 min encore)
+          setTimeout(() => {
+            const applause = new Audio('/audio/applause.mp3'); // Assuming audio is in public folder
+            applause.play().catch(e => console.log('Could not play applause audio:', e));
+          }, 22 * 60 * 1000); // 22 minutes (20 min performance + 2 min encore)
+        } else {
+          console.log('👨‍🎤 Performer detected - skipping applause audio');
+        }
       }
     });
 
