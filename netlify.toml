@@ -63,11 +63,9 @@ status = 200
   VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
   VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"
 
-# Deploy previews (pull requests)
+# Deploy previews (pull requests) - backend URL is determined dynamically
 [context.deploy-preview.environment]
   NODE_ENV = "preview"
-  VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
-  VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"
 
 # Branch deployments (other branches)
 [context.branch-deploy.environment]
