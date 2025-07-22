@@ -17,6 +17,12 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
       setError(null);
       console.log('Requesting camera access...');
       
+      // Check if user is in artist mode (camera might already be in use)
+      const isArtist = sessionStorage.getItem('frontrow_is_artist') === 'true';
+      if (isArtist) {
+        console.warn('User is in artist mode - camera might be in use for streaming');
+      }
+      
       // Request camera access with user-facing camera preference
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -36,7 +42,8 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
         
         // Wait for video metadata to load before showing controls
         const handleLoadedMetadata = () => {
-          console.log('Video metadata loaded, setting stream active');
+          console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+          console.log('Video element size:', video.offsetWidth, 'x', video.offsetHeight);
           setIsStreamActive(true);
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
         };
@@ -62,7 +69,44 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
       }
     } catch (err) {
       console.error('Error accessing camera:', err);
-      setError('Unable to access camera. Please make sure camera permissions are granted.');
+      
+      // Check for specific error types
+      if (err instanceof DOMException) {
+        switch (err.name) {
+          case 'NotAllowedError':
+            setError('Camera permission denied. Please allow camera access and try again.');
+            break;
+          case 'NotFoundError':
+            setError('No camera found on this device.');
+            break;
+          case 'NotReadableError':
+            setError('Camera is already in use by another application. Please close other apps using the camera and try again.');
+            break;
+          case 'OverconstrainedError':
+            setError('Camera constraints cannot be satisfied. Trying with basic settings...');
+            // Retry with minimal constraints
+            try {
+              const basicStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: false
+              });
+              setStream(basicStream);
+              if (videoRef.current) {
+                videoRef.current.srcObject = basicStream;
+                await videoRef.current.play();
+                setIsStreamActive(true);
+              }
+              setError(null);
+            } catch (retryErr) {
+              setError('Unable to access camera even with basic settings.');
+            }
+            break;
+          default:
+            setError(`Camera error: ${err.message}`);
+        }
+      } else {
+        setError('Unable to access camera. Please make sure camera permissions are granted.');
+      }
     }
   }, [isStreamActive]);
 
