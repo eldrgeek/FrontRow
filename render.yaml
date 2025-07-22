@@ -1,9 +1,30 @@
 services:
+  # Production Backend (master branch)
   - type: web
-    name: frontrow-backend
+    name: frontrow-production
     runtime: node
     plan: free
     rootDir: server
     buildCommand: npm install
-    startCommand: node index.js
-    autoDeploy: true 
+    startCommand: npm start
+    branch: master
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+
+  # Staging Backend (develop branch)  
+  - type: web
+    name: frontrow-staging
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    branch: develop
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: PORT
+        value: 3001

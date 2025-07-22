@@ -1,10 +1,17 @@
 [build]
   base = "front-row-vite"
-  publish = "dist"
+  publish = "dist" 
   command = "npm install && npm run build"
 
 [build.environment]
   NODE_VERSION = "18"
+
+# Enable branch deployments and deploy previews
+[context.branch-deploy]
+  command = "npm install && npm run build"
+
+[context.deploy-preview]
+  command = "npm install && npm run build"
 
 [[headers]]
 for = "/*"
