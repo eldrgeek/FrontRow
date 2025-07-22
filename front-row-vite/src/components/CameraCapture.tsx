@@ -11,6 +11,24 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showVideo, setShowVideo] = useState(false);
+  
+  // Debug logging for state changes
+  React.useEffect(() => {
+    console.log('🎥 showVideo changed to:', showVideo);
+  }, [showVideo]);
+  
+  React.useEffect(() => {
+    console.log('📹 isStreamActive changed to:', isStreamActive);
+  }, [isStreamActive]);
+  
+  React.useEffect(() => {
+    console.log('🔴 stream changed to:', stream ? 'MediaStream present' : 'No stream');
+  }, [stream]);
+  
+  React.useEffect(() => {
+    console.log('❌ error changed to:', error);
+  }, [error]);
 
   const startCamera = useCallback(async () => {
     try {
@@ -22,6 +40,12 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
       if (isArtist) {
         console.warn('User is in artist mode - camera might be in use for streaming');
       }
+      
+      // Show video element first so it exists when we assign the stream
+      setShowVideo(true);
+      
+      // Wait a bit for React to render the video element
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Request camera access with user-facing camera preference
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -38,34 +62,68 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
       
       if (videoRef.current) {
         const video = videoRef.current;
+        console.log('Video element found, assigning stream...');
+        console.log('Video element dimensions before:', video.offsetWidth, 'x', video.offsetHeight);
+        
         video.srcObject = mediaStream;
+        console.log('Stream assigned to video element');
         
         // Wait for video metadata to load before showing controls
         const handleLoadedMetadata = () => {
-          console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+          console.log('✓ Video metadata loaded!');
+          console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
           console.log('Video element size:', video.offsetWidth, 'x', video.offsetHeight);
-          setIsStreamActive(true);
+          console.log('Video readyState:', video.readyState);
+          
+          // Delay setting active to avoid interrupting video play
+          setTimeout(() => {
+            setIsStreamActive(true);
+          }, 100);
+          
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
         };
         
-        video.addEventListener('loadedmetadata', handleLoadedMetadata);
-        
-        // Fallback timeout in case loadedmetadata doesn't fire
-        setTimeout(() => {
+        const handleCanPlay = () => {
+          console.log('✓ Video can play event fired');
           if (!isStreamActive) {
-            console.log('Fallback: Setting stream active after timeout');
+            console.log('Setting stream active from canplay event');
+            // Delay setting active to avoid interrupting video play
+            setTimeout(() => {
+              setIsStreamActive(true);
+            }, 100);
+          }
+          video.removeEventListener('canplay', handleCanPlay);
+        };
+        
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('canplay', handleCanPlay);
+        
+        // Fallback timeout
+        setTimeout(() => {
+          console.log('Timeout fallback triggered');
+          console.log('Video readyState at timeout:', video.readyState);
+          console.log('Video dimensions at timeout:', video.videoWidth, 'x', video.videoHeight);
+          if (!isStreamActive) {
+            console.log('Force setting stream active after timeout');
             setIsStreamActive(true);
           }
-        }, 1000);
+        }, 2000); // Increased timeout to give video more time
         
         try {
+          console.log('Attempting to play video...');
           await video.play();
-          console.log('Video play started');
+          console.log('✓ Video play started successfully');
         } catch (playError) {
           console.error('Error playing video:', playError);
-          // Still try to show controls even if play fails
-          setIsStreamActive(true);
+          console.log('Play failed but still showing controls');
+          // Don't set error here - just log it and continue
+          // Still try to show controls even if play fails, but delay it
+          setTimeout(() => {
+            setIsStreamActive(true);
+          }, 100);
         }
+      } else {
+        console.error('Video element not found!');
       }
     } catch (err) {
       console.error('Error accessing camera:', err);
@@ -108,15 +166,18 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
         setError('Unable to access camera. Please make sure camera permissions are granted.');
       }
     }
-  }, [isStreamActive]);
+  }, []); // Remove isStreamActive dependency to prevent re-renders
 
   const stopCamera = useCallback(() => {
+    console.log('🛑 stopCamera called');
     if (stream) {
+      console.log('🛑 Stopping stream tracks');
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
     setIsStreamActive(false);
-  }, [stream]);
+    setShowVideo(false);
+  }, []); // Remove stream dependency to prevent re-renders
 
   const capturePhoto = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -172,7 +233,7 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
           </div>
         )}
         
-        {!isStreamActive && !error && (
+        {!showVideo && !error && (
           <div className="camera-start">
             <p>Ready to take your photo?</p>
             <div className="camera-buttons">
@@ -186,7 +247,7 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
           </div>
         )}
         
-        {isStreamActive && (
+        {showVideo && (
           <div className="camera-active">
             <div className="video-container">
               <video
@@ -194,20 +255,42 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
                 autoPlay
                 playsInline
                 muted
+                controls={false}
                 className="camera-video"
-                style={{ display: 'block', backgroundColor: '#333' }}
+                style={{ 
+                  display: 'block', 
+                  backgroundColor: '#333',
+                  width: '100%',
+                  maxWidth: '400px',
+                  height: 'auto',
+                  borderRadius: '8px',
+                  transform: 'scaleX(-1)'
+                }}
                 onError={(e) => console.error('Video error:', e)}
                 onLoadStart={() => console.log('Video load started')}
-                onCanPlay={() => console.log('Video can play')}
+                onCanPlay={() => console.log('Video can play JSX')}
+                onLoadedData={() => console.log('Video loaded data')}
+                onLoadedMetadata={() => console.log('Video loaded metadata JSX')}
               />
             </div>
             <div className="camera-controls">
-              <button onClick={capturePhoto} className="capture-btn">
-                📸 Capture Photo
-              </button>
-              <button onClick={handleCancel} className="cancel-btn">
-                Cancel
-              </button>
+              {isStreamActive ? (
+                <>
+                  <button onClick={capturePhoto} className="capture-btn">
+                    📸 Capture Photo
+                  </button>
+                  <button onClick={handleCancel} className="cancel-btn">
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: '#ffd700', margin: '10px 0' }}>Connecting to camera...</p>
+                  <button onClick={handleCancel} className="cancel-btn">
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -262,6 +345,11 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
         
         .video-container {
           margin-bottom: 20px;
+        }
+        
+        .loading-message {
+          padding: 20px 0;
+          color: #ffd700;
         }
         
         .camera-video {
