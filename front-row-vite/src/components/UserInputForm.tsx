@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import CameraCapture from './CameraCapture';
 
 interface UserInputFormProps {
-  onSubmit: (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream) => void;
+  onSubmit: (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream, captureMode?: 'photo' | 'video') => void;
 }
 
 function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
@@ -47,9 +47,30 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (name.trim()) {
-      // Allow submission with just name for now, image is optional
-      const defaultImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNjY2MiLz4KPHRleHQgeD0iMjAiIHk9IjI1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IndoaXRlIj7wn5GBPC90ZXh0Pgo8L3N2Zz4K';
-      onSubmit(name.trim(), imagePreview || defaultImage, isArtist, videoStream || undefined);
+      // Determine the final capture mode and image/stream
+      let finalImage = imagePreview;
+      let finalVideoStream = videoStream;
+      let finalCaptureMode = captureMode;
+      
+      // If user hasn't taken a photo or started video, default to photo mode with default image
+      if (!captureMode) {
+        finalCaptureMode = 'photo';
+        finalVideoStream = null;
+        if (!imagePreview) {
+          const defaultImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNjY2MiLz4KPHRleHQgeD0iMjAiIHk9IjI1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IndoaXRlIj7wn5GBPC90ZXh0Pgo8L3N2Zz4K';
+          finalImage = defaultImage;
+        }
+      }
+      
+      console.log('🚀 UserInputForm submitting:', {
+        name: name.trim(),
+        captureMode: finalCaptureMode,
+        hasImage: !!finalImage,
+        hasVideoStream: !!finalVideoStream,
+        isArtist
+      });
+      
+      onSubmit(name.trim(), finalImage || '', isArtist, finalVideoStream || undefined, finalCaptureMode);
     } else {
       alert("Please enter your name to continue.");
     }

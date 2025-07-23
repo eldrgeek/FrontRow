@@ -415,12 +415,14 @@ function App(): JSX.Element {
     console.log('User data cleared from sessionStorage');
   };
 
-  const handleNameAndImageSubmit = async (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream) => {
+  const handleNameAndImageSubmit = async (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream, explicitCaptureMode?: 'photo' | 'video') => {
     setUserName(name);
     setUserImage(imageBase64);
     
-    // Handle video stream or photo
-    if (videoStream) {
+    // Handle video stream or photo - prioritize explicit capture mode
+    const finalCaptureMode = explicitCaptureMode || (videoStream ? 'video' : 'photo');
+    
+    if (finalCaptureMode === 'video' && videoStream) {
       setUserVideoStream(videoStream);
       setUserCaptureMode('video');
       sessionStorage.setItem('frontrow_capture_mode', 'video');
@@ -429,6 +431,8 @@ function App(): JSX.Element {
       setUserCaptureMode('photo');
       sessionStorage.setItem('frontrow_capture_mode', 'photo');
     }
+    
+    console.log('🎯 handleNameAndImageSubmit setting capture mode:', finalCaptureMode);
     
     // Save to sessionStorage for per-tab isolation
     sessionStorage.setItem('frontrow_user_name', name);
