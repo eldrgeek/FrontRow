@@ -26,7 +26,7 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
   const lastView = useRef(currentView);
   const lastSeatRef = useRef<string | null>(selectedSeat);
   const transitionProgress = useRef(0);
-  const transitionDuration = 1.2; // seconds - slower transitions
+  const transitionDuration = 3.6; // seconds - 3x slower transitions for smoother camera movement
   const startPosRef = useRef(new THREE.Vector3());
   const startTargetRef = useRef(new THREE.Vector3());
   const targetPosRef = useRef(new THREE.Vector3());

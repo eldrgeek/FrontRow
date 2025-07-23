@@ -5,15 +5,16 @@ interface YouTubeScreenProps {
   videoId: string;
   position?: [number, number, number];
   isLive?: boolean;
+  isPerformer?: boolean;
 }
 
-function YouTubeScreen({ videoId, position = [0, 3, -8], isLive = false }: YouTubeScreenProps): JSX.Element {
+function YouTubeScreen({ videoId, position = [0, 3, -8], isLive = false, isPerformer = false }: YouTubeScreenProps): JSX.Element {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     // Auto-play the video when component mounts (if allowed by browser)
     if (iframeRef.current && isLive) {
-      console.log('YouTube video loaded:', videoId);
+      // YouTube video initialized
     }
   }, [videoId, isLive]);
 
@@ -24,7 +25,9 @@ function YouTubeScreen({ videoId, position = [0, 3, -8], isLive = false }: YouTu
   };
 
   const cleanVideoId = getVideoId(videoId);
-  const embedUrl = `https://www.youtube.com/embed/${cleanVideoId}?autoplay=1&mute=0&loop=1&playlist=${cleanVideoId}&controls=1&showinfo=0&rel=0&modestbranding=1`;
+  // Mute audio for performers to prevent feedback
+  const muteParam = isPerformer ? '1' : '0';
+  const embedUrl = `https://www.youtube.com/embed/${cleanVideoId}?autoplay=1&mute=${muteParam}&loop=1&playlist=${cleanVideoId}&controls=1&showinfo=0&rel=0&modestbranding=1`;
 
   return (
     <Html

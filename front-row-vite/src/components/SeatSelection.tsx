@@ -1,8 +1,7 @@
 
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import { Text, Box } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
-import * as THREE from 'three';
 import PhotoCube from './PhotoCube';
 
 interface AudienceSeat {
@@ -99,16 +98,15 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
     handleClick();
   };
 
-  // Color logic: occupied=darkred, selected=gold, available for switching=lightblue, regular available=blue
+  // Color logic: occupied=darkred, selected=gold, available=blue
   const occupiedByMe = isOccupied && occupantSocketId === mySocketId;
-  const isClickableForSwitch = allowSwitching && hasSelectedSeat && (!isOccupied || occupiedByMe) && !isSelected;
   const color = occupiedByMe
     ? 'gold'
     : isOccupied
       ? 'darkred'
       : isSelected
         ? 'gold'
-        : isClickableForSwitch ? 'lightblue' : 'blue';
+        : 'blue'; // Keep all unoccupied seats blue
 
   // Mobile-friendly seat size - larger for easier touch
   const seatSize = window.innerWidth < 768 ? 1.3 : 1; // Larger seats on mobile
@@ -129,31 +127,46 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
           document.body.style.cursor = 'default';
         }}
       >
+        {/* Seat cube at floor level */}
+        <Box
+          args={[seatSize, seatSize, seatSize]}
+          position={[0, 0, 0]}
+        >
+          <meshStandardMaterial 
+            color={color}
+            opacity={0.9}
+          />
+        </Box>
+        
+        {/* Add a subtle glow effect only for truly interactive seats */}
+        {!isOccupied && !hasSelectedSeat && (
+          <Box
+            args={[seatSize * 1.1, seatSize * 1.1, seatSize * 1.1]}
+            position={[0, 0, 0]}
+          >
+            <meshStandardMaterial 
+              color="blue"
+              transparent={true}
+              opacity={0.2}
+              emissive="blue"
+              emissiveIntensity={0.1}
+            />
+          </Box>
+        )}
+      </group>
+
+      {/* Photo cube above seat - only for occupied seats */}
+      {isOccupied && occupantImage && (
         <PhotoCube
           imageUrl={occupantImage}
-          position={[0, 0, 0]}
+          position={[0, seatSize + seatSize/2, 0]}
           size={seatSize}
           color={color}
           opacity={0.9}
         />
-      </group>
-      
-      {/* Add a subtle glow effect for interactive seats */}
-      {(!isOccupied || (allowSwitching && hasSelectedSeat && !isSelected)) && (
-        <Box
-          args={[seatSize * 1.1, seatSize * 1.1, seatSize * 1.1]}
-          position={[0, 0, 0]}
-        >
-          <meshStandardMaterial 
-            color={isClickableForSwitch ? 'lightblue' : 'blue'}
-            transparent={true}
-            opacity={0.2}
-            emissive={isClickableForSwitch ? 'lightblue' : 'blue'}
-            emissiveIntensity={0.1}
-          />
-        </Box>
       )}
 
+      {/* Text elements outside clickable group to prevent click interference */}
       {isOccupied && (
         <>
           <Text

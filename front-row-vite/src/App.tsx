@@ -13,6 +13,8 @@ import CameraController from './components/CameraController';
 import CameraControls from './components/CameraControls';
 import ViewControls from './components/ViewControls';
 import ArtistControls from './components/ArtistControls';
+import ScreenTuner from './components/ScreenTuner';
+import AnimatedText from './components/AnimatedText';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
@@ -68,6 +70,15 @@ function App(): JSX.Element {
     'eye-in-the-sky': { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
     'user': { position: [0, 1.7, 0], target: [0, 3, -10] } // Will be updated when seat is selected - look at performer screen
   });
+
+  // Screen tuner state
+  const [showScreenTuner, setShowScreenTuner] = useState<boolean>(false);
+  const [screenPosition, setScreenPosition] = useState<[number, number, number]>([0, 7.30, -12]);
+
+  // Animated text state for welcome sequence
+  const [showWelcomeText, setShowWelcomeText] = useState<boolean>(false);
+  const [showPickSeatText, setShowPickSeatText] = useState<boolean>(false);
+  const [welcomeSequenceStarted, setWelcomeSequenceStarted] = useState<boolean>(false);
   
   const socketRef = useRef<Socket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -351,6 +362,33 @@ function App(): JSX.Element {
       }
     };
   }, [selectedSeat]); // Re-run effect if seat selected, to initiate audience PC for artist
+
+  // Keyboard event listener for screen tuner
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Toggle screen tuner with 'T' key (available to all users for debugging)
+      if (event.key.toLowerCase() === 't') {
+        setShowScreenTuner(prev => !prev);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showScreenTuner]);
+
+  // Trigger welcome sequence for audience members
+  useEffect(() => {
+    if (isLoggedIn && !selectedSeat && !isPerformer() && !welcomeSequenceStarted) {
+      setWelcomeSequenceStarted(true);
+      setShowPickSeatText(false);
+      setShowWelcomeText(true);
+    } else if (selectedSeat || isPerformer() || !isLoggedIn) {
+      // Reset sequence when user selects seat or becomes performer
+      setWelcomeSequenceStarted(false);
+      setShowWelcomeText(false);
+      setShowPickSeatText(false);
+    }
+  }, [isLoggedIn, selectedSeat, isPerformer, welcomeSequenceStarted]);
 
   // --- User Flow Functions ---
   const clearUserData = () => {
@@ -813,7 +851,7 @@ function App(): JSX.Element {
               onPositionChange={handleCameraPositionChange}
             />
 
-            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" performerStream={performerStream} countdownTime={countdownTime} isCountdownActive={isCountdownActive} />
+            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" performerStream={performerStream} countdownTime={countdownTime} isCountdownActive={isCountdownActive} isPerformer={isPerformer()} screenPosition={screenPosition} />
             <SeatSelection
               selectedSeat={selectedSeat}
               onSeatSelect={handleSeatSelect}
@@ -836,6 +874,36 @@ function App(): JSX.Element {
             )}
             {showState === 'post-show' && (
               <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
+            )}
+
+            {/* Animated welcome sequence for audience members */}
+            {showWelcomeText && (
+              <AnimatedText
+                text={`Welcome, ${userName}!`}
+                position={[0, 8, -8]}
+                fontSize={2.0}
+                color="#4CAF50"
+                duration={3}
+                onComplete={() => {
+                  setShowWelcomeText(false);
+                  // Small delay to ensure clean transition
+                  setTimeout(() => {
+                    setShowPickSeatText(true);
+                  }, 100);
+                }}
+              />
+            )}
+            {showPickSeatText && (
+              <AnimatedText
+                text="Pick your seat"
+                position={[0, 8, -8]}
+                fontSize={1.5}
+                color="white"
+                duration={3}
+                onComplete={() => {
+                  setShowPickSeatText(false);
+                }}
+              />
             )}
           </Canvas>
         </Suspense>
@@ -881,11 +949,6 @@ function App(): JSX.Element {
           {!isLoggedIn && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
-          {isLoggedIn && !selectedSeat && !isPerformer() && (
-            <div>
-              <p>Welcome, {userName}! Pick your seat.</p>
-            </div>
-          )}
           {isLoggedIn && isPerformer() && (
             <ArtistControls 
               performerStream={performerStream}
@@ -920,6 +983,15 @@ function App(): JSX.Element {
 
 
           {/* Removed countdawn/live-indicator/thank-you from here */}
+
+          {/* Screen Tuner - available to all users for screen positioning */}
+          {showScreenTuner && (
+            <ScreenTuner
+              pos={screenPosition}
+              onChange={setScreenPosition}
+              onClose={() => setShowScreenTuner(false)}
+            />
+          )}
         </div>,
         document.getElementById('overlay-root') as HTMLElement
       )}

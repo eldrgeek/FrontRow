@@ -16,6 +16,7 @@ interface StageProps {
   performerStream?: MediaStream | null;
   countdownTime?: number;
   isCountdownActive?: boolean;
+  isPerformer?: boolean;
 }
 
 // Semicircle stage platform component
@@ -48,10 +49,10 @@ function SemicircleStage(): JSX.Element {
 }
 
 // Flat screen component for the back wall
-function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition, showState } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number]; showState: 'idle' | 'pre-show' | 'live' | 'post-show' }): JSX.Element {
+function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition, isPerformer = false } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number]; showState: 'idle' | 'pre-show' | 'live' | 'post-show'; isPerformer?: boolean }): JSX.Element {
   const hasLiveStream = !!videoTexture;
   
-  console.log('CurvedScreen: hasLiveStream =', hasLiveStream, 'videoTexture =', videoTexture);
+  // CurvedScreen component renders video or YouTube fallback
   
   // Calculate screen dimensions based on video aspect ratio
   let screenWidth = 12; // Default width
@@ -59,7 +60,6 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
   
   if (hasLiveStream && videoTexture && videoTexture.userData.aspectRatio) {
     const aspectRatio = videoTexture.userData.aspectRatio;
-    console.log('Using video aspect ratio:', aspectRatio);
     
     // Keep width constant, adjust height to maintain aspect ratio
     screenWidth = 12;
@@ -74,16 +74,23 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
       screenHeight = 3;
       screenWidth = screenHeight * aspectRatio;
     }
-    
-    console.log('Adjusted screen dimensions:', screenWidth, 'x', screenHeight);
   }
+  
+  // Ensure screen doesn't extend below stage level
+  // Stage is at y=0.1, we want screen bottom to be at least at y=2.0 (well above stage)
+  const minBottomY = 2.0;
+  const originalBottom = screenPosition[1] - screenHeight/2;
+  const adjustedY = Math.max(screenPosition[1], minBottomY + screenHeight/2);
+  const adjustedScreenPosition: [number, number, number] = [screenPosition[0], adjustedY, screenPosition[2]];
+  
+  // Screen positioned at adjustedY to keep bottom above stage level
   
   return (
     <group>
       {/* Large flat screen at the back of the semicircle stage */}
       <Plane
         args={[screenWidth, screenHeight]}
-        position={screenPosition}
+        position={adjustedScreenPosition}
         rotation-x={0}
       >
         {hasLiveStream ? (
@@ -101,7 +108,7 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
       </Plane>
       
       {/* Screen frame - slightly larger than the screen */}
-      <Plane args={[screenWidth + 0.4, screenHeight + 0.4]} position={[screenPosition[0], screenPosition[1], screenPosition[2]-0.01]}
+      <Plane args={[screenWidth + 0.4, screenHeight + 0.4]} position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2]-0.01]}
         rotation-x={0}
       >
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
@@ -111,27 +118,22 @@ function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPos
       {!hasLiveStream && (
         <YouTubeScreen 
           videoId={fallbackVideoId}
-          position={[screenPosition[0], screenPosition[1], screenPosition[2]+0.5]} // slightly in front
+          position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2]+0.5]} // slightly in front
           isLive={false}
+          isPerformer={isPerformer}
         />
       )}
     </group>
   );
 }
 
-function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[0,3.5,-12], performerStream, countdownTime = 0, isCountdownActive = false }: StageProps): JSX.Element {
+function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[0,7.30,-12], performerStream, countdownTime = 0, isCountdownActive = false, isPerformer = false }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
 
   // Create a video texture from the performer stream
   const videoTexture = useVideoTexture(performerStream || null);
   
-  // Debug logging
-  console.log('Stage: performerStream =', performerStream ? 'Stream present' : 'No stream');
-  console.log('Stage: videoTexture =', videoTexture ? 'Texture created' : 'No texture');
-  console.log('Stage: showState =', showState);
-  console.log('Stage: YouTube fallback will show =', !videoTexture);
-  console.log('Stage: countdown =', isCountdownActive ? countdownTime : 'not active');
-  console.log('Stage: countdown props =', { isCountdownActive, countdownTime, showState });
+  // Stage renders the main performance screen with video or YouTube fallback
 
   const formatCountdown = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -154,7 +156,7 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
       <SemicircleStage />
 
       {/* Flat backdrop / Performer Video Screen */}
-      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} screenPosition={screenPosition} showState={showState} />
+      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} screenPosition={screenPosition} showState={showState} isPerformer={isPerformer} />
 
       {/* Artist name stencil on stage floor - moved forward to avoid overlap */}
       <Text
