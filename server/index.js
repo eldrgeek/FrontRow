@@ -393,6 +393,23 @@ app.post('/api/end-show', (req, res) => {
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);
   
+  // Send current seat state to new connection
+  if (Object.keys(activeShow.audienceSeats).length > 0) {
+    console.log(`Sending current seat state to new user ${socket.id}`);
+    for (const [seatId, userData] of Object.entries(activeShow.audienceSeats)) {
+      socket.emit('seat-update', { 
+        seatId, 
+        user: { 
+          name: userData.name, 
+          imageUrl: userData.imageUrl, 
+          socketId: userData.socketId,
+          captureMode: userData.captureMode || 'photo',
+          hasVideoStream: userData.hasVideoStream || false
+        } 
+      });
+    }
+  }
+  
   // If an artist is already live, immediately notify them about this new connection
   // This ensures WebRTC works even if audience doesn't select seats
   if (activeShow.status === 'live' && activeShow.artistId && socket.id !== activeShow.artistId) {
@@ -433,7 +450,7 @@ io.on('connection', (socket) => {
 
   // Audience seat management (in-memory)
   socket.on('select-seat', (data) => {
-    const { seatId, userName, userImage } = data;
+    const { seatId, userName, userImage, captureMode, hasVideoStream } = data;
     if (activeShow.audienceSeats[seatId]) {
       socket.emit('seat-selected', { success: false, message: 'Seat already taken' });
       return;
@@ -443,19 +460,35 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Assign seat and store profile in-memory
-    activeShow.audienceSeats[seatId] = { name: userName, imageUrl: userImage, socketId: socket.id };
-    userProfiles[socket.id] = { name: userName, imageUrl: userImage, selectedSeat: seatId };
+    // Assign seat and store profile in-memory with capture mode data
+    const userData = { 
+      name: userName, 
+      imageUrl: userImage, 
+      socketId: socket.id,
+      captureMode: captureMode || 'photo',
+      hasVideoStream: hasVideoStream || false
+    };
+    activeShow.audienceSeats[seatId] = userData;
+    userProfiles[socket.id] = { ...userData, selectedSeat: seatId };
 
-    io.emit('seat-update', { seatId, user: { name: userName, imageUrl: userImage, socketId: socket.id } }); // Notify all clients of new occupant
+    io.emit('seat-update', { seatId, user: userData }); // Notify all clients of new occupant
     socket.emit('seat-selected', { success: true, seatId });
-    console.log(`User ${userName} selected seat ${seatId}`);
+    console.log(`User ${userName} selected seat ${seatId} with ${captureMode} mode`);
 
     // If an artist is already live, immediately send them an offer to this new audience member
     if (activeShow.status === 'live' && activeShow.artistId) {
         // Signal the artist (activeShow.artistId) that a new audience member has joined
         io.to(activeShow.artistId).emit('new-audience-member', socket.id);
         console.log(`Signaling artist ${activeShow.artistId} about new audience ${socket.id}`);
+    }
+  });
+
+  socket.on('release-seat', (data) => {
+    const { seatId } = data;
+    if (activeShow.audienceSeats[seatId] && activeShow.audienceSeats[seatId].socketId === socket.id) {
+      delete activeShow.audienceSeats[seatId];
+      io.emit('seat-update', { seatId, user: null }); // Null user means seat is empty
+      console.log(`User ${socket.id} released seat ${seatId}`);
     }
   });
 
