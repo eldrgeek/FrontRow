@@ -340,6 +340,8 @@ function App(): JSX.Element {
             // If camera is already on (from preview), just emit go-live
             if (localStreamRef.current) {
                 console.log('🎥 Camera already active - going live with existing stream...');
+                // Update performer stream state to ensure it's available for WebRTC
+                setPerformerStream(localStreamRef.current);
                 socketRef.current.emit('artist-go-live');
             } else {
                 // If camera is not on, start it first
@@ -347,6 +349,8 @@ function App(): JSX.Element {
                 startCameraPreview().then(() => {
                     if (localStreamRef.current) {
                         console.log('🎥 Camera started - now going live...');
+                        // Update performer stream state to ensure it's available for WebRTC
+                        setPerformerStream(localStreamRef.current);
                         socketRef.current.emit('artist-go-live');
                     }
                 }).catch(err => {
