@@ -395,19 +395,21 @@ io.on('connection', (socket) => {
   
   // Send current seat state to new connection
   if (Object.keys(activeShow.audienceSeats).length > 0) {
-    console.log(`Sending current seat state to new user ${socket.id}`);
+    console.log(`📡 Sending current seat state to new user ${socket.id}`);
+    console.log(`📊 Current audienceSeats:`, JSON.stringify(activeShow.audienceSeats, null, 2));
     for (const [seatId, userData] of Object.entries(activeShow.audienceSeats)) {
-      socket.emit('seat-update', { 
-        seatId, 
-        user: { 
-          name: userData.name, 
-          imageUrl: userData.imageUrl, 
-          socketId: userData.socketId,
-          captureMode: userData.captureMode || 'photo',
-          hasVideoStream: userData.hasVideoStream || false
-        } 
-      });
+      const userToSend = { 
+        name: userData.name, 
+        imageUrl: userData.imageUrl, 
+        socketId: userData.socketId,
+        captureMode: userData.captureMode || 'photo',
+        hasVideoStream: userData.hasVideoStream || false
+      };
+      console.log(`📤 Sending seat-update for ${seatId}:`, JSON.stringify(userToSend, null, 2));
+      socket.emit('seat-update', { seatId, user: userToSend });
     }
+  } else {
+    console.log(`📭 No existing seats to send to user ${socket.id}`);
   }
   
   // If an artist is already live, immediately notify them about this new connection
@@ -450,8 +452,11 @@ io.on('connection', (socket) => {
 
   // Audience seat management (in-memory)
   socket.on('select-seat', (data) => {
+    console.log(`🪑 User ${socket.id} requesting seat selection:`, JSON.stringify(data, null, 2));
     const { seatId, userName, userImage, captureMode, hasVideoStream } = data;
+    
     if (activeShow.audienceSeats[seatId]) {
+      console.log(`❌ Seat ${seatId} already taken by:`, activeShow.audienceSeats[seatId]);
       socket.emit('seat-selected', { success: false, message: 'Seat already taken' });
       return;
     }
@@ -471,9 +476,13 @@ io.on('connection', (socket) => {
     activeShow.audienceSeats[seatId] = userData;
     userProfiles[socket.id] = { ...userData, selectedSeat: seatId };
 
+    console.log(`✅ User ${userName} (${socket.id}) assigned to seat ${seatId}`);
+    console.log(`📊 Updated audienceSeats:`, JSON.stringify(activeShow.audienceSeats, null, 2));
+    console.log(`📤 Broadcasting seat-update:`, JSON.stringify({ seatId, user: userData }, null, 2));
+    
     io.emit('seat-update', { seatId, user: userData }); // Notify all clients of new occupant
     socket.emit('seat-selected', { success: true, seatId });
-    console.log(`User ${userName} selected seat ${seatId} with ${captureMode} mode`);
+    console.log(`✨ User ${userName} selected seat ${seatId} with ${captureMode} mode`);
 
     // If an artist is already live, immediately send them an offer to this new audience member
     if (activeShow.status === 'live' && activeShow.artistId) {

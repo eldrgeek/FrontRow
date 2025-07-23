@@ -65,6 +65,11 @@ function App(): JSX.Element {
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
+  
+  // Debug audienceSeats changes
+  useEffect(() => {
+    console.log('🎭 audienceSeats state changed:', JSON.stringify(audienceSeats, null, 2));
+  }, [audienceSeats]);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [mySocketId, setMySocketId] = useState<string>('');
   
@@ -163,14 +168,17 @@ function App(): JSX.Element {
     });
 
     socketRef.current.on('seat-update', (data) => {
-      console.log('Seat Update:', data);
+      console.log('📥 Frontend received seat-update:', JSON.stringify(data, null, 2));
       setAudienceSeats(prev => {
         const newSeats = { ...prev };
         if (data.user) {
+          console.log(`✅ Adding user to seat ${data.seatId}:`, data.user);
           newSeats[data.seatId] = data.user;
         } else {
+          console.log(`🗑️ Removing user from seat ${data.seatId}`);
           delete newSeats[data.seatId];
         }
+        console.log('📊 Updated audienceSeats state:', newSeats);
         return newSeats;
       });
     });
@@ -450,6 +458,12 @@ function App(): JSX.Element {
     console.log('Audience: Selecting seat and requesting to join audience...');
     
     // Prepare user data for the seat
+    console.log('🔍 Current user state before seat selection:');
+    console.log('  userName:', userName);
+    console.log('  userImage length:', userImage?.length || 'null');
+    console.log('  userCaptureMode:', userCaptureMode);
+    console.log('  userVideoStream:', !!userVideoStream);
+    
     const userData = {
       seatId,
       userName,
@@ -458,7 +472,7 @@ function App(): JSX.Element {
       hasVideoStream: !!userVideoStream
     };
     
-    console.log('Sending seat data:', userData);
+    console.log('📤 Frontend sending select-seat:', JSON.stringify(userData, null, 2));
     socketRef.current.emit('select-seat', userData);
 
     // Listen for the seat-selected response only once per selection attempt
