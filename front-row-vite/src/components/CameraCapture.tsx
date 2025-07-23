@@ -2,16 +2,18 @@ import React, { useRef, useState, useCallback } from 'react';
 
 interface CameraCaptureProps {
   onPhotoCapture: (photoDataUrl: string) => void;
+  onVideoStream: (stream: MediaStream) => void;
   onCancel: () => void;
 }
 
-function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.Element {
+function CameraCapture({ onPhotoCapture, onVideoStream, onCancel }: CameraCaptureProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showVideo, setShowVideo] = useState(false);
+  const [captureMode, setCaptureMode] = useState<'choice' | 'photo' | 'video'>('choice');
   
   // Debug logging for state changes
   React.useEffect(() => {
@@ -200,11 +202,22 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
     
     // Store in session storage
     sessionStorage.setItem('frontrow_user_image', photoDataUrl);
+    sessionStorage.setItem('frontrow_capture_mode', 'photo');
     
     // Stop camera and return photo
     stopCamera();
     onPhotoCapture(photoDataUrl);
   }, [stopCamera, onPhotoCapture]);
+
+  const startVideoStream = useCallback(() => {
+    if (!stream) return;
+    
+    // Store capture mode for reconnection purposes
+    sessionStorage.setItem('frontrow_capture_mode', 'video');
+    
+    // Don't stop camera - keep stream active for video mode
+    onVideoStream(stream);
+  }, [stream, onVideoStream]);
 
   const handleCancel = useCallback(() => {
     stopCamera();
@@ -233,12 +246,40 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
           </div>
         )}
         
-        {!showVideo && !error && (
+        {captureMode === 'choice' && !error && (
+          <div className="capture-choice">
+            <p>How would you like to appear to other participants?</p>
+            <div className="choice-buttons">
+              <button 
+                onClick={() => setCaptureMode('photo')} 
+                className="choice-btn photo-btn"
+              >
+                📷 Take a Photo
+                <small>Static image on your seat</small>
+              </button>
+              <button 
+                onClick={() => setCaptureMode('video')} 
+                className="choice-btn video-btn"
+              >
+                🎥 Live Video Stream
+                <small>Real-time video feed</small>
+              </button>
+              <button onClick={handleCancel} className="cancel-btn">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(captureMode === 'photo' || captureMode === 'video') && !showVideo && !error && (
           <div className="camera-start">
-            <p>Ready to take your photo?</p>
+            <p>{captureMode === 'photo' ? 'Ready to take your photo?' : 'Ready to start video streaming?'}</p>
             <div className="camera-buttons">
               <button onClick={startCamera} className="start-camera-btn">
                 📷 Start Camera
+              </button>
+              <button onClick={() => setCaptureMode('choice')} className="back-btn">
+                ← Back
               </button>
               <button onClick={handleCancel} className="cancel-btn">
                 Cancel
@@ -276,8 +317,17 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
             <div className="camera-controls">
               {isStreamActive ? (
                 <>
-                  <button onClick={capturePhoto} className="capture-btn">
-                    📸 Capture Photo
+                  {captureMode === 'photo' ? (
+                    <button onClick={capturePhoto} className="capture-btn">
+                      📸 Capture Photo
+                    </button>
+                  ) : (
+                    <button onClick={startVideoStream} className="capture-btn">
+                      🎥 Start Video Stream
+                    </button>
+                  )}
+                  <button onClick={() => setCaptureMode('choice')} className="back-btn">
+                    ← Back
                   </button>
                   <button onClick={handleCancel} className="cancel-btn">
                     Cancel
@@ -330,6 +380,61 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
         .error-message {
           color: #ff6b6b;
           margin: 20px 0;
+        }
+        
+        .capture-choice {
+          padding: 20px 0;
+        }
+        
+        .choice-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 15px;
+          align-items: center;
+          margin-top: 20px;
+        }
+        
+        .choice-btn {
+          background: #2196F3;
+          color: white;
+          border: none;
+          padding: 20px 30px;
+          border-radius: 8px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.3s;
+          min-width: 280px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .choice-btn:hover {
+          background: #1976D2;
+          transform: translateY(-2px);
+        }
+        
+        .choice-btn small {
+          font-size: 12px;
+          opacity: 0.8;
+          font-weight: normal;
+        }
+        
+        .photo-btn {
+          background: #4CAF50;
+        }
+        
+        .photo-btn:hover {
+          background: #45a049;
+        }
+        
+        .video-btn {
+          background: #FF5722;
+        }
+        
+        .video-btn:hover {
+          background: #E64A19;
         }
         
         .camera-start {
@@ -388,6 +493,21 @@ function CameraCapture({ onPhotoCapture, onCancel }: CameraCaptureProps): JSX.El
         
         .cancel-btn:hover {
           background: #da190b;
+        }
+        
+        .back-btn {
+          background: #757575;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: background-color 0.3s;
+        }
+        
+        .back-btn:hover {
+          background: #616161;
         }
         
         @media (max-width: 768px) {

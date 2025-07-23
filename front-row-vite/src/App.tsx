@@ -25,6 +25,8 @@ interface AudienceSeat {
   name: string;
   imageUrl: string;
   socketId: string;
+  captureMode: 'photo' | 'video';
+  hasVideoStream?: boolean;
 }
 
 interface AudienceSeats {
@@ -53,6 +55,10 @@ function App(): JSX.Element {
   });
   const [userImage, setUserImage] = useState<string | null>(() => {
     return sessionStorage.getItem('frontrow_user_image') || null;
+  });
+  const [userVideoStream, setUserVideoStream] = useState<MediaStream | null>(null);
+  const [userCaptureMode, setUserCaptureMode] = useState<'photo' | 'video'>(() => {
+    return (sessionStorage.getItem('frontrow_capture_mode') as 'photo' | 'video') || 'photo';
   });
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null); // user picks seat each session
   const [showState, setShowState] = useState<ShowState>('idle');
@@ -401,9 +407,20 @@ function App(): JSX.Element {
     console.log('User data cleared from sessionStorage');
   };
 
-  const handleNameAndImageSubmit = async (name, imageBase64, isArtist) => {
+  const handleNameAndImageSubmit = async (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream) => {
     setUserName(name);
     setUserImage(imageBase64);
+    
+    // Handle video stream or photo
+    if (videoStream) {
+      setUserVideoStream(videoStream);
+      setUserCaptureMode('video');
+      sessionStorage.setItem('frontrow_capture_mode', 'video');
+    } else {
+      setUserVideoStream(null);
+      setUserCaptureMode('photo');
+      sessionStorage.setItem('frontrow_capture_mode', 'photo');
+    }
     
     // Save to sessionStorage for per-tab isolation
     sessionStorage.setItem('frontrow_user_name', name);
@@ -431,7 +448,18 @@ function App(): JSX.Element {
 
     // This is where the client requests a seat
     console.log('Audience: Selecting seat and requesting to join audience...');
-    socketRef.current.emit('select-seat', { seatId, userName, userImage });
+    
+    // Prepare user data for the seat
+    const userData = {
+      seatId,
+      userName,
+      userImage,
+      captureMode: userCaptureMode,
+      hasVideoStream: !!userVideoStream
+    };
+    
+    console.log('Sending seat data:', userData);
+    socketRef.current.emit('select-seat', userData);
 
     // Listen for the seat-selected response only once per selection attempt
     const handleSeatSelectedResponse = (response) => {
@@ -857,6 +885,8 @@ function App(): JSX.Element {
               onSeatSelect={handleSeatSelect}
               audienceSeats={audienceSeats}
               mySocketId={mySocketId}
+              myVideoStream={userVideoStream}
+              myCaptureMode={userCaptureMode}
             />
 
             {isPerformer() && (

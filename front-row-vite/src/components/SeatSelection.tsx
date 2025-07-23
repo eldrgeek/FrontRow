@@ -8,6 +8,8 @@ interface AudienceSeat {
   name: string;
   imageUrl: string;
   socketId: string;
+  captureMode: 'photo' | 'video';
+  hasVideoStream?: boolean;
 }
 
 interface AudienceSeats {
@@ -25,9 +27,11 @@ interface SeatSelectionProps {
   audienceSeats: AudienceSeats;
   allowSeatSwitching?: boolean;
   mySocketId?: string;
+  myVideoStream?: MediaStream;
+  myCaptureMode?: 'photo' | 'video';
 }
 
-function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId }: SeatSelectionProps): JSX.Element {
+function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode }: SeatSelectionProps): JSX.Element {
   const seatsData: SeatData[] = [];
   const frontRowRadius = 10; // Increased radius for better spacing
   const stageZOffset = -8; // Stage position in Z
@@ -56,7 +60,11 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
           occupantName={audienceSeats[seat.id]?.name}
           occupantImage={audienceSeats[seat.id]?.imageUrl}
           occupantSocketId={audienceSeats[seat.id]?.socketId}
+          occupantCaptureMode={audienceSeats[seat.id]?.captureMode}
+          occupantVideoStream={undefined} // Video streams will be handled via WebRTC
           mySocketId={mySocketId}
+          myVideoStream={myVideoStream}
+          myCaptureMode={myCaptureMode}
           onSelect={onSeatSelect}
           allowSwitching={allowSeatSwitching}
           hasSelectedSeat={!!selectedSeat}
@@ -73,13 +81,17 @@ interface SeatProps {
   occupantName?: string;
   occupantImage?: string;
   occupantSocketId?: string;
+  occupantCaptureMode?: 'photo' | 'video';
+  occupantVideoStream?: MediaStream;
   mySocketId?: string;
+  myVideoStream?: MediaStream;
+  myCaptureMode?: 'photo' | 'video';
   onSelect: (seatId: string) => void;
   allowSwitching?: boolean;
   hasSelectedSeat?: boolean;
 }
 
-function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, mySocketId, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
+function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, occupantCaptureMode, occupantVideoStream, mySocketId, myVideoStream, myCaptureMode, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
   const handleClick = () => {
     // Allow clicking if:
     // 1. Seat is not occupied by someone else AND not currently selected, OR
@@ -156,9 +168,11 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
       </group>
 
       {/* Photo cube above seat - only for occupied seats */}
-      {isOccupied && occupantImage && (
+      {isOccupied && (
         <PhotoCube
           imageUrl={occupantImage}
+          videoStream={occupantSocketId === mySocketId ? myVideoStream : occupantVideoStream}
+          captureMode={occupantSocketId === mySocketId ? myCaptureMode : occupantCaptureMode}
           position={[0, seatSize + seatSize/2, 0]}
           size={seatSize}
           color={color}

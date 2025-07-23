@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import CameraCapture from './CameraCapture';
 
 interface UserInputFormProps {
-  onSubmit: (name: string, imageBase64: string, isArtist: boolean) => void;
+  onSubmit: (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream) => void;
 }
 
 function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
@@ -19,6 +19,8 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
   const [showCamera, setShowCamera] = useState<boolean>(false);
+  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+  const [captureMode, setCaptureMode] = useState<'photo' | 'video' | null>(null);
 
   const handleTakePicture = () => {
     setShowCamera(true);
@@ -26,6 +28,15 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
 
   const handlePhotoCapture = (photoDataUrl: string) => {
     setImagePreview(photoDataUrl);
+    setCaptureMode('photo');
+    setVideoStream(null);
+    setShowCamera(false);
+  };
+
+  const handleVideoStream = (stream: MediaStream) => {
+    setVideoStream(stream);
+    setCaptureMode('video');
+    setImagePreview(null);
     setShowCamera(false);
   };
 
@@ -38,7 +49,7 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
     if (name.trim()) {
       // Allow submission with just name for now, image is optional
       const defaultImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNjY2MiLz4KPHRleHQgeD0iMjAiIHk9IjI1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IndoaXRlIj7wn5GBPC90ZXh0Pgo8L3N2Zz4K';
-      onSubmit(name.trim(), imagePreview || defaultImage, isArtist);
+      onSubmit(name.trim(), imagePreview || defaultImage, isArtist, videoStream || undefined);
     } else {
       alert("Please enter your name to continue.");
     }
@@ -57,11 +68,34 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
           required
         />
         <button type="button" onClick={handleTakePicture} className="custom-file-upload">
-          {imagePreview ? 'Change Photo' : 'Take a Picture'}
+          {captureMode === 'photo' ? 'Change Photo' : captureMode === 'video' ? 'Change Video Stream' : 'Take Photo or Start Video'}
         </button>
-        {imagePreview && (
+        {imagePreview && captureMode === 'photo' && (
           <div className="image-preview-container">
             <img src={imagePreview} alt="User Preview" className="image-preview" />
+            <p style={{ fontSize: '12px', color: '#ffd700', margin: '5px 0' }}>📷 Photo Mode</p>
+          </div>
+        )}
+        {videoStream && captureMode === 'video' && (
+          <div className="video-preview-container">
+            <video 
+              autoPlay 
+              playsInline 
+              muted 
+              style={{ 
+                width: '100px', 
+                height: '75px', 
+                borderRadius: '8px',
+                border: '2px solid #ffd700',
+                transform: 'scaleX(-1)'
+              }}
+              ref={(video) => {
+                if (video && videoStream) {
+                  video.srcObject = videoStream;
+                }
+              }}
+            />
+            <p style={{ fontSize: '12px', color: '#ff5722', margin: '5px 0' }}>🎥 Video Stream Active</p>
           </div>
         )}
         <div className="artist-checkbox-container" style={{ margin: '15px 0', textAlign: 'left' }}>
@@ -81,6 +115,7 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
       {showCamera && (
         <CameraCapture
           onPhotoCapture={handlePhotoCapture}
+          onVideoStream={handleVideoStream}
           onCancel={handleCameraCancel}
         />
       )}
