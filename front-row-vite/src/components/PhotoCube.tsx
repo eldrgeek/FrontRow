@@ -113,8 +113,6 @@ function PhotoCube({ imageUrl, videoStream, captureMode = 'photo', position, siz
       ref={meshRef}
       args={[size, size, size]}
       position={position}
-      castShadow
-      receiveShadow
     />
   );
 }

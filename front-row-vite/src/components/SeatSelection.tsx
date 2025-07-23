@@ -46,7 +46,7 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
     const angle = startAngle + (i / (totalSeats - 1)) * (endAngle - startAngle);
     const x = frontRowRadius * Math.cos(angle);
     const z = frontRowRadius * Math.sin(angle) + stageZOffset; // Align with stage
-    seatsData.push({ id: `seat-${i}`, position: [x, 0.5, z] });
+    seatsData.push({ id: `seat-${i}`, position: [x, 0, z] });
   }
 
   return (
@@ -142,10 +142,13 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
         {/* Seat cube at floor level */}
         <Box
           args={[seatSize, seatSize, seatSize]}
-          position={[0, 0, 0]}
+          position={[0, seatSize/2, 0]}
+          castShadow={false}
+          receiveShadow={false}
         >
-          <meshStandardMaterial 
+          <meshBasicMaterial 
             color={color}
+            transparent={true}
             opacity={0.9}
           />
         </Box>
@@ -156,12 +159,10 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
             args={[seatSize * 1.1, seatSize * 1.1, seatSize * 1.1]}
             position={[0, 0, 0]}
           >
-            <meshStandardMaterial 
+            <meshBasicMaterial 
               color="blue"
               transparent={true}
               opacity={0.2}
-              emissive="blue"
-              emissiveIntensity={0.1}
             />
           </Box>
         )}
@@ -170,12 +171,12 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
       {/* Photo cube above seat - only for occupied seats */}
       {isOccupied && (
         <PhotoCube
+          key={`photo-${seat.id}-${occupantSocketId}`}
           imageUrl={occupantImage}
           videoStream={occupantSocketId === mySocketId ? myVideoStream : occupantVideoStream}
           captureMode={occupantSocketId === mySocketId ? myCaptureMode : occupantCaptureMode}
-          position={[0, seatSize + seatSize/2, 0]}
+          position={[0, seatSize * 2, 0]}
           size={seatSize}
-          color={color}
           opacity={0.9}
         />
       )}

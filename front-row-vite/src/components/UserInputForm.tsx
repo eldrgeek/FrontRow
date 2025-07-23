@@ -19,8 +19,29 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
   const [showCamera, setShowCamera] = useState<boolean>(false);
-  const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
-  const [captureMode, setCaptureMode] = useState<'photo' | 'video' | null>(null);
+
+  // Generate a random avatar
+  const generateRandomAvatar = () => {
+    const avatars = [
+      '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇',
+      '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚',
+      '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+      '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣',
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯',
+      '🦁', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🐣', '🐥', '🦄'
+    ];
+    const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+    
+    // Create SVG with the emoji
+    const svgContent = `
+      <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="50" r="50" fill="#4A90E2"/>
+        <text x="50" y="65" text-anchor="middle" font-family="Arial" font-size="40">${randomAvatar}</text>
+      </svg>
+    `;
+    
+    return `data:image/svg+xml;base64,${btoa(svgContent)}`;
+  };
 
   const handleTakePicture = () => {
     setShowCamera(true);
@@ -28,15 +49,6 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
 
   const handlePhotoCapture = (photoDataUrl: string) => {
     setImagePreview(photoDataUrl);
-    setCaptureMode('photo');
-    setVideoStream(null);
-    setShowCamera(false);
-  };
-
-  const handleVideoStream = (stream: MediaStream) => {
-    setVideoStream(stream);
-    setCaptureMode('video');
-    setImagePreview(null);
     setShowCamera(false);
   };
 
@@ -47,30 +59,18 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (name.trim()) {
-      // Determine the final capture mode and image/stream
-      let finalImage = imagePreview;
-      let finalVideoStream = videoStream;
-      let finalCaptureMode = captureMode;
-      
-      // If user hasn't taken a photo or started video, default to photo mode with default image
-      if (!captureMode) {
-        finalCaptureMode = 'photo';
-        finalVideoStream = null;
-        if (!imagePreview) {
-          const defaultImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNjY2MiLz4KPHRleHQgeD0iMjAiIHk9IjI1IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IndoaXRlIj7wn5GBPC90ZXh0Pgo8L3N2Zz4K';
-          finalImage = defaultImage;
-        }
-      }
+      // Use photo if available, otherwise generate random avatar
+      const finalImage = imagePreview || generateRandomAvatar();
       
       console.log('🚀 UserInputForm submitting:', {
         name: name.trim(),
-        captureMode: finalCaptureMode,
-        hasImage: !!finalImage,
-        hasVideoStream: !!finalVideoStream,
+        hasImage: !!imagePreview,
+        hasRandomAvatar: !imagePreview,
         isArtist
       });
       
-      onSubmit(name.trim(), finalImage || '', isArtist, finalVideoStream || undefined, finalCaptureMode);
+      // Always submit with photo mode initially - video choice happens after login
+      onSubmit(name.trim(), finalImage, isArtist, undefined, 'photo');
     } else {
       alert("Please enter your name to continue.");
     }
@@ -88,35 +88,14 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
           onChange={(e) => setName(e.target.value)}
           required
         />
-        <button type="button" onClick={handleTakePicture} className="custom-file-upload">
-          {captureMode === 'photo' ? 'Change Photo' : captureMode === 'video' ? 'Change Video Stream' : 'Take Photo or Start Video'}
-        </button>
-        {imagePreview && captureMode === 'photo' && (
-          <div className="image-preview-container">
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button type="button" onClick={handleTakePicture} className="custom-file-upload">
+            {imagePreview ? 'Update Photo' : 'Take a Picture'}
+          </button>
+        </div>
+        {imagePreview && (
+          <div className="image-preview-container" style={{ margin: '15px 0' }}>
             <img src={imagePreview} alt="User Preview" className="image-preview" />
-            <p style={{ fontSize: '12px', color: '#ffd700', margin: '5px 0' }}>📷 Photo Mode</p>
-          </div>
-        )}
-        {videoStream && captureMode === 'video' && (
-          <div className="video-preview-container">
-            <video 
-              autoPlay 
-              playsInline 
-              muted 
-              style={{ 
-                width: '100px', 
-                height: '75px', 
-                borderRadius: '8px',
-                border: '2px solid #ffd700',
-                transform: 'scaleX(-1)'
-              }}
-              ref={(video) => {
-                if (video && videoStream) {
-                  video.srcObject = videoStream;
-                }
-              }}
-            />
-            <p style={{ fontSize: '12px', color: '#ff5722', margin: '5px 0' }}>🎥 Video Stream Active</p>
           </div>
         )}
         <div className="artist-checkbox-container" style={{ margin: '15px 0', textAlign: 'left' }}>
@@ -135,8 +114,8 @@ function UserInputForm({ onSubmit }: UserInputFormProps): JSX.Element {
       
       {showCamera && (
         <CameraCapture
+          mode="photo"
           onPhotoCapture={handlePhotoCapture}
-          onVideoStream={handleVideoStream}
           onCancel={handleCameraCancel}
         />
       )}

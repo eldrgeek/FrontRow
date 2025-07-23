@@ -396,7 +396,7 @@ io.on('connection', (socket) => {
   // Send current seat state to new connection
   if (Object.keys(activeShow.audienceSeats).length > 0) {
     console.log(`📡 Sending current seat state to new user ${socket.id}`);
-    console.log(`📊 Current audienceSeats:`, JSON.stringify(activeShow.audienceSeats, null, 2));
+    console.log(`📊 Current audienceSeats: ${Object.keys(activeShow.audienceSeats).length} seats occupied`);
     for (const [seatId, userData] of Object.entries(activeShow.audienceSeats)) {
       const userToSend = { 
         name: userData.name, 
@@ -405,7 +405,7 @@ io.on('connection', (socket) => {
         captureMode: userData.captureMode || 'photo',
         hasVideoStream: userData.hasVideoStream || false
       };
-      console.log(`📤 Sending seat-update for ${seatId}:`, JSON.stringify(userToSend, null, 2));
+      console.log(`📤 Sending seat-update for ${seatId}: ${userData.name} (${userData.captureMode || 'photo'}) [${userData.socketId}]`);
       socket.emit('seat-update', { seatId, user: userToSend });
     }
   } else {
@@ -452,7 +452,7 @@ io.on('connection', (socket) => {
 
   // Audience seat management (in-memory)
   socket.on('select-seat', (data) => {
-    console.log(`🪑 User ${socket.id} requesting seat selection:`, JSON.stringify(data, null, 2));
+    console.log(`🪑 User ${socket.id} requesting seat selection: ${data.seatId} for ${data.userName} (${data.captureMode || 'photo'})`);
     const { seatId, userName, userImage, captureMode, hasVideoStream } = data;
     
     if (activeShow.audienceSeats[seatId]) {
@@ -477,8 +477,8 @@ io.on('connection', (socket) => {
     userProfiles[socket.id] = { ...userData, selectedSeat: seatId };
 
     console.log(`✅ User ${userName} (${socket.id}) assigned to seat ${seatId}`);
-    console.log(`📊 Updated audienceSeats:`, JSON.stringify(activeShow.audienceSeats, null, 2));
-    console.log(`📤 Broadcasting seat-update:`, JSON.stringify({ seatId, user: userData }, null, 2));
+    console.log(`📊 Updated audienceSeats: ${Object.keys(activeShow.audienceSeats).length} total seats occupied`);
+    console.log(`📤 Broadcasting seat-update: ${seatId} → ${userData.name} (${userData.captureMode})`);
     
     io.emit('seat-update', { seatId, user: userData }); // Notify all clients of new occupant
     socket.emit('seat-selected', { success: true, seatId });
@@ -518,8 +518,31 @@ io.on('connection', (socket) => {
   socket.on('artist-go-live', () => {
     console.log(`🎭 Artist ${socket.id} attempting to go live. Current show status: ${activeShow.status}`);
     
-    // Auto-reset show if it's not in idle state
-    if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') {
+    // If already live and same artist, just proceed with WebRTC setup
+    if (activeShow.status === 'live' && activeShow.artistId === socket.id) {
+      console.log('🎭 Artist already live - proceeding with WebRTC setup');
+      
+      // Notify the ARTIST about all currently seated audience members
+      Object.values(activeShow.audienceSeats).forEach(audience => {
+          io.to(socket.id).emit('new-audience-member', audience.socketId);
+          console.log(`[WEBRTC] Notifying artist about seated audience: ${audience.socketId}`);
+      });
+      
+      // Also notify about any other connected clients (for non-seated audience members)
+      let connectedAudience = 0;
+      io.sockets.sockets.forEach((clientSocket) => {
+          if (clientSocket.id !== socket.id) { // Don't send to artist themselves
+              io.to(socket.id).emit('new-audience-member', clientSocket.id);
+              connectedAudience++;
+              console.log(`[WEBRTC] Notifying artist about connected audience: ${clientSocket.id}`);
+          }
+      });
+      
+      console.log(`[LIVE] WebRTC setup complete for already-live artist. ${connectedAudience} audience members will receive offers.`);
+      return; // Exit early since show is already live
+    }
+    // Auto-reset show if it's not in idle state or pre-show
+    else if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') {
       console.log('🔧 Auto-resetting show state to idle for new artist');
       activeShow = {
         artistId: null,
@@ -531,11 +554,13 @@ io.on('connection', (socket) => {
       io.emit('show-state-change', { status: 'idle' });
     }
     
-    // Now proceed with going live
-    activeShow.status = 'live';
-    activeShow.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
-    activeShow.startTime = Date.now();
-    io.emit('show-status-update', { status: 'live', artistId: socket.id });
+    // Now proceed with going live (if not already live)
+    if (activeShow.status !== 'live') {
+      activeShow.status = 'live';
+      activeShow.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
+      activeShow.startTime = Date.now();
+      io.emit('show-status-update', { status: 'live', artistId: socket.id });
+    }
     console.log(`[LIVE] Artist ${socket.id} is now LIVE! Broadcasting to ${io.engine.clientsCount} connected clients.`);
 
     // Notify the ARTIST about all currently seated audience members

@@ -68,9 +68,13 @@ function App(): JSX.Element {
   
   // Debug audienceSeats changes
   useEffect(() => {
-    console.log('🎭 audienceSeats state changed:', JSON.stringify(audienceSeats, null, 2));
+    const seatSummary = Object.entries(audienceSeats).map(([seatId, user]) => 
+      `${seatId}: ${user.name} (${user.captureMode})`
+    );
+    console.log(`🎭 audienceSeats state changed: [${seatSummary.join(', ')}]`);
   }, [audienceSeats]);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [showStreamChoice, setShowStreamChoice] = useState<boolean>(false);
   const [mySocketId, setMySocketId] = useState<string>('');
   
   // Camera position state - save positions when switching views
@@ -168,17 +172,17 @@ function App(): JSX.Element {
     });
 
     socketRef.current.on('seat-update', (data) => {
-      console.log('📥 Frontend received seat-update:', JSON.stringify(data, null, 2));
+      console.log(`📥 Frontend received seat-update: ${data.seatId} → ${data.user ? `${data.user.name} (${data.user.captureMode})` : 'EMPTY'}`);
       setAudienceSeats(prev => {
         const newSeats = { ...prev };
         if (data.user) {
-          console.log(`✅ Adding user to seat ${data.seatId}:`, data.user);
+          console.log(`✅ Adding user to seat ${data.seatId}: ${data.user.name} [${data.user.socketId}]`);
           newSeats[data.seatId] = data.user;
         } else {
           console.log(`🗑️ Removing user from seat ${data.seatId}`);
           delete newSeats[data.seatId];
         }
-        console.log('📊 Updated audienceSeats state:', newSeats);
+        console.log(`📊 Updated audienceSeats state: ${Object.keys(newSeats).length} seats occupied`);
         return newSeats;
       });
     });
@@ -329,19 +333,27 @@ function App(): JSX.Element {
         setCountdownTime(0);
         setShowState('live');
         
-        // Automatically start camera and stream when countdown finishes
+        // When countdown finishes, start the live stream
         if (isPerformer()) {
-            console.log('🎥 Countdown finished - automatically starting camera and stream...');
-            startCameraPreview().then(() => {
-                // After camera is started, start the live stream
-                if (localStreamRef.current) {
-                    console.log('🎥 Camera started - now starting live stream...');
-                    socketRef.current.emit('artist-go-live');
-                }
-            }).catch(err => {
-                console.error('❌ Failed to start camera automatically:', err);
-                alert('Failed to start camera automatically. Please turn on camera manually.');
-            });
+            console.log('🎥 Countdown finished - starting live stream...');
+            
+            // If camera is already on (from preview), just emit go-live
+            if (localStreamRef.current) {
+                console.log('🎥 Camera already active - going live with existing stream...');
+                socketRef.current.emit('artist-go-live');
+            } else {
+                // If camera is not on, start it first
+                console.log('🎥 Camera not active - starting camera first...');
+                startCameraPreview().then(() => {
+                    if (localStreamRef.current) {
+                        console.log('🎥 Camera started - now going live...');
+                        socketRef.current.emit('artist-go-live');
+                    }
+                }).catch(err => {
+                    console.error('❌ Failed to start camera automatically:', err);
+                    alert('Failed to start camera automatically. Please turn on camera manually.');
+                });
+            }
         } else {
             console.log('🎥 Countdown finished - waiting for artist to start stream...');
         }
@@ -375,7 +387,7 @@ function App(): JSX.Element {
         clearInterval(countdownInterval);
       }
     };
-  }, [selectedSeat]); // Re-run effect if seat selected, to initiate audience PC for artist
+  }, []); // Only run once on mount - socket connection should persist
 
   // Keyboard event listener for screen tuner
   useEffect(() => {
@@ -415,6 +427,37 @@ function App(): JSX.Element {
     console.log('User data cleared from sessionStorage');
   };
 
+  // Handle stream choice after login
+  const handleStreamChoice = async (startStream: boolean) => {
+    if (startStream) {
+      // Start video stream
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        });
+        setUserVideoStream(stream);
+        setUserCaptureMode('video');
+        sessionStorage.setItem('frontrow_capture_mode', 'video');
+        console.log('📹 Video stream started for user');
+      } catch (error) {
+        console.error('Failed to start video stream:', error);
+        // Fallback to photo mode
+        setUserCaptureMode('photo');
+        sessionStorage.setItem('frontrow_capture_mode', 'photo');
+      }
+    } else {
+      // Use photo mode
+      setUserVideoStream(null);
+      setUserCaptureMode('photo');
+      sessionStorage.setItem('frontrow_capture_mode', 'photo');
+      console.log('📷 Using photo mode for user');
+    }
+    
+    setShowStreamChoice(false);
+    setIsLoggedIn(true);
+  };
+
   const handleNameAndImageSubmit = async (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream, explicitCaptureMode?: 'photo' | 'video') => {
     setUserName(name);
     setUserImage(imageBase64);
@@ -445,8 +488,14 @@ function App(): JSX.Element {
     setIsArtist(isArtist); // Update state immediately
     
     console.log('User profile saved to sessionStorage:', { name, hasImage: !!imageBase64, isArtist });
-    // User profile data is stored in-memory on backend via select-seat
-    setIsLoggedIn(true);
+    
+    // For artists, go directly to the app (they don't need stream choice)
+    if (isArtist) {
+      setIsLoggedIn(true);
+    } else {
+      // For audience members, show stream choice first
+      setShowStreamChoice(true);
+    }
   };
 
   const handleSeatSelect = async (seatId) => {
@@ -476,7 +525,7 @@ function App(): JSX.Element {
       hasVideoStream: !!userVideoStream
     };
     
-    console.log('📤 Frontend sending select-seat:', JSON.stringify(userData, null, 2));
+    console.log(`📤 Frontend sending select-seat: ${userData.seatId} for ${userData.userName} (${userData.captureMode})`);
     socketRef.current.emit('select-seat', userData);
 
     // Listen for the seat-selected response only once per selection attempt
@@ -587,6 +636,17 @@ function App(): JSX.Element {
   // Turn on camera during countdown
   const startCameraPreview = async () => {
     if (!socketRef.current) return;
+    
+    // If camera is already on, don't start it again
+    if (localStreamRef.current) {
+      console.log('🎥 Camera already active - no need to start again');
+      // If show is already live, emit go-live
+      if (showState === 'live') {
+        console.log('🎥 Show is live - emitting artist-go-live...');
+        socketRef.current.emit('artist-go-live');
+      }
+      return;
+    }
     
     try {
       console.log('🎥 Starting camera preview during countdown...');
@@ -955,6 +1015,69 @@ function App(): JSX.Element {
             )}
           </Canvas>
         </Suspense>
+      ) : showStreamChoice ? (
+        // Show video stream choice after initial login
+        <div className="stream-choice-background" style={{ 
+          width: '100vw', 
+          height: '100vh', 
+          background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          color: 'white',
+          textAlign: 'center',
+          padding: '20px'
+        }}>
+          <h2 style={{ marginBottom: '30px', color: '#ffd700' }}>Welcome to FRONT ROW, {userName}!</h2>
+          <h3 style={{ marginBottom: '20px', fontWeight: 'normal' }}>How would you like to appear to others?</h3>
+          <div style={{ display: 'flex', gap: '20px', flexDirection: 'column', alignItems: 'center' }}>
+            <button 
+              onClick={() => handleStreamChoice(false)}
+              style={{
+                background: '#4CAF50',
+                color: 'white',
+                border: 'none',
+                padding: '20px 40px',
+                borderRadius: '8px',
+                fontSize: '18px',
+                cursor: 'pointer',
+                minWidth: '300px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px'
+              }}
+            >
+              📷 Use My Photo
+              <small style={{ display: 'block', fontSize: '14px', opacity: '0.8' }}>
+                Show my captured photo to other audience members
+              </small>
+            </button>
+            <button 
+              onClick={() => handleStreamChoice(true)}
+              style={{
+                background: '#FF5722',
+                color: 'white',
+                border: 'none',
+                padding: '20px 40px',
+                borderRadius: '8px',
+                fontSize: '18px',
+                cursor: 'pointer',
+                minWidth: '300px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px'
+              }}
+            >
+              🎥 Start Video Stream
+              <small style={{ display: 'block', fontSize: '14px', opacity: '0.8' }}>
+                Stream live video to other audience members
+              </small>
+            </button>
+          </div>
+        </div>
       ) : !isLoggedIn ? (
         // Show login screen when no user is logged in
         <div className="login-background" style={{ 
@@ -994,7 +1117,7 @@ function App(): JSX.Element {
       {createPortal(
         <div className="ui-overlay">
           {/* Conditional rendering of UI components */}
-          {!isLoggedIn && !isPerformer() && (
+          {!isLoggedIn && !showStreamChoice && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
           {isLoggedIn && isPerformer() && (

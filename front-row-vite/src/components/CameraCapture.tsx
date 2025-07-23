@@ -1,19 +1,19 @@
 import React, { useRef, useState, useCallback } from 'react';
 
 interface CameraCaptureProps {
-  onPhotoCapture: (photoDataUrl: string) => void;
-  onVideoStream: (stream: MediaStream) => void;
+  onPhotoCapture?: (photoDataUrl: string) => void;
+  onVideoStream?: (stream: MediaStream) => void;
   onCancel: () => void;
+  mode?: 'photo' | 'video';
 }
 
-function CameraCapture({ onPhotoCapture, onVideoStream, onCancel }: CameraCaptureProps): JSX.Element {
+function CameraCapture({ onPhotoCapture, onVideoStream, onCancel, mode = 'photo' }: CameraCaptureProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showVideo, setShowVideo] = useState(false);
-  const [captureMode, setCaptureMode] = useState<'choice' | 'photo' | 'video'>('choice');
   
   // Debug logging for state changes
   React.useEffect(() => {
@@ -234,7 +234,7 @@ function CameraCapture({ onPhotoCapture, onVideoStream, onCancel }: CameraCaptur
   return (
     <div className="camera-capture-modal">
       <div className="camera-capture-content">
-        <h3>Take Your Photo</h3>
+        <h3>{mode === 'photo' ? 'Take Your Photo' : 'Start Video Stream'}</h3>
         <p style={{ fontSize: '12px', opacity: 0.7 }}>
           Debug: Stream: {stream ? 'Yes' : 'No'}, Active: {isStreamActive ? 'Yes' : 'No'}
         </p>
@@ -246,40 +246,12 @@ function CameraCapture({ onPhotoCapture, onVideoStream, onCancel }: CameraCaptur
           </div>
         )}
         
-        {captureMode === 'choice' && !error && (
-          <div className="capture-choice">
-            <p>How would you like to appear to other participants?</p>
-            <div className="choice-buttons">
-              <button 
-                onClick={() => setCaptureMode('photo')} 
-                className="choice-btn photo-btn"
-              >
-                📷 Take a Photo
-                <small>Static image on your seat</small>
-              </button>
-              <button 
-                onClick={() => setCaptureMode('video')} 
-                className="choice-btn video-btn"
-              >
-                🎥 Live Video Stream
-                <small>Real-time video feed</small>
-              </button>
-              <button onClick={handleCancel} className="cancel-btn">
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-        {(captureMode === 'photo' || captureMode === 'video') && !showVideo && !error && (
+        {!showVideo && !error && (
           <div className="camera-start">
-            <p>{captureMode === 'photo' ? 'Ready to take your photo?' : 'Ready to start video streaming?'}</p>
+            <p>{mode === 'photo' ? 'Ready to take your photo?' : 'Ready to start video streaming?'}</p>
             <div className="camera-buttons">
               <button onClick={startCamera} className="start-camera-btn">
                 📷 Start Camera
-              </button>
-              <button onClick={() => setCaptureMode('choice')} className="back-btn">
-                ← Back
               </button>
               <button onClick={handleCancel} className="cancel-btn">
                 Cancel
@@ -317,7 +289,7 @@ function CameraCapture({ onPhotoCapture, onVideoStream, onCancel }: CameraCaptur
             <div className="camera-controls">
               {isStreamActive ? (
                 <>
-                  {captureMode === 'photo' ? (
+                  {mode === 'photo' ? (
                     <button onClick={capturePhoto} className="capture-btn">
                       📸 Capture Photo
                     </button>
@@ -326,9 +298,6 @@ function CameraCapture({ onPhotoCapture, onVideoStream, onCancel }: CameraCaptur
                       🎥 Start Video Stream
                     </button>
                   )}
-                  <button onClick={() => setCaptureMode('choice')} className="back-btn">
-                    ← Back
-                  </button>
                   <button onClick={handleCancel} className="cancel-btn">
                     Cancel
                   </button>
