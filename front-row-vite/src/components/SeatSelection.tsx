@@ -125,7 +125,11 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
   const nameTextSize = window.innerWidth < 768 ? 0.15 : 0.12; // Much smaller text to avoid obscuring view
 
   return (
-    <group position={seat.position} rotation-y={-Math.atan2(seat.position[0], seat.position[2] - (-5))}> {/* Rotate to face center/stage */}
+    <group 
+      position={seat.position} 
+      rotation-y={-Math.atan2(seat.position[0], seat.position[2] - (-5))}
+      name={seat.id}
+    > {/* Rotate to face center/stage */}
       <group
         onClick={handleClick}
         onPointerDown={handlePointerDown}
@@ -138,6 +142,7 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
           e.stopPropagation();
           document.body.style.cursor = 'default';
         }}
+        userData={{ onClick: handleClick, seatId: seat.id }}
       >
         {/* Seat cube at floor level */}
         <Box

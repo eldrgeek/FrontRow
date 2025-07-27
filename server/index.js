@@ -388,10 +388,287 @@ app.post('/api/end-show', (req, res) => {
   }
 });
 
+// --- E2E TESTING API ENDPOINTS ---
+// Only available in development or when explicitly enabled in production
+
+// Middleware to check if test endpoints should be enabled
+const testEndpointsEnabled = process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_ENDPOINTS === 'true';
+
+// Get complete server state for testing
+app.get('/api/test/state', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  const connectedUsers = {};
+  io.sockets.sockets.forEach((socket) => {
+    const userProfile = userProfiles[socket.id];
+    connectedUsers[socket.id] = {
+      socketId: socket.id,
+      name: userProfile?.name || 'Anonymous',
+      seat: userProfile?.selectedSeat || null,
+      captureMode: userProfile?.captureMode || 'photo',
+      isPerformer: socket.id === activeShow.artistId,
+      connectionTime: new Date().toISOString() // Note: actual connection time would need tracking
+    };
+  });
+
+  const testState = {
+    server: {
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      activeConnections: io.engine.clientsCount || 0,
+      memoryUsage: process.memoryUsage()
+    },
+    show: {
+      status: activeShow.status,
+      artistId: activeShow.artistId,
+      startTime: activeShow.startTime,
+      countdown: activeShow.countdown
+    },
+    users: connectedUsers,
+    seats: {
+      occupied: activeShow.audienceSeats,
+      occupiedCount: Object.keys(activeShow.audienceSeats).length,
+      totalSeats: 9,
+      availableSeats: 9 - Object.keys(activeShow.audienceSeats).length
+    },
+    timestamp: new Date().toISOString()
+  };
+
+  res.json(testState);
+});
+
+// Reset server to clean state for testing
+app.post('/api/test/reset', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  console.log('🧪 TEST: Resetting server to clean state');
+  
+  // Clear countdown interval
+  if (activeShow.countdown.interval) {
+    clearInterval(activeShow.countdown.interval);
+  }
+  
+  // Reset show state
+  activeShow = {
+    artistId: null,
+    startTime: null,
+    status: 'idle',
+    audienceSeats: {},
+    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null }
+  };
+  
+  // Clear user profiles
+  for (const socketId in userProfiles) {
+    delete userProfiles[socketId];
+  }
+  
+  // Notify all clients
+  io.emit('show-state-change', { status: 'idle' });
+  io.emit('all-seats-empty');
+  
+  console.log('🧪 TEST: Server state reset complete');
+  res.json({ 
+    success: true, 
+    message: 'Server reset to clean state',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Force seat assignment for testing
+app.post('/api/test/seats/:seatId/assign', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  const { seatId } = req.params;
+  const { socketId, userName, userImage, captureMode } = req.body;
+  
+  if (!socketId || !userName) {
+    return res.status(400).json({ error: 'Missing required fields: socketId, userName' });
+  }
+  
+  // Check if socket exists
+  if (!io.sockets.sockets.has(socketId)) {
+    return res.status(404).json({ error: 'Socket not found' });
+  }
+  
+  console.log(`🧪 TEST: Force assigning seat ${seatId} to ${userName} (${socketId})`);
+  
+  const userData = {
+    name: userName,
+    imageUrl: userImage || 'data:image/png;base64,test', // Default test image
+    socketId: socketId,
+    captureMode: captureMode || 'photo',
+    hasVideoStream: false
+  };
+  
+  activeShow.audienceSeats[seatId] = userData;
+  userProfiles[socketId] = { ...userData, selectedSeat: seatId };
+  
+  // Notify all clients
+  io.emit('seat-update', { seatId, user: userData });
+  io.to(socketId).emit('seat-selected', { success: true, seatId });
+  
+  res.json({ 
+    success: true, 
+    message: `Seat ${seatId} assigned to ${userName}`,
+    seat: { seatId, user: userData }
+  });
+});
+
+// Force show state change for testing
+app.post('/api/test/show/state', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  const { status, artistId } = req.body;
+  
+  if (!['idle', 'pre-show', 'live', 'post-show'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status. Must be: idle, pre-show, live, post-show' });
+  }
+  
+  console.log(`🧪 TEST: Force changing show status to ${status}${artistId ? ` with artist ${artistId}` : ''}`);
+  
+  activeShow.status = status;
+  if (artistId) {
+    activeShow.artistId = artistId;
+  }
+  if (status === 'live') {
+    activeShow.startTime = Date.now();
+  }
+  
+  io.emit('show-status-update', { status, artistId: activeShow.artistId });
+  
+  res.json({ 
+    success: true, 
+    message: `Show status changed to ${status}`,
+    show: { status: activeShow.status, artistId: activeShow.artistId }
+  });
+});
+
+// Simulate server events for testing
+app.post('/api/test/simulate', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  const { event, data } = req.body;
+  
+  console.log(`🧪 TEST: Simulating event ${event} with data:`, data);
+  
+  switch (event) {
+    case 'user-disconnect':
+      if (data.socketId && io.sockets.sockets.has(data.socketId)) {
+        io.sockets.sockets.get(data.socketId).disconnect();
+        res.json({ success: true, message: `User ${data.socketId} disconnected` });
+      } else {
+        res.status(404).json({ error: 'Socket not found' });
+      }
+      break;
+      
+    case 'broadcast-message':
+      io.emit(data.eventName || 'test-message', data.payload || {});
+      res.json({ success: true, message: 'Message broadcasted' });
+      break;
+      
+    default:
+      res.status(400).json({ error: `Unknown event type: ${event}` });
+  }
+});
+
+// Get test event history (basic implementation)
+let testEventHistory = [];
+app.get('/api/test/events', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  const { limit = 50, type } = req.query;
+  
+  let events = testEventHistory;
+  if (type) {
+    events = events.filter(event => event.type === type);
+  }
+  
+  events = events.slice(-parseInt(limit));
+  
+  res.json({
+    events,
+    total: events.length,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Send modal notification for testing
+app.post('/api/test/modal', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  
+  const { action, message, duration, priority, icon, progress } = req.body;
+  
+  if (!message) {
+    return res.status(400).json({ error: 'Message is required' });
+  }
+  
+  console.log(`📢 TEST: Sending modal notification: ${message}`);
+  
+  sendModalNotification({
+    action: action || 'show',
+    message,
+    duration: duration || 3000,
+    priority: priority || 'info',
+    icon: icon || 'info',
+    progress
+  });
+  
+  res.json({ 
+    success: true, 
+    message: 'Modal notification sent',
+    data: { action, message, duration, priority, icon, progress }
+  });
+});
+
+// Helper function to log test events (conditional based on environment)
+function logTestEvent(type, data) {
+  // Only log in development or when explicitly testing in production
+  const shouldLog = process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_LOGGING === 'true';
+  
+  if (!shouldLog) {
+    return;
+  }
+  
+  const event = {
+    timestamp: new Date().toISOString(),
+    type,
+    data
+  };
+  testEventHistory.push(event);
+  
+  // Keep only last 1000 events
+  if (testEventHistory.length > 1000) {
+    testEventHistory = testEventHistory.slice(-1000);
+  }
+}
+
+// Helper function to send modal notifications
+function sendModalNotification(data) {
+  io.emit('modal-update', {
+    action: data.action || 'show',
+    message: data.message,
+    duration: data.duration || 3000,
+    priority: data.priority || 'info',
+    icon: data.icon || 'info',
+    progress: data.progress
+  });
+  
+  logTestEvent('modal-notification', data);
+}
+
 
 // --- Socket.IO for WebRTC Signaling and Real-time Updates ---
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);
+  logTestEvent('user-connected', { socketId: socket.id });
   
   // Send current seat state to new connection
   if (Object.keys(activeShow.audienceSeats).length > 0) {
@@ -455,13 +732,31 @@ io.on('connection', (socket) => {
     console.log(`🪑 User ${socket.id} requesting seat selection: ${data.seatId} for ${data.userName} (${data.captureMode || 'photo'})`);
     const { seatId, userName, userImage, captureMode, hasVideoStream } = data;
     
+    logTestEvent('seat-select-attempt', { 
+      socketId: socket.id, 
+      seatId, 
+      userName, 
+      captureMode: captureMode || 'photo' 
+    });
+    
     if (activeShow.audienceSeats[seatId]) {
       console.log(`❌ Seat ${seatId} already taken by:`, activeShow.audienceSeats[seatId]);
       socket.emit('seat-selected', { success: false, message: 'Seat already taken' });
+      logTestEvent('seat-select-failed', { 
+        socketId: socket.id, 
+        seatId, 
+        reason: 'seat-taken',
+        occupiedBy: activeShow.audienceSeats[seatId].name
+      });
       return;
     }
     if (Object.keys(activeShow.audienceSeats).length >= 9) { // Cap at 9 front-row seats
       socket.emit('seat-selected', { success: false, message: 'Front row is full!' });
+      logTestEvent('seat-select-failed', { 
+        socketId: socket.id, 
+        seatId, 
+        reason: 'front-row-full' 
+      });
       return;
     }
 
@@ -479,6 +774,14 @@ io.on('connection', (socket) => {
     console.log(`✅ User ${userName} (${socket.id}) assigned to seat ${seatId}`);
     console.log(`📊 Updated audienceSeats: ${Object.keys(activeShow.audienceSeats).length} total seats occupied`);
     console.log(`📤 Broadcasting seat-update: ${seatId} → ${userData.name} (${userData.captureMode})`);
+    
+    logTestEvent('seat-select-success', { 
+      socketId: socket.id, 
+      seatId, 
+      userName,
+      captureMode: captureMode || 'photo',
+      totalOccupiedSeats: Object.keys(activeShow.audienceSeats).length
+    });
     
     io.emit('seat-update', { seatId, user: userData }); // Notify all clients of new occupant
     socket.emit('seat-selected', { success: true, seatId });
@@ -721,13 +1024,38 @@ io.on('connection', (socket) => {
   });
 
 
+  // Modal notification channel
+  socket.on('modal-notification', (data) => {
+    console.log('📢 Modal notification:', data);
+    io.emit('modal-update', {
+      action: data.action || 'show',
+      message: data.message,
+      duration: data.duration || 3000,
+      priority: data.priority || 'info',
+      icon: data.icon || 'info',
+      progress: data.progress
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log('user disconnected:', socket.id);
-    // Remove user's seat on disconnect
     const userData = userProfiles[socket.id];
+    
+    logTestEvent('user-disconnected', { 
+      socketId: socket.id,
+      userName: userData?.name || 'Anonymous',
+      seatId: userData?.selectedSeat || null
+    });
+    
+    // Remove user's seat on disconnect
     if (userData && userData.selectedSeat) {
       delete activeShow.audienceSeats[userData.selectedSeat];
       io.emit('seat-update', { seatId: userData.selectedSeat, user: null });
+      logTestEvent('seat-released', { 
+        socketId: socket.id, 
+        seatId: userData.selectedSeat,
+        reason: 'user-disconnect'
+      });
     }
     delete userProfiles[socket.id]; // Remove profile from in-memory store
   });

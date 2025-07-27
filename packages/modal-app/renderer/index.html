@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrontRow Test Modal</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="modal-container">
+        <!-- Drag handle -->
+        <div id="drag-handle">
+            <div class="drag-indicator">⋮⋮</div>
+            <div class="status-indicator" id="status-indicator">●</div>
+        </div>
+        
+        <!-- Main content -->
+        <div id="content">
+            <div id="message-container">
+                <div id="icon" class="icon">ℹ️</div>
+                <div id="message" class="message">Ready for testing...</div>
+            </div>
+            
+            <!-- Progress bar for multi-step operations -->
+            <div id="progress-container" class="hidden">
+                <div id="progress-bar">
+                    <div id="progress-fill"></div>
+                </div>
+                <div id="progress-text">0%</div>
+            </div>
+        </div>
+        
+        <!-- Close button (for development) -->
+        <div id="close-btn" class="hidden">×</div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html> 

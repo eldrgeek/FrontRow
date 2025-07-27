@@ -89,3 +89,22 @@ npm run dev        # Start with nodemon
 - **Video disappearing**: React re-render issues - stabilize useCallback dependencies
 - **Camera permissions**: Handle different browser scenarios with proper error messages
 - **Build failures**: Check TypeScript errors and dependency issues
+
+## Automation & Desktop Management
+
+**For desktop and application switching during testing, refer to: `automation/README.md`**
+
+### Desktop Layout
+- **Desktop 1**: Cursor (development environment) 
+- **Desktop 2**: Chrome with FRONT ROW application tabs
+
+### Quick Reference
+- **Switch to Chrome (Desktop 2)**: `ctrl-up → ctrl-right → esc`
+- **Switch to Cursor (Desktop 1)**: `ctrl-up → ctrl-left → esc` 
+- **App switching**: `cmd-space → type app name → enter`
+
+### Context Detection
+Use `automation/desktop_switching.py` to programmatically:
+- Detect current active application
+- Check if FRONT ROW Chrome is available
+- Get navigation recommendations

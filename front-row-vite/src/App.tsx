@@ -15,6 +15,7 @@ import ViewControls from './components/ViewControls';
 import ArtistControls from './components/ArtistControls';
 import ScreenTuner from './components/ScreenTuner';
 import AnimatedText from './components/AnimatedText';
+import SceneTestExposer from './components/SceneTestExposer';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
@@ -94,6 +95,7 @@ function App(): JSX.Element {
   const [showWelcomeText, setShowWelcomeText] = useState<boolean>(false);
   const [showPickSeatText, setShowPickSeatText] = useState<boolean>(false);
   const [welcomeSequenceStarted, setWelcomeSequenceStarted] = useState<boolean>(false);
+  
   
   const socketRef = useRef<Socket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -393,7 +395,7 @@ function App(): JSX.Element {
     };
   }, []); // Only run once on mount - socket connection should persist
 
-  // Keyboard event listener for screen tuner
+  // Keyboard event listener for screen tuner and test seat picker
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Toggle screen tuner with 'T' key (available to all users for debugging)
@@ -1017,6 +1019,9 @@ function App(): JSX.Element {
                 }}
               />
             )}
+            
+            {/* Test scene exposer for E2E testing - only in development or when explicitly enabled */}
+            {(import.meta.env.MODE === 'development' || import.meta.env.VITE_ENABLE_TEST_MODE === 'true') && <SceneTestExposer />}
           </Canvas>
         </Suspense>
       ) : showStreamChoice ? (
@@ -1167,6 +1172,7 @@ function App(): JSX.Element {
               onClose={() => setShowScreenTuner(false)}
             />
           )}
+
         </div>,
         document.getElementById('overlay-root') as HTMLElement
       )}

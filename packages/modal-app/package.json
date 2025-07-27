@@ -1,0 +1,51 @@
+{
+  "name": "frontrow-modal",
+  "version": "1.0.0",
+  "description": "Test notification modal for FrontRow E2E testing",
+  "main": "main.js",
+  "scripts": {
+    "start": "npx electron .",
+    "dev": "concurrently \"npm run dev:vite\" \"wait-on http://localhost:5174 && npx electron . --dev\"",
+    "dev:vite": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:build": "electron-builder",
+    "dist": "npm run build && electron-builder --publish=never"
+  },
+  "keywords": ["electron", "testing", "modal", "frontrow", "react"],
+  "author": "FrontRow Team",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4",
+
+    "concurrently": "^8.2.2",
+    "wait-on": "^7.2.0",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "build": {
+    "appId": "com.frontrow.modal",
+    "productName": "FrontRow Test Modal",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "dist/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.icns"
+    }
+  }
+} 
