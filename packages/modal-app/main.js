@@ -65,7 +65,7 @@ function createWindow() {
     },
     show: false, // Don't show until ready
     skipTaskbar: true, // Don't show in taskbar
-    focusable: false // Don't take focus
+    focusable: true // Allow focus for question input
   });
 
   // Load the renderer
@@ -126,14 +126,15 @@ function createWindow() {
     }
   });
 
-  // Prevent window from taking focus
+  // Allow focus for question input, but prevent focus in other cases
   mainWindow.on('focus', () => {
-    mainWindow.blur();
+    // Only prevent focus if not showing a question
+    // The renderer will handle this logic
   });
 
   // Prevent DevTools from opening on window focus
   mainWindow.on('show', () => {
-    mainWindow.blur();
+    // Don't blur on show - allow interaction for questions
   });
 
   // Development mode setup
@@ -186,6 +187,19 @@ ipcMain.handle('get-config', () => {
 
 ipcMain.handle('save-config', (event, config) => {
   saveConfig(config);
+  return true;
+});
+
+// Handle question responses from renderer
+ipcMain.handle('send-question-response', (event, responseData) => {
+  // This will be handled by the socket connection in the renderer
+  // but we keep it here for potential future use
+  return true;
+});
+
+// Handle focus control from renderer
+ipcMain.handle('set-window-focusable', (event, focusable) => {
+  mainWindow.setFocusable(focusable);
   return true;
 });
 

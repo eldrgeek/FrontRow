@@ -2,12 +2,71 @@ import React, { useEffect, useState, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import './App.css'
 
+// QuestionInput component
+interface QuestionInputProps {
+  question: string
+  onSubmit: (response: string) => void
+}
+
+const QuestionInput: React.FC<QuestionInputProps> = ({ question, onSubmit }) => {
+  const [response, setResponse] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Focus the input when component mounts
+    if (inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (response.trim()) {
+      onSubmit(response.trim())
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSubmit(e)
+    }
+  }
+
+  return (
+    <div className="question-input-container">
+      <div className="question-text">
+        <strong>Question:</strong> {question}
+      </div>
+      <form onSubmit={handleSubmit} className="response-form">
+        <input
+          ref={inputRef}
+          type="text"
+          value={response}
+          onChange={(e) => setResponse(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="Type your response..."
+          className="response-input"
+        />
+        <button 
+          type="submit" 
+          className="btn-submit"
+          disabled={!response.trim()}
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  )
+}
+
 // Extend Window interface for Electron API
 declare global {
   interface Window {
     electronAPI?: {
       getConfig: () => Promise<any>
       saveConfig: (config: any) => Promise<boolean>
+      sendQuestionResponse: (responseData: any) => Promise<boolean>
+      setWindowFocusable: (focusable: boolean) => Promise<boolean>
     }
   }
 }
@@ -29,6 +88,9 @@ interface ModalState {
   interactive?: boolean
   testStep?: string
   testId?: string
+  question?: string
+  questionId?: string
+  showQuestionInput?: boolean
 }
 
 const iconMap: Record<string, string> = {
@@ -166,9 +228,50 @@ function App() {
     }
   }
 
+  const handleQuestionResponse = (response: string) => {
+    console.log('🔄 Question response:', response)
+    console.log('🔍 Socket connected:', socketRef.current?.connected)
+    console.log('🔍 Question ID:', modalState.questionId)
+    
+    // Disable window focus after question is answered
+    if (window.electronAPI) {
+      window.electronAPI.setWindowFocusable(false);
+    }
+    
+    // Send response back to server
+    if (socketRef.current && socketRef.current.connected) {
+      const responseData = {
+        questionId: modalState.questionId,
+        response,
+        timestamp: new Date().toISOString()
+      }
+      console.log('📤 Sending question response:', responseData)
+      socketRef.current.emit('question-response', responseData)
+    } else {
+      console.error('❌ Socket not connected or not available')
+    }
+
+    // Update modal to show response sent
+    setModalState(prev => ({
+      ...prev,
+      isVisible: true,
+      message: 'Response sent successfully',
+      priority: 'success',
+      icon: 'check',
+      showQuestionInput: false,
+      question: undefined,
+      questionId: undefined
+    }))
+
+    // Auto-hide after 2 seconds
+    setTimeout(() => {
+      setModalState(prev => ({ ...prev, isVisible: false }))
+    }, 2000)
+  }
+
   const handleModalUpdate = (data: any) => {
     console.log('🔄 Handling modal update:', data)
-    const { action, message, duration = 3000, priority = 'info', icon, progress, interactive, testStep, testId } = data
+    const { action, message, duration = 3000, priority = 'info', icon, progress, interactive, testStep, testId, question, questionId } = data
 
     // Clear existing timeout
     if (autoHideTimeoutRef.current) {
@@ -228,6 +331,25 @@ function App() {
           interactive: true,
           testStep: testStep || '',
           testId: testId || ''
+        }))
+        break
+
+      case 'question':
+        // Enable window focus for question input
+        if (window.electronAPI) {
+          window.electronAPI.setWindowFocusable(true);
+        }
+        
+        setModalState(prev => ({
+          ...prev,
+          isVisible: true,
+          message: question || message,
+          priority: priority || 'info',
+          icon: iconMap[icon] || icon || iconMap[priority] || 'ℹ️',
+          question: question || message,
+          questionId: questionId || '',
+          showQuestionInput: true,
+          interactive: false
         }))
         break
     }
@@ -301,6 +423,14 @@ function App() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Question input */}
+        {modalState.showQuestionInput && (
+          <QuestionInput 
+            question={modalState.question || ''}
+            onSubmit={handleQuestionResponse}
+          />
         )}
       </div>
     </div>

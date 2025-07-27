@@ -608,7 +608,7 @@ app.post('/api/test/modal', (req, res) => {
     return res.status(404).json({ error: 'Test endpoints not available in this environment' });
   }
   
-  const { action, message, duration, priority, icon, progress, interactive, testStep, testId } = req.body;
+  const { action, message, duration, priority, icon, progress, interactive, testStep, testId, question, questionId } = req.body;
   
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
@@ -625,7 +625,9 @@ app.post('/api/test/modal', (req, res) => {
     progress,
     interactive,
     testStep,
-    testId
+    testId,
+    question,
+    questionId
   });
   
   res.json({ 
@@ -651,6 +653,102 @@ app.get('/api/test/response/:testId', (req, res) => {
   global.testResponses.delete(testId); // Remove after reading
   
   res.json(response);
+});
+
+// Get question response from user
+app.get('/api/question/response/:questionId', (req, res) => {
+  const { questionId } = req.params;
+  
+  if (!global.questionResponses || !global.questionResponses.has(questionId)) {
+    return res.json({ response: null });
+  }
+  
+  const response = global.questionResponses.get(questionId);
+  global.questionResponses.delete(questionId); // Remove after reading
+  
+  res.json(response);
+});
+
+// Get all question responses (for debugging)
+app.get('/api/question/responses', (req, res) => {
+  if (!global.questionResponses) {
+    return res.json({ responses: {} });
+  }
+  
+  const responses = {};
+  global.questionResponses.forEach((value, key) => {
+    responses[key] = value;
+  });
+  
+  res.json({ 
+    responses,
+    count: global.questionResponses.size,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Get server state including question responses
+app.get('/api/debug/state', (req, res) => {
+  const connectedUsers = {};
+  io.sockets.sockets.forEach((socket) => {
+    const userProfile = userProfiles[socket.id];
+    connectedUsers[socket.id] = {
+      socketId: socket.id,
+      name: userProfile?.name || 'Anonymous',
+      seat: userProfile?.selectedSeat || null,
+      captureMode: userProfile?.captureMode || 'photo',
+      isPerformer: socket.id === activeShow.artistId,
+      connectionTime: new Date().toISOString()
+    };
+  });
+
+  const questionResponses = {};
+  if (global.questionResponses) {
+    global.questionResponses.forEach((value, key) => {
+      questionResponses[key] = value;
+    });
+  }
+
+  const testResponses = {};
+  if (global.testResponses) {
+    global.testResponses.forEach((value, key) => {
+      testResponses[key] = value;
+    });
+  }
+
+  const debugState = {
+    server: {
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      activeConnections: io.engine.clientsCount || 0,
+      memoryUsage: process.memoryUsage()
+    },
+    show: {
+      status: activeShow.status,
+      artistId: activeShow.artistId,
+      startTime: activeShow.startTime,
+      countdown: activeShow.countdown
+    },
+    users: connectedUsers,
+    seats: {
+      occupied: activeShow.audienceSeats,
+      occupiedCount: Object.keys(activeShow.audienceSeats).length,
+      totalSeats: 9,
+      availableSeats: 9 - Object.keys(activeShow.audienceSeats).length
+    },
+    questionResponses: {
+      data: questionResponses,
+      count: global.questionResponses ? global.questionResponses.size : 0
+    },
+    testResponses: {
+      data: testResponses,
+      count: global.testResponses ? global.testResponses.size : 0
+    },
+    recentEvents: testEventHistory.slice(-20), // Last 20 events
+    timestamp: new Date().toISOString()
+  };
+
+  res.json(debugState);
 });
 
 // Clear test response
@@ -692,7 +790,7 @@ function logTestEvent(type, data) {
 
 // Helper function to send modal notifications
 function sendModalNotification(data) {
-  io.emit('modal-update', {
+  const modalUpdateData = {
     action: data.action || 'show',
     message: data.message,
     duration: data.duration || 3000,
@@ -701,8 +799,12 @@ function sendModalNotification(data) {
     progress: data.progress,
     interactive: data.interactive || false,
     testStep: data.testStep || '',
-    testId: data.testId || ''
-  });
+    testId: data.testId || '',
+    question: data.question,
+    questionId: data.questionId
+  };
+  
+  io.emit('modal-update', modalUpdateData);
   
   logTestEvent('modal-notification', data);
 }
@@ -1079,8 +1181,36 @@ io.on('connection', (socket) => {
       progress: data.progress,
       interactive: data.interactive || false,
       testStep: data.testStep || '',
-      testId: data.testId || ''
+      testId: data.testId || '',
+      question: data.question,
+      questionId: data.questionId
     });
+  });
+
+  // Handle question responses from modal
+  socket.on('question-response', (data) => {
+    console.log('📝 Question response received:', data);
+    
+    // Store the response for the requesting endpoint to pick up
+    if (!global.questionResponses) {
+      global.questionResponses = new Map();
+    }
+    
+    const responseData = {
+      response: data.response,
+      timestamp: data.timestamp,
+      questionId: data.questionId,
+      socketId: socket.id,
+      receivedAt: new Date().toISOString()
+    };
+    
+    global.questionResponses.set(data.questionId, responseData);
+    
+    // Broadcast the response to all connected clients
+    io.emit('question-response', responseData);
+    
+    // Log the event
+    logTestEvent('question-response-received', responseData);
   });
 
   socket.on('test-response', (data) => {
