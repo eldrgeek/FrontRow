@@ -10,6 +10,7 @@
     "dashboard": "open http://localhost:3001/dashboard",
     "frontend": "cd front-row-vite && npm run dev",
     "backend": "cd server && npm run dev",
+    "backend:test": "cd server && npm run dev:test",
     "backend:prod": "cd server && npm start",
     "install-all": "cd server && npm install && cd ../front-row-vite && npm install --legacy-peer-deps",
     "build": "cd front-row-vite && npm run build",

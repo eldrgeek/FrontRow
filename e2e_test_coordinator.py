@@ -138,6 +138,63 @@ class FrontRowE2ETestCoordinator:
                     return await response.json()
                 else:
                     raise Exception(f"Failed to send modal progress: {response.status}")
+
+    async def send_interactive_step(self, message: str, test_step: str, test_id: str, 
+                                   priority: str = "info", icon: str = "info") -> Dict[str, Any]:
+        """Send an interactive test step to the modal and wait for user response."""
+        data = {
+            "message": message,
+            "priority": priority,
+            "icon": icon,
+            "interactive": True,
+            "testStep": test_step,
+            "testId": test_id
+        }
+        
+        # Send the interactive step
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.server_url}/api/test/modal", json=data) as response:
+                if response.status == 200:
+                    result = await response.json()
+                else:
+                    raise Exception(f"Failed to send interactive step: {response.status}")
+        
+        # Wait for user response
+        response = await self.wait_for_test_response(test_id)
+        return response
+
+    async def wait_for_test_response(self, test_id: str, timeout: int = 300) -> Dict[str, Any]:
+        """Wait for user response to an interactive test step."""
+        url = f"{self.server_url}/api/test/response/{test_id}"
+        
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        
+                        if result.get("response") is not None:
+                            return result
+                    else:
+                        logger.warning(f"Failed to get test response: {response.status}")
+            
+            await asyncio.sleep(1)  # Poll every second
+        
+        # Timeout - clear the response and return timeout
+        await self.clear_test_response(test_id)
+        return {"response": "timeout", "step": "unknown", "timestamp": time.time()}
+
+    async def clear_test_response(self, test_id: str) -> Dict[str, Any]:
+        """Clear a test response."""
+        url = f"{self.server_url}/api/test/response/{test_id}"
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(url) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"Failed to clear test response: {response.status}")
     
     def validate_server_state(self, actual_state: Dict[str, Any], expected_state: Dict[str, Any]) -> List[str]:
         """Validate server state matches expectations"""

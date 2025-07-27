@@ -392,7 +392,11 @@ app.post('/api/end-show', (req, res) => {
 // Only available in development or when explicitly enabled in production
 
 // Middleware to check if test endpoints should be enabled
+// Enable by default in development, or when explicitly enabled in production
 const testEndpointsEnabled = process.env.NODE_ENV === 'development' || process.env.ENABLE_TEST_ENDPOINTS === 'true';
+
+// Log test endpoint status
+console.log(`🧪 Test endpoints ${testEndpointsEnabled ? 'ENABLED' : 'DISABLED'} (NODE_ENV: ${process.env.NODE_ENV || 'undefined'}, ENABLE_TEST_ENDPOINTS: ${process.env.ENABLE_TEST_ENDPOINTS || 'undefined'})`);
 
 // Get complete server state for testing
 app.get('/api/test/state', (req, res) => {
@@ -604,13 +608,13 @@ app.post('/api/test/modal', (req, res) => {
     return res.status(404).json({ error: 'Test endpoints not available in this environment' });
   }
   
-  const { action, message, duration, priority, icon, progress } = req.body;
+  const { action, message, duration, priority, icon, progress, interactive, testStep, testId } = req.body;
   
   if (!message) {
     return res.status(400).json({ error: 'Message is required' });
   }
   
-  console.log(`📢 TEST: Sending modal notification: ${message}`);
+  console.log(`📢 TEST: Sending modal notification: ${message}${interactive ? ' (interactive)' : ''}`);
   
   sendModalNotification({
     action: action || 'show',
@@ -618,14 +622,50 @@ app.post('/api/test/modal', (req, res) => {
     duration: duration || 3000,
     priority: priority || 'info',
     icon: icon || 'info',
-    progress
+    progress,
+    interactive,
+    testStep,
+    testId
   });
   
   res.json({ 
     success: true, 
     message: 'Modal notification sent',
-    data: { action, message, duration, priority, icon, progress }
+    data: { action, message, duration, priority, icon, progress, interactive, testStep, testId }
   });
+});
+
+// Get test response from user
+app.get('/api/test/response/:testId', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  
+  const { testId } = req.params;
+  
+  if (!global.testResponses || !global.testResponses.has(testId)) {
+    return res.json({ response: null });
+  }
+  
+  const response = global.testResponses.get(testId);
+  global.testResponses.delete(testId); // Remove after reading
+  
+  res.json(response);
+});
+
+// Clear test response
+app.delete('/api/test/response/:testId', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  
+  const { testId } = req.params;
+  
+  if (global.testResponses) {
+    global.testResponses.delete(testId);
+  }
+  
+  res.json({ success: true });
 });
 
 // Helper function to log test events (conditional based on environment)
@@ -658,7 +698,10 @@ function sendModalNotification(data) {
     duration: data.duration || 3000,
     priority: data.priority || 'info',
     icon: data.icon || 'info',
-    progress: data.progress
+    progress: data.progress,
+    interactive: data.interactive || false,
+    testStep: data.testStep || '',
+    testId: data.testId || ''
   });
   
   logTestEvent('modal-notification', data);
@@ -1033,7 +1076,23 @@ io.on('connection', (socket) => {
       duration: data.duration || 3000,
       priority: data.priority || 'info',
       icon: data.icon || 'info',
-      progress: data.progress
+      progress: data.progress,
+      interactive: data.interactive || false,
+      testStep: data.testStep || '',
+      testId: data.testId || ''
+    });
+  });
+
+  socket.on('test-response', (data) => {
+    console.log('📋 Test response received:', data);
+    // Store the response for the test coordinator to pick up
+    if (!global.testResponses) {
+      global.testResponses = new Map();
+    }
+    global.testResponses.set(data.testId, {
+      response: data.response,
+      step: data.step,
+      timestamp: Date.now()
     });
   });
 

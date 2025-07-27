@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
+    "dev": "NODE_ENV=development nodemon index.js",
+    "dev:test": "NODE_ENV=development ENABLE_TEST_ENDPOINTS=true nodemon index.js",
     "build": "echo 'No build step required for backend - using plain Node.js'"
   },
   "dependencies": {

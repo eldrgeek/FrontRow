@@ -70,6 +70,70 @@
   -webkit-app-region: no-drag;
 }
 
+/* Interactive controls */
+.interactive-controls {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.test-step-info {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  margin-bottom: 12px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.control-buttons button {
+  flex: 1;
+  min-width: 80px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #059669;
+}
+
+.btn-failure {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-failure:hover {
+  background: #dc2626;
+}
+
+.btn-stop {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-stop:hover {
+  background: #d97706;
+}
+
 /* Main content */
 .content {
   flex: 1;

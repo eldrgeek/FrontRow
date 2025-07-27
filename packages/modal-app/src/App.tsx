@@ -26,6 +26,9 @@ interface ModalState {
   icon: string
   progress?: number
   showProgress: boolean
+  interactive?: boolean
+  testStep?: string
+  testId?: string
 }
 
 const iconMap: Record<string, string> = {
@@ -129,9 +132,43 @@ function App() {
     }
   }, [])
 
+  const handleTestResponse = (response: 'success' | 'failure' | 'stop') => {
+    console.log('🔄 Test response:', response)
+    
+    // Send response back to server
+    if (socketRef.current) {
+      socketRef.current.emit('test-response', {
+        testId: modalState.testId,
+        response,
+        step: modalState.testStep
+      })
+    }
+
+    // Update modal based on response
+    if (response === 'stop') {
+      setModalState(prev => ({
+        ...prev,
+        isVisible: true,
+        message: 'Test stopped by user',
+        priority: 'warning',
+        icon: 'warning',
+        interactive: false
+      }))
+    } else {
+      setModalState(prev => ({
+        ...prev,
+        isVisible: true,
+        message: response === 'success' ? 'Step completed successfully' : 'Step failed',
+        priority: response === 'success' ? 'success' : 'error',
+        icon: response === 'success' ? 'check' : 'error',
+        interactive: false
+      }))
+    }
+  }
+
   const handleModalUpdate = (data: any) => {
     console.log('🔄 Handling modal update:', data)
-    const { action, message, duration = 3000, priority = 'info', icon, progress } = data
+    const { action, message, duration = 3000, priority = 'info', icon, progress, interactive, testStep, testId } = data
 
     // Clear existing timeout
     if (autoHideTimeoutRef.current) {
@@ -145,10 +182,13 @@ function App() {
           message,
           priority,
           icon: iconMap[icon] || icon || iconMap[priority] || 'ℹ️',
-          showProgress: false
+          showProgress: false,
+          interactive: interactive || false,
+          testStep: testStep || '',
+          testId: testId || ''
         })
         
-        if (duration > 0) {
+        if (duration > 0 && !interactive) {
           autoHideTimeoutRef.current = setTimeout(() => {
             setModalState(prev => ({ ...prev, isVisible: false }))
           }, duration)
@@ -175,6 +215,19 @@ function App() {
           message: message || prev.message,
           showProgress: true,
           progress: progress || 0
+        }))
+        break
+
+      case 'interactive':
+        setModalState(prev => ({
+          ...prev,
+          isVisible: true,
+          message,
+          priority,
+          icon: iconMap[icon] || icon || iconMap[priority] || 'ℹ️',
+          interactive: true,
+          testStep: testStep || '',
+          testId: testId || ''
         }))
         break
     }
@@ -218,6 +271,35 @@ function App() {
               />
             </div>
             <div className="progress-text">{Math.round(modalState.progress || 0)}%</div>
+          </div>
+        )}
+
+        {/* Interactive controls */}
+        {modalState.interactive && (
+          <div className="interactive-controls">
+            <div className="test-step-info">
+              <strong>Test Step:</strong> {modalState.testStep}
+            </div>
+            <div className="control-buttons">
+              <button 
+                className="btn-success"
+                onClick={() => handleTestResponse('success')}
+              >
+                ✅ Success
+              </button>
+              <button 
+                className="btn-failure"
+                onClick={() => handleTestResponse('failure')}
+              >
+                ❌ Failed
+              </button>
+              <button 
+                className="btn-stop"
+                onClick={() => handleTestResponse('stop')}
+              >
+                🛑 Stop Test
+              </button>
+            </div>
           </div>
         )}
       </div>
