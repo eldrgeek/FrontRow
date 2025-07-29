@@ -5,12 +5,14 @@ A cross-platform Electron application that displays test notifications during Fr
 ## Features
 
 - **Always-on-top**: Stays visible during testing across all desktops
-- **Draggable**: Click and drag to reposition anywhere on screen
+- **Enhanced Dragging**: Full title bar dragging support (fixed in v2.1.0)
+- **Auto-fade System**: Fades to invisibility after 5 seconds of no interaction
+- **Smart Close Button**: X button hides modal but allows new messages to reopen
 - **Resizable**: Adjust size as needed
 - **Persistent**: Remembers position and size between sessions
 - **Real-time**: WebSocket connection to FrontRow server
 - **Rich UI**: Icons, progress bars, and priority-based styling
-- **Auto-hide**: Messages fade out automatically after specified duration
+- **Interactive Controls**: Success/Failed/Stop buttons for test coordination
 
 ## Installation
 
@@ -154,6 +156,20 @@ await coordinator.send_modal_progress(75, "Running test scenario...")
 - Position/size persistence is handled by Electron's main process
 - The renderer process handles UI and WebSocket communication
 - All IPC communication is secured with contextIsolation
+
+## Recent Updates (v2.1.0)
+
+### UI/UX Fixes
+- **Fixed dragging issue**: Now works across entire title bar, not just top edge
+- **Added auto-fade**: Modal fades to 0.1 opacity after 5 seconds of no interaction
+- **Fixed close button**: X button hides modal instead of closing, allows reopening
+- **Enhanced interaction**: Mouse movement, hover, and clicks reset fade timer
+
+### Technical Improvements
+- Dedicated `.drag-area` with proper `-webkit-app-region: drag`
+- Smart state management with `isClosed` tracking
+- Smooth opacity transitions (0.5s ease-in-out)
+- Improved pointer event handling during fade states
 
 ## Future Enhancements
 

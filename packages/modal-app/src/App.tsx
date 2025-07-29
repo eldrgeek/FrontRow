@@ -120,9 +120,14 @@ function App() {
   })
   
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [opacity, setOpacity] = useState(1)
+  const [pointerEvents, setPointerEvents] = useState<'auto' | 'none'>('auto')
+  const [isClosed, setIsClosed] = useState(false)
 
   const socketRef = useRef<Socket | null>(null)
   const autoHideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const fadeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastInteractionRef = useRef<number>(Date.now())
 
   useEffect(() => {
     console.log('🔌 Initializing socket connection...')
@@ -191,11 +196,25 @@ function App() {
 
     return () => {
       socket.disconnect()
+      if (autoHideTimeoutRef.current) {
+        clearTimeout(autoHideTimeoutRef.current)
+      }
+      if (fadeTimeoutRef.current) {
+        clearTimeout(fadeTimeoutRef.current)
+      }
     }
   }, [])
 
+  // Initialize interaction timer when modal becomes visible
+  useEffect(() => {
+    if (modalState.isVisible && !isClosed) {
+      resetInteractionTimer()
+    }
+  }, [modalState.isVisible, isClosed])
+
   const handleTestResponse = (response: 'success' | 'failure' | 'stop') => {
     console.log('🔄 Test response:', response)
+    resetInteractionTimer()
     
     // Send response back to server
     if (socketRef.current) {
@@ -232,6 +251,7 @@ function App() {
     console.log('🔄 Question response:', response)
     console.log('🔍 Socket connected:', socketRef.current?.connected)
     console.log('🔍 Question ID:', modalState.questionId)
+    resetInteractionTimer()
     
     // Disable window focus after question is answered
     if (window.electronAPI) {
@@ -269,14 +289,37 @@ function App() {
     }, 2000)
   }
 
+  const resetInteractionTimer = () => {
+    lastInteractionRef.current = Date.now()
+    setOpacity(1)
+    setPointerEvents('auto')
+    
+    // Clear existing fade timeout
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current)
+    }
+    
+    // Set new fade timeout for 5 seconds
+    fadeTimeoutRef.current = setTimeout(() => {
+      setOpacity(0.1)
+      setPointerEvents('none')
+    }, 5000)
+  }
+
   const handleModalUpdate = (data: any) => {
     console.log('🔄 Handling modal update:', data)
     const { action, message, duration = 3000, priority = 'info', icon, progress, interactive, testStep, testId, question, questionId } = data
 
+    // Show modal again if it was closed
+    setIsClosed(false)
+    
     // Clear existing timeout
     if (autoHideTimeoutRef.current) {
       clearTimeout(autoHideTimeoutRef.current)
     }
+    
+    // Reset interaction timer
+    resetInteractionTimer()
 
     switch (action) {
       case 'show':
@@ -290,6 +333,7 @@ function App() {
           testStep: testStep || '',
           testId: testId || ''
         })
+        setIsClosed(false)
         
         if (duration > 0 && !interactive) {
           autoHideTimeoutRef.current = setTimeout(() => {
@@ -300,6 +344,7 @@ function App() {
 
       case 'hide':
         setModalState(prev => ({ ...prev, isVisible: false }))
+        setIsClosed(true)
         break
 
       case 'update':
@@ -332,6 +377,7 @@ function App() {
           testStep: testStep || '',
           testId: testId || ''
         }))
+        setIsClosed(false)
         break
 
       case 'question':
@@ -351,25 +397,53 @@ function App() {
           showQuestionInput: true,
           interactive: false
         }))
+        setIsClosed(false)
         break
     }
   }
 
+  const handleCloseModal = () => {
+    setIsClosed(true)
+    setModalState(prev => ({ ...prev, isVisible: false }))
+  }
 
+  const handleMouseMove = () => {
+    resetInteractionTimer()
+  }
 
-  if (!modalState.isVisible) {
+  const handleMouseEnter = () => {
+    resetInteractionTimer()
+  }
+
+  const handleClick = () => {
+    resetInteractionTimer()
+  }
+
+  if (!modalState.isVisible || isClosed) {
     return null;
   }
 
   return (
-    <div className={`modal-container priority-${modalState.priority}`}>
+    <div 
+      className={`modal-container priority-${modalState.priority}`}
+      style={{ 
+        opacity,
+        pointerEvents,
+        transition: 'opacity 0.5s ease-in-out'
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onClick={handleClick}
+    >
       {/* Drag handle */}
       <div className="drag-handle">
-        <div className="drag-indicator">⋮⋮</div>
-        <div className={`status-indicator ${connectionStatus}`}>●</div>
+        <div className="drag-area">
+          <div className="drag-indicator">⋮⋮</div>
+          <div className={`status-indicator ${connectionStatus}`}>●</div>
+        </div>
         <button 
           className="close-button" 
-          onClick={() => window.close()}
+          onClick={handleCloseModal}
           title="Close modal"
         >
           ×

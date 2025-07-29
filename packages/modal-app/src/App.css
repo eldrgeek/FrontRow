@@ -15,22 +15,35 @@
 
 /* Drag handle */
 .drag-handle {
-  height: 24px;
+  height: 32px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 12px 12px 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+  /* Remove cursor and drag from container, let children handle it */
+}
+
+/* Draggable area that covers most of the title bar */
+.drag-area {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
   padding: 0 12px;
   cursor: move;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  -webkit-app-region: drag; /* Make the drag handle draggable */
+  -webkit-app-region: drag;
+  user-select: none;
 }
 
 .drag-indicator {
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
   font-weight: bold;
+  margin-right: 8px;
 }
 
 .status-indicator {
@@ -49,25 +62,22 @@
   color: rgba(255, 255, 255, 0.7);
   font-size: 16px;
   cursor: pointer;
-  padding: 0;
-  width: 20px;
-  height: 20px;
+  padding: 4px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   transition: all 0.2s ease;
-  margin-left: 8px;
+  margin-right: 4px;
+  -webkit-app-region: no-drag; /* Make close button non-draggable */
+  flex-shrink: 0;
 }
 
 .close-button:hover {
   background-color: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 1);
-}
-
-/* Make close button non-draggable */
-.close-button {
-  -webkit-app-region: no-drag;
 }
 
 /* Interactive controls */
