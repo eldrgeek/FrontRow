@@ -14,6 +14,19 @@ A real-time virtual venue application for live performances with audience intera
 
 ### Development Environment
 
+**Option 1: Use the Python development script (Recommended)**
+```bash
+# Basic mode (backend + frontend + modal)
+python start_dev.py
+
+# Full mode (includes MCP server for AI integration)
+python start_dev.py --full
+
+# MCP server only
+python start_dev.py --mcp-only
+```
+
+**Option 2: Manual startup**
 1. **Start the server:**
    ```bash
    cd server
@@ -37,14 +50,14 @@ A real-time virtual venue application for live performances with audience intera
 
 ### Testing
 
-**Run the modal test environment:**
-```bash
-./start-modal-test.sh
-```
-
 **Test the modal notifications:**
 ```bash
 python packages/modal-app/test-modal.py
+```
+
+**Test the MCP server (when running in full mode):**
+```bash
+python test_modal_mcp.py
 ```
 
 **Run E2E tests:**
@@ -64,6 +77,8 @@ python e2e_test_coordinator.py
 
 - [Deployment Guide](DEPLOYMENT_GUIDE.md)
 - [E2E Testing Architecture](E2E_TESTING_ARCHITECTURE.md)
+- [Python Development Scripts](PYTHON_DEV_SCRIPTS.md)
+- [MCP Server Setup for Cursor](MCP_CURSOR_SETUP.md)
 - [Modal App Documentation](packages/modal-app/README.md)
 - [Test Configuration](server/test-config.md)
 

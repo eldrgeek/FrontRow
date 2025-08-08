@@ -60,12 +60,12 @@ Core utilities for desktop/app management on macOS during testing.
 
 **From Desktop 1 (Cursor) to Desktop 2 (Chrome):**
 ```
-ctrl-up → ctrl-right → esc
+ctrl-right
 ```
 
 **From Desktop 2 (Chrome) to Desktop 1 (Cursor):**  
 ```
-ctrl-up → ctrl-left → esc
+ctrl-left
 ```
 
 **Timing:** Use 0.1 second delays between keypresses (optimized for speed)

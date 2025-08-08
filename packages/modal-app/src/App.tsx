@@ -286,6 +286,7 @@ function App() {
     // Auto-hide after 2 seconds
     setTimeout(() => {
       setModalState(prev => ({ ...prev, isVisible: false }))
+      setIsClosed(true)
     }, 2000)
   }
 
@@ -299,24 +300,33 @@ function App() {
       clearTimeout(fadeTimeoutRef.current)
     }
     
-    // Set new fade timeout for 5 seconds
+    // Set new fade timeout for 30 seconds
     fadeTimeoutRef.current = setTimeout(() => {
       setOpacity(0.1)
       setPointerEvents('none')
-    }, 5000)
+      
+      // After fading, completely hide the modal after 2 seconds
+      setTimeout(() => {
+        setModalState(prev => ({ ...prev, isVisible: false }))
+        setIsClosed(true)
+      }, 2000)
+    }, 30000) // Changed from 5000 to 30000 (30 seconds)
   }
 
   const handleModalUpdate = (data: any) => {
     console.log('🔄 Handling modal update:', data)
     const { action, message, duration = 3000, priority = 'info', icon, progress, interactive, testStep, testId, question, questionId } = data
 
-    // Show modal again if it was closed
-    setIsClosed(false)
-    
-    // Clear existing timeout
+    // Clear existing timeouts
     if (autoHideTimeoutRef.current) {
       clearTimeout(autoHideTimeoutRef.current)
     }
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current)
+    }
+    
+    // Show modal again if it was closed
+    setIsClosed(false)
     
     // Reset interaction timer
     resetInteractionTimer()
@@ -338,11 +348,20 @@ function App() {
         if (duration > 0 && !interactive) {
           autoHideTimeoutRef.current = setTimeout(() => {
             setModalState(prev => ({ ...prev, isVisible: false }))
+            setIsClosed(true)
           }, duration)
         }
         break
 
       case 'hide':
+        // Clear any existing timeouts
+        if (autoHideTimeoutRef.current) {
+          clearTimeout(autoHideTimeoutRef.current)
+        }
+        if (fadeTimeoutRef.current) {
+          clearTimeout(fadeTimeoutRef.current)
+        }
+        
         setModalState(prev => ({ ...prev, isVisible: false }))
         setIsClosed(true)
         break
@@ -403,6 +422,15 @@ function App() {
   }
 
   const handleCloseModal = () => {
+    // Clear any existing timeouts
+    if (autoHideTimeoutRef.current) {
+      clearTimeout(autoHideTimeoutRef.current)
+    }
+    if (fadeTimeoutRef.current) {
+      clearTimeout(fadeTimeoutRef.current)
+    }
+    
+    // Immediately hide the modal
     setIsClosed(true)
     setModalState(prev => ({ ...prev, isVisible: false }))
   }

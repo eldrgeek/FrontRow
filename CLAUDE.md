@@ -99,8 +99,8 @@ npm run dev        # Start with nodemon
 - **Desktop 2**: Chrome with FRONT ROW application tabs
 
 ### Quick Reference
-- **Switch to Chrome (Desktop 2)**: `ctrl-up → ctrl-right → esc`
-- **Switch to Cursor (Desktop 1)**: `ctrl-up → ctrl-left → esc` 
+- **Switch to Chrome (Desktop 2)**: `ctrl-right`
+- **Switch to Cursor (Desktop 1)**: `ctrl-left` 
 - **App switching**: `cmd-space → type app name → enter`
 
 ### Context Detection
@@ -108,3 +108,34 @@ Use `automation/desktop_switching.py` to programmatically:
 - Detect current active application
 - Check if FRONT ROW Chrome is available
 - Get navigation recommendations
+
+## MCP Server Integration
+
+FrontRow includes an MCP (Model Context Protocol) server for controlling the modal dialog during testing.
+
+### Available MCP Tools
+- `modal_show_message` - Display messages in modal dialog
+- `modal_send_interactive_step` - Show interactive buttons (Success/Failed/Stop)
+- `modal_wait_for_response` - Wait for user response
+- `modal_progress` - Update progress bar
+- `modal_ask_question` - Ask questions with text input
+- `modal_status` - Get server status
+
+### MCP Server Modes
+The server is configured in global Cursor settings with two modes:
+
+**Stdio Mode (`frontrow-modal`)** - Recommended
+- Direct communication with Cursor
+- Server name: `frontrow-modal`
+- Command: `python mcp_modal_server.py --stdio`
+
+**HTTP Mode (`frontrow-modal-http`)**
+- Standalone HTTP service on port 8001
+- Server name: `frontrow-modal-http`
+- Command: `python mcp_modal_server.py --host 127.0.0.1 --port 8001`
+
+### Starting with MCP Support
+```bash
+python start_dev.py --full
+```
+This starts all services including the MCP server.

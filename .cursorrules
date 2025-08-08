@@ -1,0 +1,56 @@
+# FrontRow Project Cursor Rules
+# =============================
+
+## Project Overview
+This is a real-time virtual venue application for live performances with audience interaction. The project includes:
+- React frontend with Vite
+- Node.js backend with Socket.IO
+- Electron modal app for testing
+- MCP server for AI integration
+
+## Development Environment
+- Use the Python development script: `python start_dev.py --full`
+- The MCP server runs on port 8001 and provides tools for controlling the modal app
+- The modal app is an Electron application that appears on all desktops
+
+## MCP Server Configuration
+The project includes a custom MCP server (`mcp_modal_server.py`) that provides tools for:
+- Controlling the modal dialog application
+- Sending test messages and notifications
+- Managing E2E testing coordination
+- Progress tracking and user interaction
+
+### MCP Server Tools Available:
+- `modal_connect` - Connect to the modal server
+- `modal_show_message` - Display messages in the modal
+- `modal_hide` - Hide the modal
+- `modal_progress` - Update progress bar
+- `modal_ask_question` - Ask questions via modal
+- `modal_send_custom` - Send custom actions
+- `modal_status` - Get server status
+- `modal_test_sequence` - Run test sequence
+
+## Code Style and Standards
+- Use TypeScript for frontend components
+- Follow React best practices
+- Use async/await for asynchronous operations
+- Include proper error handling
+- Add JSDoc comments for functions
+
+## Testing
+- Use the MCP server tools for E2E testing coordination
+- Test modal interactions through the MCP server
+- Run `python test_modal_mcp.py` to test MCP functionality
+- Use `python packages/modal-app/test-modal.py` for direct modal testing
+
+## File Organization
+- Keep components in `front-row-vite/src/components/`
+- Server code in `server/`
+- Modal app in `packages/modal-app/`
+- Test scripts in root directory
+- Documentation in markdown files
+
+## Important Notes
+- The modal app must be running for MCP tools to work
+- The backend server (port 3001) must be running for modal communication
+- Use the Python development script for consistent environment setup 
