@@ -17,10 +17,9 @@ Implements/stubs the following tool contracts (see docs/ChatGPT Agent.md):
 Use --stdio for Cursor integration or HTTP mode for debugging.
 """
 
-from __future__ import annotations
 
 import os
-import io
+import sys
 import json
 import base64
 import time
@@ -33,7 +32,7 @@ import argparse
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Tuple
 
 from fastmcp import FastMCP
 
@@ -46,7 +45,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler(os.path.expanduser("~/mcp_tool_router.log")),
-        logging.StreamHandler(),
+        logging.StreamHandler(sys.stderr),
     ],
 )
 logger = logging.getLogger("mcp_tool_router")
@@ -80,24 +79,24 @@ class PlannedChange:
 @dataclass
 class Plan:
     plan_id: str
-    changes: List[PlannedChange] = field(default_factory=list)
+    changes: list[PlannedChange] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
 
 class PlanStore:
     def __init__(self) -> None:
-        self._plans: Dict[str, Plan] = {}
+        self._plans: dict[str, Plan] = {}
 
-    def create(self, changes: List[Tuple[str, str]]) -> Plan:
+    def create(self, changes: list[Tuple[str, str]]) -> Plan:
         plan_id = uuid.uuid4().hex[:12]
         plan = Plan(plan_id=plan_id, changes=[PlannedChange(p, c) for p, c in changes])
         self._plans[plan_id] = plan
         return plan
 
-    def get(self, plan_id: str) -> Optional[Plan]:
+    def get(self, plan_id: str) -> Plan | None:
         return self._plans.get(plan_id)
 
-    def pop(self, plan_id: str) -> Optional[Plan]:
+    def pop(self, plan_id: str) -> Plan | None:
         return self._plans.pop(plan_id, None)
 
 
@@ -148,7 +147,7 @@ def write_file(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def run_command(cmd: List[str], timeout: int) -> Tuple[int, str, str]:
+def run_command(cmd: list[str], timeout: int) -> Tuple[int, str, str]:
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         out, err = proc.communicate(timeout=timeout)
@@ -164,8 +163,22 @@ def run_command(cmd: List[str], timeout: int) -> Tuple[int, str, str]:
 mcp = FastMCP("FrontRow Tool Router v0.1")
 
 
-@mcp.tool()
-def repo_apply_changes(files: List[Dict[str, Any]] = None, patch: Optional[str] = None, dry_run: bool = True) -> Dict[str, Any]:
+@mcp.tool(name="router.health")
+def router_health() -> dict[str, Any]:
+    """Basic health check for the router."""
+    try:
+        tool_names = sorted([t.name for t in mcp._tool_manager.list_tools()])  # type: ignore[attr-defined]
+    except Exception:
+        tool_names = []
+    return {
+        "status": "ok",
+        "workspace_root": str(WORKSPACE_ROOT),
+        "tools": tool_names,
+    }
+
+
+@mcp.tool(name="repo.apply_changes")
+def repo_apply_changes(files: list[dict[str, Any]] | None = None, patch: str | None = None, dry_run: bool = True) -> dict[str, Any]:
     """
     Apply file changes directly or return a dry-run plan with a diff summary.
 
@@ -215,12 +228,11 @@ def repo_apply_changes(files: List[Dict[str, Any]] = None, patch: Optional[str] 
     return {"plan_id": None, "diff_summary": diffs, "notes": "applied immediately"}
 
 
-# Expose tool under the expected dotted name
-mcp.register_tool("repo.apply_changes", repo_apply_changes)
+ 
 
 
-@mcp.tool()
-def confirm(plan_id: str) -> Dict[str, Any]:
+@mcp.tool(name="confirm")
+def confirm(plan_id: str) -> dict[str, Any]:
     """Execute a previously returned dry-run plan."""
     plan = plan_store.pop(plan_id)
     if not plan:
@@ -241,8 +253,8 @@ def confirm(plan_id: str) -> Dict[str, Any]:
     }
 
 
-@mcp.tool()
-def tests_run(scope: Optional[List[str]] = None, format: str = "json", timeout_sec: int = TEST_TIMEOUT_SEC) -> Dict[str, Any]:
+@mcp.tool(name="tests.run")
+def tests_run(scope: list[str] | None = None, format: str = "json", timeout_sec: int = TEST_TIMEOUT_SEC) -> dict[str, Any]:
     """
     Run pytest and return a structured summary. If pytest is unavailable, returns a stub result.
     """
@@ -298,11 +310,10 @@ def tests_run(scope: Optional[List[str]] = None, format: str = "json", timeout_s
     }
 
 
-mcp.register_tool("tests.run", tests_run)
 
 
-@mcp.tool()
-def docs_write(paths: List[str], contents: List[str], dry_run: bool = True) -> Dict[str, Any]:
+@mcp.tool(name="docs.write")
+def docs_write(paths: list[str], contents: list[str], dry_run: bool = True) -> dict[str, Any]:
     """Write documentation files; wrapper around repo.apply_changes."""
     if len(paths) != len(contents):
         return {"error": "paths and contents length mismatch"}
@@ -310,11 +321,10 @@ def docs_write(paths: List[str], contents: List[str], dry_run: bool = True) -> D
     return repo_apply_changes(files=files, dry_run=dry_run)
 
 
-mcp.register_tool("docs.write", docs_write)
 
 
-@mcp.tool()
-def vcs_propose(summary: str, branch_base: str = "master", open_pr: bool = True) -> Dict[str, Any]:
+@mcp.tool(name="vcs.propose")
+def vcs_propose(summary: str, branch_base: str = "master", open_pr: bool = True) -> dict[str, Any]:
     """
     Stub: return a proposed branch name; does not push or open PRs.
     """
@@ -323,11 +333,10 @@ def vcs_propose(summary: str, branch_base: str = "master", open_pr: bool = True)
     return {"branch": branch, "commit_sha": None, "pr": {"number": None, "url": None, "status": "prepared"}}
 
 
-mcp.register_tool("vcs.propose", vcs_propose)
 
 
-@mcp.tool()
-def e2e_run(suite: str = "smoke", timeout_sec: int = 600, headless: bool = True) -> Dict[str, Any]:
+@mcp.tool(name="e2e.run")
+def e2e_run(suite: str = "smoke", timeout_sec: int = 600, headless: bool = True) -> dict[str, Any]:
     """Stub E2E runner; returns a placeholder summary."""
     return {
         "summary": {"passed": 0, "failed": 0, "duration_sec": 0.0},
@@ -337,11 +346,10 @@ def e2e_run(suite: str = "smoke", timeout_sec: int = 600, headless: bool = True)
     }
 
 
-mcp.register_tool("e2e.run", e2e_run)
 
 
-@mcp.tool()
-def artifact_put(name: str, bytes_b64: str, mime: str = "application/octet-stream") -> Dict[str, Any]:
+@mcp.tool(name="artifact.put")
+def artifact_put(name: str, bytes_b64: str, mime: str = "application/octet-stream") -> dict[str, Any]:
     data = base64.b64decode(bytes_b64)
     art_id = f"art_{uuid.uuid4().hex[:10]}"
     target = ARTIFACT_DIR / f"{art_id}__{name}"
@@ -351,8 +359,8 @@ def artifact_put(name: str, bytes_b64: str, mime: str = "application/octet-strea
     return {"id": art_id}
 
 
-@mcp.tool()
-def artifact_get(id: str) -> Dict[str, Any]:
+@mcp.tool(name="artifact.get")
+def artifact_get(id: str) -> dict[str, Any]:
     meta_file = ARTIFACT_DIR / f"{id}.json"
     if not meta_file.exists():
         return {"error": f"artifact not found: {id}"}
@@ -364,8 +372,8 @@ def artifact_get(id: str) -> Dict[str, Any]:
     return {"id": id, "name": meta.get("name"), "mime": meta.get("mime"), "bytes_b64": data_b64}
 
 
-@mcp.tool()
-def artifact_list() -> Dict[str, Any]:
+@mcp.tool(name="artifact.list")
+def artifact_list() -> dict[str, Any]:
     items: List[Dict[str, Any]] = []
     for meta_file in ARTIFACT_DIR.glob("art_*.json"):
         try:
@@ -376,9 +384,6 @@ def artifact_list() -> Dict[str, Any]:
     return {"artifacts": items}
 
 
-mcp.register_tool("artifact.put", artifact_put)
-mcp.register_tool("artifact.get", artifact_get)
-mcp.register_tool("artifact.list", artifact_list)
 
 
 # ----------------------------------------------------------------------------
@@ -398,7 +403,6 @@ def main() -> None:
         logger.info("Running in stdio mode")
         mcp.run(transport="stdio")
     else:
-        from fastmcp import FastMCPHTTP
         logger.info(f"Running in HTTP mode on {args.host}:{args.port}")
         mcp.run(transport="streamable-http", host=args.host, port=args.port)
 
