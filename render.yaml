@@ -1,7 +1,7 @@
 services:
   # Production Backend (master branch)
   - type: web
-    name: frontrow-production
+    name: frontrow-tvu6  # Match existing deployment
     runtime: node
     plan: free
     rootDir: server
@@ -12,7 +12,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 3001
+        value: 10000  # Render uses 10000, not 3001
 
   # Staging Backend (develop branch)  
   - type: web
