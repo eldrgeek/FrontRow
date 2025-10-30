@@ -223,7 +223,7 @@ canvas {
   position: fixed;
   inset: 0;
   pointer-events: none; /* allow scene interaction everywhere by default */
-  z-index: 3000000000; /* on top of all scene/iframe layers */
+  z-index: 10000; /* reasonable z-index above canvas */
 }
 
 /* Re-enable pointer events only on interactive panels inside overlay */

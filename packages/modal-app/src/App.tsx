@@ -2,6 +2,19 @@ import React, { useEffect, useState, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 import './App.css'
 
+// Extend Window interface for Electron API
+declare global {
+  interface Window {
+    electronAPI?: {
+      getConfig: () => Promise<any>;
+      saveConfig: (config: any) => Promise<boolean>;
+      sendQuestionResponse: (responseData: any) => Promise<boolean>;
+      setWindowFocusable: (focusable: boolean) => Promise<boolean>;
+      setIgnoreMouseEvents: (ignore: boolean) => Promise<boolean>;
+    }
+  }
+}
+
 // QuestionInput component
 interface QuestionInputProps {
   question: string
@@ -128,6 +141,15 @@ function App() {
   const autoHideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const fadeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastInteractionRef = useRef<number>(Date.now())
+
+  // Control mouse event capture based on modal visibility
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.setIgnoreMouseEvents) {
+      const shouldIgnore = !modalState.isVisible || isClosed;
+      window.electronAPI.setIgnoreMouseEvents(shouldIgnore);
+      console.log(`🖱️ Mouse events ${shouldIgnore ? 'disabled (click-through)' : 'enabled (capturing)'}`);
+    }
+  }, [modalState.isVisible, isClosed]);
 
   useEffect(() => {
     console.log('🔌 Initializing socket connection...')

@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConfig: () => ipcRenderer.invoke('get-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
   sendQuestionResponse: (responseData) => ipcRenderer.invoke('send-question-response', responseData),
-  setWindowFocusable: (focusable) => ipcRenderer.invoke('set-window-focusable', focusable)
+  setWindowFocusable: (focusable) => ipcRenderer.invoke('set-window-focusable', focusable),
+  setIgnoreMouseEvents: (ignore) => ipcRenderer.invoke('set-ignore-mouse-events', ignore)
 }); 

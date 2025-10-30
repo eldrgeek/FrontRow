@@ -8,10 +8,10 @@ let mainWindow;
 // Config file path for persistence
 const configPath = path.join(app.getPath('userData'), 'modal-config.json');
 
-// Default config
+// Default config - position at center of screen
 const defaultConfig = {
-  x: 50,
-  y: 50,
+  x: null, // Will be calculated based on screen size (centered)
+  y: null, // Will be calculated based on screen size (centered)
   width: 400,
   height: 200,
   alwaysOnTop: true
@@ -45,12 +45,20 @@ function createWindow() {
   const width = Math.max(config.width || 400, 300);
   const height = Math.max(config.height || 200, 150);
   
+  // Calculate position for center of screen if not set
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  
+  const x = config.x !== null && config.x !== undefined ? config.x : Math.floor((screenWidth - width) / 2);
+  const y = config.y !== null && config.y !== undefined ? config.y : Math.floor((screenHeight - height) / 2);
+  
   // Create the browser window
   mainWindow = new BrowserWindow({
     width: width,
     height: height,
-    x: config.x || 50,
-    y: config.y || 50,
+    x: x,
+    y: y,
     frame: false, // Remove window frame
     resizable: true,
     alwaysOnTop: config.alwaysOnTop,
@@ -67,6 +75,9 @@ function createWindow() {
     skipTaskbar: true, // Don't show in taskbar
     focusable: true // Allow focus for question input
   });
+  
+  // Initially set to ignore mouse events (click-through)
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
 
   // Load the renderer
   const isDev = process.argv.includes('--dev');
@@ -200,6 +211,14 @@ ipcMain.handle('send-question-response', (event, responseData) => {
 // Handle focus control from renderer
 ipcMain.handle('set-window-focusable', (event, focusable) => {
   mainWindow.setFocusable(focusable);
+  return true;
+});
+
+// Handle mouse event control from renderer
+ipcMain.handle('set-ignore-mouse-events', (event, ignore) => {
+  if (mainWindow) {
+    mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
+  }
   return true;
 });
 

@@ -61,15 +61,16 @@ export default function ArtistControls({
       style={{
         position: 'fixed',
         top: '20px',
-        left: '20px',
+        right: '20px',
         background: 'rgba(0, 0, 0, 0.8)',
         borderRadius: '8px',
         border: '2px solid rgba(255, 255, 255, 0.3)',
         backdropFilter: 'blur(10px)',
         transition: 'all 0.3s ease',
         overflow: 'hidden',
-        zIndex: 3000000502,
+        zIndex: 9999,
         minWidth: '200px',
+        pointerEvents: 'auto',
       }}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
