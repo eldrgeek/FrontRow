@@ -1,74 +1,44 @@
 [build]
-  base = "front-row-vite"
-  publish = "dist" 
-  command = "npm install && npm run build"
+  publish = "front-row-vite/dist"
+  command = "cd netlify/functions && npm install && cd ../../front-row-vite && npm install && npm run build"
 
-[build.environment]
-  NODE_VERSION = "18"
-
-# Enable branch deployments and deploy previews
-[context.branch-deploy]
-  command = "npm install && npm run build"
-
-[context.deploy-preview]
-  command = "npm install && npm run build"
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 [[headers]]
-for = "/*"
+  for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
+    X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
-for = "/*.html"
+  for = "/*.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
-for = "/api/*"
+  for = "/assets/*"
   [headers.values]
-    Cache-Control = "no-cache"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[redirects]]
-from = "/*"
-to = "/index.html"
-status = 200
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
-[build.processing]
-  skip_processing = false
-
-[build.processing.css]
-  bundle = true
-  minify = true
-
-[build.processing.js]
-  bundle = true
-  minify = true
-
-[build.processing.html]
-  pretty_urls = true
-
-# Production environment (master branch only)
 [context.production.environment]
   NODE_ENV = "production"
   VITE_BACKEND_URL = "https://frontrow-tvu6.onrender.com"
   VITE_SOCKET_URL = "https://frontrow-tvu6.onrender.com"
+  VITE_LIVEKIT_URL = "wss://vpsmikewolf.duckdns.org"
+  VITE_ENABLE_TEST_MODE = "true"
 
-# Staging environment (develop branch)
-[context.develop.environment]
-  NODE_ENV = "staging"
-  VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
-  VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"
-
-# Deploy previews (pull requests) - backend URL is determined dynamically
 [context.deploy-preview.environment]
   NODE_ENV = "preview"
-
-# Branch deployments (other branches)
-[context.branch-deploy.environment]
-  NODE_ENV = "development"
-  VITE_BACKEND_URL = "https://frontrow-staging.onrender.com"
-  VITE_SOCKET_URL = "https://frontrow-staging.onrender.com"
+  VITE_BACKEND_URL = "https://frontrow-tvu6.onrender.com"
+  VITE_SOCKET_URL = "https://frontrow-tvu6.onrender.com"
+  VITE_LIVEKIT_URL = "wss://vpsmikewolf.duckdns.org"
+  VITE_ENABLE_TEST_MODE = "true"

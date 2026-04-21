@@ -16,10 +16,10 @@ import ArtistControls from './components/ArtistControls';
 import ScreenTuner from './components/ScreenTuner';
 import AnimatedText from './components/AnimatedText';
 import SceneTestExposer from './components/SceneTestExposer';
+import { useLiveKit } from './hooks/useLiveKit';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
-import * as THREE from 'three';
 
 // TypeScript interfaces
 interface AudienceSeat {
@@ -37,18 +37,6 @@ interface AudienceSeats {
 type ShowState = 'idle' | 'pre-show' | 'live' | 'post-show';
 type ViewState = 'eye-in-the-sky' | 'performer' | 'user';
 
-// Define STUN servers directly in the frontend for WebRTC
-// These are public STUN servers provided by Google.
-const stunServers = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
-  // You might add more, or your own TURN server for truly robust connections
-  // in complex network environments (e.g., behind strict firewalls),
-  // but STUN is sufficient for many basic P2P setups.
-];
-
 function App(): JSX.Element {
   // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
@@ -61,15 +49,15 @@ function App(): JSX.Element {
   const [userCaptureMode, setUserCaptureMode] = useState<'photo' | 'video'>(() => {
     return (sessionStorage.getItem('frontrow_capture_mode') as 'photo' | 'video') || 'photo';
   });
-  const [selectedSeat, setSelectedSeat] = useState<string | null>(null); // user picks seat each session
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
   const [showState, setShowState] = useState<ShowState>('idle');
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
-  
+
   // Debug audienceSeats changes
   useEffect(() => {
-    const seatSummary = Object.entries(audienceSeats).map(([seatId, user]) => 
+    const seatSummary = Object.entries(audienceSeats).map(([seatId, user]) =>
       `${seatId}: ${user.name} (${user.captureMode})`
     );
     console.log(`🎭 audienceSeats state changed: [${seatSummary.join(', ')}]`);
@@ -77,14 +65,14 @@ function App(): JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [showStreamChoice, setShowStreamChoice] = useState<boolean>(false);
   const [mySocketId, setMySocketId] = useState<string>('');
-  
+
   // Camera position state - save positions when switching views
   const [savedCameraPositions, setSavedCameraPositions] = useState<{
     'eye-in-the-sky': { position: [number, number, number]; target: [number, number, number] };
     'user': { position: [number, number, number]; target: [number, number, number] };
   }>({
     'eye-in-the-sky': { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
-    'user': { position: [0, 1.7, 0], target: [0, 3, -10] } // Will be updated when seat is selected - look at performer screen
+    'user': { position: [0, 1.7, 0], target: [0, 3, -10] },
   });
 
   // Screen tuner state
@@ -95,11 +83,9 @@ function App(): JSX.Element {
   const [showWelcomeText, setShowWelcomeText] = useState<boolean>(false);
   const [showPickSeatText, setShowPickSeatText] = useState<boolean>(false);
   const [welcomeSequenceStarted, setWelcomeSequenceStarted] = useState<boolean>(false);
-  
-  
+
   const socketRef = useRef<Socket | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const peerConnectionsRef = useRef<{ [socketId: string]: RTCPeerConnection }>({});
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
@@ -113,48 +99,99 @@ function App(): JSX.Element {
   const [isArtist, setIsArtist] = useState(() => {
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
-  
+
   const isPerformer = () => {
     return isArtist;
   };
 
-  // Helper function to reset artist status (for debugging/testing)
   const resetArtistStatus = () => {
     sessionStorage.removeItem('frontrow_is_artist');
     setIsArtist(false);
     window.location.reload();
   };
 
-  // --- Socket.IO and WebRTC Setup ---
+  // LiveKit hook
+  const liveKit = useLiveKit();
+
+  // E2E test auth bypass - auto-login when ?bypass_auth=true in URL
   useEffect(() => {
-    // Connect to backend Socket.IO server
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('bypass_auth') === 'true' || params.get('test') === 'true') {
+      const testName = params.get('test_name') || 'TestUser';
+      const testRole = params.get('test_role') || 'audience';
+      const isTestArtist = testRole === 'performer';
+
+      console.log('🧪 E2E Test: Bypassing auth', { testName, testRole });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 100;
+      canvas.height = 100;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = isTestArtist ? '#ff6b35' : '#4CAF50';
+        ctx.fillRect(0, 0, 100, 100);
+        ctx.fillStyle = 'white';
+        ctx.font = '40px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(testName[0].toUpperCase(), 50, 65);
+      }
+      const testImage = canvas.toDataURL('image/png');
+
+      setUserName(testName);
+      setUserImage(testImage);
+      sessionStorage.setItem('frontrow_user_name', testName);
+      sessionStorage.setItem('frontrow_user_image', testImage);
+
+      if (isTestArtist) {
+        sessionStorage.setItem('frontrow_is_artist', 'true');
+        setIsArtist(true);
+        setIsLoggedIn(true);
+      } else {
+        setUserCaptureMode('photo');
+        sessionStorage.setItem('frontrow_capture_mode', 'photo');
+        setIsLoggedIn(true);
+      }
+    }
+  }, []); // Only run once on mount
+
+  // --- Socket.IO Setup ---
+  useEffect(() => {
     console.log('Connecting to backend:', config.socketUrl);
     socketRef.current = io(config.socketUrl);
     socketRef.current.on('connect', () => {
       console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');
-      
-      // Auto-reset show when artist connects
+
       if (isPerformer()) {
-        console.log('�� Artist connected - requesting show reset from backend');
+        console.log('🎭 Artist connected - requesting show reset from backend');
         socketRef.current.emit('reset-show');
       }
     });
 
-    // Socket listeners for show status and seat updates
-    socketRef.current.on('show-status-update', (data) => {
+    socketRef.current.on('show-status-update', async (data) => {
       console.log('Show Status Update:', data);
       setShowState(data.status);
       if (data.status === 'live') {
-        console.log('🔴 SHOW IS NOW LIVE! Audience should expect WebRTC offers soon...');
-        
-        // Only play applause for audience members, not for the performer
+        console.log('🔴 SHOW IS NOW LIVE!');
+
         if (!isPerformer()) {
-          // Start applause sound at end of show (20 minutes for performance + 2 min encore)
+          // Connect audience to LiveKit
+          const name = sessionStorage.getItem('frontrow_user_name') || 'audience';
+          try {
+            await liveKit.connectAsAudience(
+              config.livekitUrl,
+              config.tokenUrl,
+              name,
+              (stream) => setPerformerStream(stream)
+            );
+          } catch (err) {
+            console.error('Failed to connect to LiveKit as audience:', err);
+          }
+
           setTimeout(() => {
-            const applause = new Audio('/audio/applause.mp3'); // Assuming audio is in public folder
+            const applause = new Audio('/audio/applause.mp3');
             applause.play().catch(e => console.log('Could not play applause audio:', e));
-          }, 22 * 60 * 1000); // 22 minutes (20 min performance + 2 min encore)
+          }, 22 * 60 * 1000);
         } else {
           console.log('👨‍🎤 Performer detected - skipping applause audio');
         }
@@ -164,7 +201,6 @@ function App(): JSX.Element {
     socketRef.current.on('show-state-change', (data) => {
       console.log('Show State Change:', data);
       setShowState(data.status);
-      // Clear performer stream when show state changes to idle
       if (data.status === 'idle') {
         setPerformerStream(null);
         setIsCountdownActive(false);
@@ -193,212 +229,78 @@ function App(): JSX.Element {
       setAudienceSeats({});
     });
 
-    // WebRTC Signaling listeners
-    socketRef.current.on('offer', async (data) => {
-        console.log('🎬 Audience: Received offer from:', data.offererSocketId);
-        console.log('🎬 Audience: isPerformer:', isPerformer());
-        
-        // Only audience members (non-artist) should process offers from artist
-        // Don't require a seat - all audience should be able to receive stream
-        if (!isPerformer() && !peerConnectionsRef.current[data.offererSocketId]) {
-            console.log('🎬 Audience: Processing offer from artist...');
-            await setupAudiencePeerConnection(data.offererSocketId, data.sdp);
-        } else {
-            console.log('🎬 Audience: Ignoring offer - conditions not met');
-            if (isPerformer()) console.log('  - Is performer (should not receive offers)');
-            if (peerConnectionsRef.current[data.offererSocketId]) console.log('  - Peer connection already exists');
-        }
-    });
+    // Countdown event listeners
+    socketRef.current.on('countdown-started', (data) => {
+      console.log('🎬 Frontend: Countdown started event received:', data);
+      setIsCountdownActive(true);
+      setCountdownTime(data.timeRemaining);
+      setShowState('pre-show');
 
-    socketRef.current.on('answer', async (data) => {
-        console.log('Received answer from:', data.answererSocketId);
-        const pc = peerConnectionsRef.current[data.answererSocketId];
-        if (pc && pc.signalingState !== 'stable') { // Ensure not already stable
-            await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        }
-    });
-
-    socketRef.current.on('ice-candidate', async (data) => {
-        console.log('Received ICE candidate from:', data.senderSocketId);
-        const pc = peerConnectionsRef.current[data.senderSocketId];
-        if (pc && data.candidate) {
-            try {
-                await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-            } catch (e) {
-                console.error('Error adding received ICE candidate:', e);
-            }
-        }
-    });
-
-    // Listener for artist to know when new audience members join
-    socketRef.current.on('new-audience-member', async (audienceSocketId) => {
-      if (isPerformer()) {
-        console.log('🎭 Artist: New audience member joined:', audienceSocketId);
-        
-        // Check if we already have a connection to this audience member
-        if (peerConnectionsRef.current[audienceSocketId]) {
-          console.log('🎭 Artist: Peer connection already exists for:', audienceSocketId);
-          return;
-        }
-        
-        // Create new peer connection
-        const pc = new RTCPeerConnection({ iceServers: stunServers });
-        peerConnectionsRef.current[audienceSocketId] = pc;
-        
-        console.log('🎭 Artist: Created peer connection for:', audienceSocketId);
-        
-        // Add local stream tracks to peer connection
-        if (localStreamRef.current) {
-          console.log('🎭 Artist: Adding local stream tracks to peer connection');
-          localStreamRef.current.getTracks().forEach(track => {
-            console.log('🎭 Artist: Adding track:', track.kind, 'to peer connection');
-            pc.addTrack(track, localStreamRef.current!);
-          });
-        } else {
-          console.warn('🎭 Artist: No local stream available to add to peer connection');
-        }
-        
-        // Handle ICE candidates
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            console.log('🎭 Artist: Sending ICE candidate to:', audienceSocketId);
-            socketRef.current.emit('ice-candidate', {
-              candidate: event.candidate,
-              targetSocketId: audienceSocketId,
-              senderSocketId: socketRef.current.id,
-            });
-          }
-        };
-        
-        // Handle connection state changes
-        pc.onconnectionstatechange = () => {
-          console.log('🎭 Artist: Peer connection state changed:', audienceSocketId, '->', pc.connectionState);
-        };
-        
-        // Handle ICE connection state changes
-        pc.oniceconnectionstatechange = () => {
-          console.log('🎭 Artist: ICE connection state changed:', audienceSocketId, '->', pc.iceConnectionState);
-        };
-        
-        try {
-          // Create and send offer
-          console.log('🎭 Artist: Creating offer for:', audienceSocketId);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          
-          console.log('🎭 Artist: Sending offer to:', audienceSocketId);
-          socketRef.current.emit('offer', {
-            sdp: offer,
-            targetSocketId: audienceSocketId,
-            offererSocketId: socketRef.current.id,
-          });
-        } catch (err) {
-          console.error('🎭 Artist: Error creating offer for:', audienceSocketId, err);
-        }
+      if (!isPerformer()) {
+        setPerformerStream(null);
       }
     });
 
-    // Listen for artist rejection messages from backend
-    socketRef.current.on('artist-rejected', (data) => {
-        console.warn('Artist: Go live request rejected by backend:', data.reason);
-        alert(`Cannot go live: ${data.reason}\n\nCurrent show status: ${data.currentStatus}\n\nPlease wait for the current show to end or contact support.`);
-        
-        // Stop any local stream that was started
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-            setPerformerStream(null);
-        }
-    });
-
-    // Countdown event listeners
-    socketRef.current.on('countdown-started', (data) => {
-        console.log('🎬 Frontend: Countdown started event received:', data);
-        setIsCountdownActive(true);
-        setCountdownTime(data.timeRemaining);
-        setShowState('pre-show');
-        
-        // Clear any existing performer stream during countdown
-        if (!isPerformer()) {
-          setPerformerStream(null);
-        }
-    });
-
     socketRef.current.on('countdown-update', (data) => {
-        console.log('⏰ Frontend: Countdown update event received:', data.timeRemaining);
-        setCountdownTime(data.timeRemaining);
+      console.log('⏰ Frontend: Countdown update event received:', data.timeRemaining);
+      setCountdownTime(data.timeRemaining);
     });
 
-    socketRef.current.on('countdown-finished', (data) => {
-        console.log('🎭 Frontend: Countdown finished event received:', data);
-        setIsCountdownActive(false);
-        setCountdownTime(0);
-        setShowState('live');
-        
-        // When countdown finishes, start the live stream
-        if (isPerformer()) {
-            console.log('🎥 Countdown finished - starting live stream...');
-            
-            // If camera is already on (from preview), just emit go-live
-            if (localStreamRef.current) {
-                console.log('🎥 Camera already active - going live with existing stream...');
-                // Update performer stream state to ensure it's available for WebRTC
-                setPerformerStream(localStreamRef.current);
-                socketRef.current.emit('artist-go-live');
-            } else {
-                // If camera is not on, start it first
-                console.log('🎥 Camera not active - starting camera first...');
-                startCameraPreview().then(() => {
-                    if (localStreamRef.current) {
-                        console.log('🎥 Camera started - now going live...');
-                        // Update performer stream state to ensure it's available for WebRTC
-                        setPerformerStream(localStreamRef.current);
-                        socketRef.current.emit('artist-go-live');
-                    }
-                }).catch(err => {
-                    console.error('❌ Failed to start camera automatically:', err);
-                    alert('Failed to start camera automatically. Please turn on camera manually.');
-                });
-            }
-        } else {
-            console.log('🎥 Countdown finished - waiting for artist to start stream...');
-        }
-    });
+    socketRef.current.on('countdown-finished', async (data) => {
+      console.log('🎭 Frontend: Countdown finished event received:', data);
+      setIsCountdownActive(false);
+      setCountdownTime(0);
+      setShowState('live');
 
-    socketRef.current.on('countdown-stopped', (data) => {
-        console.log('Countdown stopped');
-        setIsCountdownActive(false);
-        setCountdownTime(0);
-        setIsCameraPreview(false);
-        setShowState('idle');
-        
-        // Stop camera preview and clear stream
+      if (isPerformer()) {
+        console.log('🎥 Countdown finished - starting live stream...');
         if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-            setPerformerStream(null);
+          console.log('🎥 Camera already active - going live with existing stream...');
+          setPerformerStream(localStreamRef.current);
+          socketRef.current?.emit('artist-go-live');
+        } else {
+          console.log('🎥 Camera not active - starting camera first...');
+          try {
+            await startCameraPreview();
+            socketRef.current?.emit('artist-go-live');
+          } catch (err) {
+            console.error('❌ Failed to start camera automatically:', err);
+            alert('Failed to start camera automatically. Please turn on camera manually.');
+          }
         }
+      } else {
+        console.log('🎥 Countdown finished - waiting for artist to start stream...');
+      }
     });
 
+    socketRef.current.on('countdown-stopped', (_data) => {
+      console.log('Countdown stopped');
+      setIsCountdownActive(false);
+      setCountdownTime(0);
+      setIsCameraPreview(false);
+      setShowState('idle');
+
+      liveKit.disconnect().then(() => {
+        localStreamRef.current = null;
+        setPerformerStream(null);
+      });
+    });
 
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
-      // Close all peer connections on unmount
-      Object.values(peerConnectionsRef.current).forEach(pc => pc.close());
-      
-      // Clean up countdown interval
+      liveKit.disconnect();
+
       if (countdownInterval) {
         clearInterval(countdownInterval);
       }
     };
   }, []); // Only run once on mount - socket connection should persist
 
-  // Keyboard event listener for screen tuner and test seat picker
+  // Keyboard event listener for screen tuner
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Toggle screen tuner with 'T' key (available to all users for debugging)
       if (event.key.toLowerCase() === 't') {
         setShowScreenTuner(prev => !prev);
       }
@@ -415,7 +317,6 @@ function App(): JSX.Element {
       setShowPickSeatText(false);
       setShowWelcomeText(true);
     } else if (selectedSeat || isPerformer() || !isLoggedIn) {
-      // Reset sequence when user selects seat or becomes performer
       setWelcomeSequenceStarted(false);
       setShowWelcomeText(false);
       setShowPickSeatText(false);
@@ -433,14 +334,12 @@ function App(): JSX.Element {
     console.log('User data cleared from sessionStorage');
   };
 
-  // Handle stream choice after login
   const handleStreamChoice = async (startStream: boolean) => {
     if (startStream) {
-      // Start video stream
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: false
+          audio: false,
         });
         setUserVideoStream(stream);
         setUserCaptureMode('video');
@@ -448,18 +347,16 @@ function App(): JSX.Element {
         console.log('📹 Video stream started for user');
       } catch (error) {
         console.error('Failed to start video stream:', error);
-        // Fallback to photo mode
         setUserCaptureMode('photo');
         sessionStorage.setItem('frontrow_capture_mode', 'photo');
       }
     } else {
-      // Use photo mode
       setUserVideoStream(null);
       setUserCaptureMode('photo');
       sessionStorage.setItem('frontrow_capture_mode', 'photo');
       console.log('📷 Using photo mode for user');
     }
-    
+
     setShowStreamChoice(false);
     setIsLoggedIn(true);
   };
@@ -467,10 +364,9 @@ function App(): JSX.Element {
   const handleNameAndImageSubmit = async (name: string, imageBase64: string, isArtist: boolean, videoStream?: MediaStream, explicitCaptureMode?: 'photo' | 'video') => {
     setUserName(name);
     setUserImage(imageBase64);
-    
-    // Handle video stream or photo - prioritize explicit capture mode
+
     const finalCaptureMode = explicitCaptureMode || (videoStream ? 'video' : 'photo');
-    
+
     if (finalCaptureMode === 'video' && videoStream) {
       setUserVideoStream(videoStream);
       setUserCaptureMode('video');
@@ -480,26 +376,22 @@ function App(): JSX.Element {
       setUserCaptureMode('photo');
       sessionStorage.setItem('frontrow_capture_mode', 'photo');
     }
-    
+
     console.log('🎯 handleNameAndImageSubmit setting capture mode:', finalCaptureMode);
-    
-    // Save to sessionStorage for per-tab isolation
+
     sessionStorage.setItem('frontrow_user_name', name);
     if (imageBase64) {
       sessionStorage.setItem('frontrow_user_image', imageBase64);
     }
-    
-    // Store artist status - we'll use this instead of URL parameters
+
     sessionStorage.setItem('frontrow_is_artist', isArtist.toString());
-    setIsArtist(isArtist); // Update state immediately
-    
+    setIsArtist(isArtist);
+
     console.log('User profile saved to sessionStorage:', { name, hasImage: !!imageBase64, isArtist });
-    
-    // For artists, go directly to the app (they don't need stream choice)
+
     if (isArtist) {
       setIsLoggedIn(true);
     } else {
-      // For audience members, show stream choice first
       setShowStreamChoice(true);
     }
   };
@@ -507,52 +399,47 @@ function App(): JSX.Element {
   const handleSeatSelect = async (seatId) => {
     if (!socketRef.current) return;
 
-    // If user already has a seat, release it first (seat switching)
     if (selectedSeat && selectedSeat !== seatId) {
       socketRef.current.emit('release-seat', { seatId: selectedSeat });
       console.log('Released old seat:', selectedSeat);
     }
 
-    // This is where the client requests a seat
     console.log('Audience: Selecting seat and requesting to join audience...');
-    
-    // Prepare user data for the seat
-    console.log('🔍 Current user state before seat selection:');
-    console.log('  userName:', userName);
-    console.log('  userImage length:', userImage?.length || 'null');
-    console.log('  userCaptureMode:', userCaptureMode);
-    console.log('  userVideoStream:', !!userVideoStream);
-    
+
     const userData = {
       seatId,
       userName,
       userImage,
       captureMode: userCaptureMode,
-      hasVideoStream: !!userVideoStream
+      hasVideoStream: !!userVideoStream,
     };
-    
+
     console.log(`📤 Frontend sending select-seat: ${userData.seatId} for ${userData.userName} (${userData.captureMode})`);
     socketRef.current.emit('select-seat', userData);
 
-    // Listen for the seat-selected response only once per selection attempt
     const handleSeatSelectedResponse = (response) => {
-        if (response.success) {
-            // locally clear previous seat entry for this user
-            setAudienceSeats(prev=>{
-                const updated={...prev};
-                if(selectedSeat) delete updated[selectedSeat];
-                return updated;
-            });
-            setSelectedSeat(seatId);
-            setCurrentView('user'); // Auto switch to user view after selecting seat
-            
-            // Do not persist seat between sessions – must pick each time
-            
-            console.log('Seat selected:', seatId);
-        } else {
-            alert(response.message);
+      if (response.success) {
+        setAudienceSeats(prev => {
+          const updated = { ...prev };
+          if (selectedSeat) delete updated[selectedSeat];
+          return updated;
+        });
+        setSelectedSeat(seatId);
+        setCurrentView('user');
+
+        // Connect to LiveKit if show is already live
+        const currentShowState = sessionStorage.getItem('frontrow_show_state') || showState;
+        if (currentShowState === 'live') {
+          const name = sessionStorage.getItem('frontrow_user_name') || userName || 'audience';
+          liveKit.connectAsAudience(config.livekitUrl, config.tokenUrl, name, (stream) => setPerformerStream(stream))
+            .catch(err => console.error('LiveKit connect failed on seat select:', err));
         }
-        socketRef.current.off('seat-selected', handleSeatSelectedResponse); // Remove listener
+
+        console.log('Seat selected:', seatId);
+      } else {
+        alert(response.message);
+      }
+      socketRef.current.off('seat-selected', handleSeatSelectedResponse);
     };
     socketRef.current.on('seat-selected', handleSeatSelectedResponse);
   };
@@ -564,20 +451,23 @@ function App(): JSX.Element {
   const handleCameraPositionChange = (view: 'eye-in-the-sky' | 'user', position: [number, number, number], target: [number, number, number]) => {
     setSavedCameraPositions(prev => ({
       ...prev,
-      [view]: { position, target }
+      [view]: { position, target },
     }));
   };
+
+  // Keep showState in sessionStorage so seat-select handler can read it
+  useEffect(() => {
+    sessionStorage.setItem('frontrow_show_state', showState);
+  }, [showState]);
 
   // --- Show Control Functions ---
   const handleResetShow = async () => {
     try {
       const response = await fetch(`${config.backendUrl}/api/debug-reset-show`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' },
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log('Show reset successfully:', result.message);
@@ -606,17 +496,15 @@ function App(): JSX.Element {
       console.error('❌ No socket connection available for countdown');
       return;
     }
-    
+
     if (!isPerformer()) {
       console.error('❌ Only artists can start countdown');
       return;
     }
-    
+
     try {
-      // Send seconds to backend
       console.log('⏰ Frontend: Starting countdown via backend...', { seconds, socketId: socketRef.current.id });
       socketRef.current.emit('start-countdown', { seconds });
-      
     } catch (err) {
       console.error('❌ Error starting countdown:', err);
       alert('Could not start countdown. Please try again.');
@@ -627,243 +515,122 @@ function App(): JSX.Element {
     if (socketRef.current) {
       socketRef.current.emit('stop-countdown');
     }
-    
-    // Stop camera preview
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
+
+    liveKit.disconnect().then(() => {
       localStreamRef.current = null;
       setPerformerStream(null);
-    }
+    });
     setIsCameraPreview(false);
     setIsCountdownActive(false);
     setCountdownTime(0);
   };
 
-  // Turn on camera during countdown
+  // --- LiveKit-backed camera/stream functions ---
   const startCameraPreview = async () => {
-    if (!socketRef.current) return;
-    
-    // If camera is already on, don't start it again
     if (localStreamRef.current) {
-      console.log('🎥 Camera already active - no need to start again');
-      // If show is already live, emit go-live
+      console.log('🎥 Camera already active');
       if (showState === 'live') {
-        console.log('🎥 Show is live - emitting artist-go-live...');
-        socketRef.current.emit('artist-go-live');
+        socketRef.current?.emit('artist-go-live');
       }
       return;
     }
-    
+
     try {
-      console.log('🎥 Starting camera preview during countdown...');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      setPerformerStream(stream); // This will show in PerformerView for artist preview
-      setIsCameraPreview(true);
-      
-      // If show is already live, start streaming immediately
-      if (showState === 'live') {
-        console.log('🎥 Show is live - starting stream immediately...');
-        socketRef.current.emit('artist-go-live');
+      console.log('🎥 Starting camera preview via LiveKit...');
+      const stream = await liveKit.connectAsPerformer(
+        config.livekitUrl,
+        config.tokenUrl,
+        sessionStorage.getItem('frontrow_user_name') || 'performer'
+      );
+      if (stream) {
+        localStreamRef.current = stream;
+        setPerformerStream(stream);
+        setIsCameraPreview(true);
       }
-      
+      if (showState === 'live') {
+        socketRef.current?.emit('artist-go-live');
+      }
     } catch (err) {
       console.error('Error starting camera preview:', err);
       alert('Could not start camera/microphone. Please check permissions.');
     }
   };
 
-  const stopCameraPreview = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => track.stop());
-      localStreamRef.current = null;
-      setPerformerStream(null);
-    }
+  const stopCameraPreview = async () => {
+    await liveKit.disconnect();
+    localStreamRef.current = null;
+    setPerformerStream(null);
     setIsCameraPreview(false);
   };
 
-  // Start live stream when camera is turned on during live show
-  const startLiveStream = () => {
-    if (!socketRef.current || !localStreamRef.current) return;
-    
-    console.log('🎥 Camera turned on during live show - starting stream...');
-    socketRef.current.emit('artist-go-live'); // Signal backend that artist is going live
-  };
-
-  // --- WebRTC Functions ---
   const startPerformerStream = async () => {
-    if (!socketRef.current) return;
     try {
-      console.log('Artist: Starting performer stream...');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localStreamRef.current = stream;
-      setPerformerStream(stream); // Set stream for PerformerView to display local camera
-
-      console.log('Artist: Emitting artist-go-live signal...');
-      socketRef.current.emit('artist-go-live'); // Signal backend that artist is going live
-      console.log('Artist: Go live signal sent');
-
+      console.log('🎭 Starting performer stream via LiveKit...');
+      const stream = await liveKit.connectAsPerformer(
+        config.livekitUrl,
+        config.tokenUrl,
+        sessionStorage.getItem('frontrow_user_name') || 'performer'
+      );
+      if (stream) {
+        localStreamRef.current = stream;
+        setPerformerStream(stream);
+      }
+      socketRef.current?.emit('artist-go-live');
+      console.log('🎭 LiveKit: Performer stream started');
     } catch (err) {
       console.error('Error starting performer stream:', err);
-      alert('Could not start camera/microphone. Please check permissions.');
+      alert('Could not start camera/microphone or connect to LiveKit. Please check permissions.');
     }
   };
 
-  const stopPerformerStream = () => {
-    console.log('🎭 Artist: Stopping performer stream...');
-    
-    // Stop local stream tracks
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach(track => {
-        console.log('🎭 Artist: Stopping track:', track.kind);
-        track.stop();
-      });
-      localStreamRef.current = null;
-    }
-    
-    // Clear performer stream immediately to remove frozen frame
+  const stopPerformerStream = async () => {
+    console.log('🎭 Stopping performer stream...');
+    await liveKit.disconnect();
+    localStreamRef.current = null;
     setPerformerStream(null);
-    
-    // Close all peer connections
-    Object.values(peerConnectionsRef.current).forEach(pc => {
-      console.log('🎭 Artist: Closing peer connection');
-      pc.close();
-    });
-    peerConnectionsRef.current = {};
-    
-    // Signal backend to end show
-    if (socketRef.current) {
-      socketRef.current.emit('artist-end-show');
-    }
-    
-    // Reset local state
     setIsCameraPreview(false);
     setIsCountdownActive(false);
     setCountdownTime(0);
-    
-    // Clear artist status from sessionStorage when ending show
-    sessionStorage.removeItem('frontrow_is_artist');
-    
-    // Reload page to reset to audience view
-    window.location.reload();
-  };
-
-  // Audience side setup for receiving artist's stream
-  const setupAudiencePeerConnection = async (offererSocketId, offerSdp) => {
-    console.log('🎬 Audience: Setting up peer connection for artist:', offererSocketId);
-    
-    const pc = new RTCPeerConnection({ iceServers: stunServers });
-    peerConnectionsRef.current[offererSocketId] = pc;
-    
-    console.log('🎬 Audience: Created peer connection for artist:', offererSocketId);
-    
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        console.log('🎬 Audience: Sending ICE candidate to artist:', offererSocketId);
-        socketRef.current.emit('ice-candidate', {
-          candidate: event.candidate,
-          targetSocketId: offererSocketId,
-          senderSocketId: socketRef.current.id,
-        });
-      }
-    };
-    
-    // Handle connection state changes
-    pc.onconnectionstatechange = () => {
-      console.log('🎬 Audience: Peer connection state changed:', offererSocketId, '->', pc.connectionState);
-    };
-    
-    // Handle ICE connection state changes
-    pc.oniceconnectionstatechange = () => {
-      console.log('🎬 Audience: ICE connection state changed:', offererSocketId, '->', pc.iceConnectionState);
-    };
-    
-    // Handle incoming tracks (this is where we receive the artist's stream)
-    pc.ontrack = (event) => {
-      console.log('🎬 Audience: Received track from artist:', offererSocketId, 'Track kind:', event.track.kind);
-      if (event.streams && event.streams[0]) {
-        console.log('🎬 Audience: Setting performer stream from artist:', offererSocketId);
-        setPerformerStream(event.streams[0]); // This stream will be attached to the Stage component's video element
-        
-        // Listen for track ended events on the received track
-        event.track.onended = () => {
-          console.log('🎬 Audience: Track ended from artist:', offererSocketId, 'Track kind:', event.track.kind);
-          // Clear the stream when tracks end
-          setPerformerStream(null);
-        };
-      } else {
-        console.warn('🎬 Audience: Received track but no stream:', event);
-      }
-    };
-    
-    // Handle track ended events to clear stream when artist stops
-    // pc.ontrackended = (event) => { // This line is removed as per the new_code
-    //   console.log('🎬 Audience: Track ended from artist:', offererSocketId, 'Track kind:', event.track.kind);
-    //   // Clear the stream when tracks end
-    //   setPerformerStream(null);
-    // };
-    
-    try {
-      // Set remote description (artist's offer)
-      console.log('🎬 Audience: Setting remote description from artist:', offererSocketId);
-      await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
-      
-      // Create and send answer
-      console.log('🎬 Audience: Creating answer for artist:', offererSocketId);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      
-      console.log('🎬 Audience: Sending answer to artist:', offererSocketId);
-      socketRef.current.emit('answer', {
-        sdp: answer,
-        targetSocketId: offererSocketId,
-        answererSocketId: socketRef.current.id,
-      });
-      
-      console.log('🎬 Audience: Answer sent successfully to artist:', offererSocketId);
-    } catch (err) {
-      console.error('🎬 Audience: Error setting up peer connection for artist:', offererSocketId, err);
+    if (socketRef.current) {
+      socketRef.current.emit('artist-end-show');
     }
+    sessionStorage.removeItem('frontrow_is_artist');
+    window.location.reload();
   };
 
   // --- Local Browser Recording ---
   const startRecording = (recordExperience = false) => {
-    if (!performerStream && !recordExperience) { // If recording performance, need a stream
+    if (!performerStream && !recordExperience) {
       alert("No live performance to record!");
       return;
     }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        alert("Already recording!");
-        return;
+      alert("Already recording!");
+      return;
     }
 
     let streamToRecord;
     if (recordExperience) {
-      // Capture the entire canvas
       const canvas = document.querySelector('canvas');
       if (!canvas) {
         alert("Canvas not found for experience recording.");
         return;
       }
-      streamToRecord = canvas.captureStream(30); // 30 FPS
-      // Add audio from the performer stream if available
+      streamToRecord = canvas.captureStream(30);
       if (performerStream && performerStream.getAudioTracks().length > 0) {
         streamToRecord.addTrack(performerStream.getAudioTracks()[0]);
       } else {
         console.warn("No performer audio stream to add to experience recording.");
       }
     } else {
-      // Record just the performer's stream
       streamToRecord = performerStream;
     }
 
     recordedChunksRef.current = [];
     try {
-      mediaRecorderRef.current = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8,opus' }); // Prefer WebM with VP8
+      mediaRecorderRef.current = new MediaRecorder(streamToRecord, { mimeType: 'video/webm; codecs=vp8,opus' });
     } catch (e) {
       console.error('Error creating MediaRecorder with preferred codec, trying fallback:', e);
-      // Fallback to less efficient codec if needed
       try {
         mediaRecorderRef.current = new MediaRecorder(streamToRecord, { mimeType: 'video/webm' });
       } catch (e2) {
@@ -873,7 +640,6 @@ function App(): JSX.Element {
       }
     }
 
-
     mediaRecorderRef.current.ondataavailable = (event) => {
       if (event.data.size > 0) {
         recordedChunksRef.current.push(event.data);
@@ -882,7 +648,6 @@ function App(): JSX.Element {
 
     mediaRecorderRef.current.onstop = () => {
       console.log('Recording stopped. Chunks:', recordedChunksRef.current.length);
-      // The download button will become available
     };
 
     mediaRecorderRef.current.start();
@@ -894,7 +659,7 @@ function App(): JSX.Element {
       mediaRecorderRef.current.stop();
       console.log('Recording stopped via button.');
     } else {
-        alert("No active recording to stop.");
+      alert("No active recording to stop.");
     }
   };
 
@@ -907,20 +672,17 @@ function App(): JSX.Element {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     document.body.appendChild(a);
-    a.style = 'display: none';
+    a.style.cssText = 'display: none';
     a.href = url;
     a.download = `frontrow_recording_${new Date().toISOString()}.webm`;
     a.click();
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-    recordedChunksRef.current = []; // Clear chunks after download
+    recordedChunksRef.current = [];
   };
-
-
 
   const [webglSupported, setWebglSupported] = React.useState(true);
 
-  // Check WebGL support
   React.useEffect(() => {
     try {
       const canvas = document.createElement('canvas');
@@ -937,10 +699,9 @@ function App(): JSX.Element {
     <div className="App">
       {webglSupported && isLoggedIn ? (
         <Suspense fallback={<LoadingScreen />}>
-          <Canvas 
-            camera={{ position: [-0.57, 6.69, 20.30], fov: 50 }} // Default Eye-in-the-Sky position: updated to user preference
+          <Canvas
+            camera={{ position: [-0.57, 6.69, 20.30], fov: 50 }}
             onCreated={({ gl }) => {
-              // Canvas created successfully
               console.log('WebGL context created successfully');
             }}
             onError={(error) => {
@@ -952,11 +713,9 @@ function App(): JSX.Element {
             <ambientLight intensity={0.5} />
             <pointLight position={[10, 10, 10]} />
 
-            {/* Enable OrbitControls for all views to allow pan/zoom */}
             <OrbitControls makeDefault enablePan={true} enableZoom={true} enableRotate={true} />
-            
-            {/* Camera Controller for smooth view transitions */}
-            <CameraController 
+
+            <CameraController
               currentView={currentView}
               selectedSeat={selectedSeat}
               savedPositions={savedCameraPositions}
@@ -979,18 +738,16 @@ function App(): JSX.Element {
             {!isPerformer() && currentView === 'user' && (
               <UserView selectedSeat={selectedSeat} audienceSeats={audienceSeats} />
             )}
-            {/* 3D Status Text */}
             {showState === 'pre-show' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
+              <Text position={[0, 5, -11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
             )}
             {showState === 'live' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
+              <Text position={[0, 5, -11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
             )}
             {showState === 'post-show' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
+              <Text position={[0, 5, -11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
             )}
 
-            {/* Animated welcome sequence for audience members */}
             {showWelcomeText && (
               <AnimatedText
                 text={`Welcome, ${userName}!`}
@@ -1000,7 +757,6 @@ function App(): JSX.Element {
                 duration={3}
                 onComplete={() => {
                   setShowWelcomeText(false);
-                  // Small delay to ensure clean transition
                   setTimeout(() => {
                     setShowPickSeatText(true);
                   }, 100);
@@ -1019,16 +775,14 @@ function App(): JSX.Element {
                 }}
               />
             )}
-            
-            {/* Test scene exposer for E2E testing - only in development or when explicitly enabled */}
+
             {(import.meta.env.MODE === 'development' || import.meta.env.VITE_ENABLE_TEST_MODE === 'true') && <SceneTestExposer />}
           </Canvas>
         </Suspense>
       ) : showStreamChoice ? (
-        // Show video stream choice after initial login
-        <div className="stream-choice-background" style={{ 
-          width: '100vw', 
-          height: '100vh', 
+        <div className="stream-choice-background" style={{
+          width: '100vw',
+          height: '100vh',
           background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
           display: 'flex',
           alignItems: 'center',
@@ -1036,12 +790,12 @@ function App(): JSX.Element {
           flexDirection: 'column',
           color: 'white',
           textAlign: 'center',
-          padding: '20px'
+          padding: '20px',
         }}>
           <h2 style={{ marginBottom: '30px', color: '#ffd700' }}>Welcome to FRONT ROW, {userName}!</h2>
           <h3 style={{ marginBottom: '20px', fontWeight: 'normal' }}>How would you like to appear to others?</h3>
           <div style={{ display: 'flex', gap: '20px', flexDirection: 'column', alignItems: 'center' }}>
-            <button 
+            <button
               onClick={() => handleStreamChoice(false)}
               style={{
                 background: '#4CAF50',
@@ -1055,7 +809,7 @@ function App(): JSX.Element {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '10px'
+                gap: '10px',
               }}
             >
               📷 Use My Photo
@@ -1063,7 +817,7 @@ function App(): JSX.Element {
                 Show my captured photo to other audience members
               </small>
             </button>
-            <button 
+            <button
               onClick={() => handleStreamChoice(true)}
               style={{
                 background: '#FF5722',
@@ -1077,7 +831,7 @@ function App(): JSX.Element {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '10px'
+                gap: '10px',
               }}
             >
               🎥 Start Video Stream
@@ -1088,33 +842,30 @@ function App(): JSX.Element {
           </div>
         </div>
       ) : !isLoggedIn ? (
-        // Show login screen when no user is logged in
-        <div className="login-background" style={{ 
-          width: '100vw', 
-          height: '100vh', 
+        <div className="login-background" style={{
+          width: '100vw',
+          height: '100vh',
           background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'column',
           color: 'white',
-          textAlign: 'center'
+          textAlign: 'center',
         }}>
-          {/* Login form will be rendered in ui-overlay */}
           <UserInputForm onSubmit={handleNameAndImageSubmit} />
         </div>
       ) : (
-        // WebGL not supported fallback
-        <div className="webgl-fallback" style={{ 
-          width: '100vw', 
-          height: '100vh', 
+        <div className="webgl-fallback" style={{
+          width: '100vw',
+          height: '100vh',
           background: 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'column',
           color: 'white',
-          textAlign: 'center'
+          textAlign: 'center',
         }}>
           <h2>🎭 FRONT ROW</h2>
           <p>WebGL is not supported in this environment.</p>
@@ -1122,15 +873,17 @@ function App(): JSX.Element {
         </div>
       )}
 
-      {/* HTML Overlay for UI elements - moved outside Canvas */}
+      {/* HTML Overlay for UI elements */}
       {createPortal(
         <div className="ui-overlay">
-          {/* Conditional rendering of UI components */}
+          {/* Hidden show state for E2E testing */}
+          <span data-testid="show-state" style={{ display: 'none' }}>{showState}</span>
+
           {!isLoggedIn && !showStreamChoice && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
           {isLoggedIn && isPerformer() && (
-            <ArtistControls 
+            <ArtistControls
               performerStream={performerStream}
               onStartStream={startPerformerStream}
               onStopStream={stopPerformerStream}
@@ -1149,7 +902,7 @@ function App(): JSX.Element {
             />
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (
-            <ViewControls 
+            <ViewControls
               currentView={currentView as 'eye-in-the-sky' | 'user'}
               onViewChange={handleViewChange}
               performerStream={performerStream}
@@ -1160,11 +913,6 @@ function App(): JSX.Element {
             />
           )}
 
-
-
-          {/* Removed countdawn/live-indicator/thank-you from here */}
-
-          {/* Screen Tuner - available to all users for screen positioning */}
           {showScreenTuner && (
             <ScreenTuner
               pos={screenPosition}
@@ -1172,14 +920,11 @@ function App(): JSX.Element {
               onClose={() => setShowScreenTuner(false)}
             />
           )}
-
         </div>,
         document.getElementById('overlay-root') as HTMLElement
       )}
 
-      {/* Camera Controls - only show when user is logged in */}
       {isLoggedIn && <CameraControls />}
-      
     </div>
   );
 }
