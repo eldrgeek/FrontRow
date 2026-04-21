@@ -31,14 +31,14 @@
 
 [context.production.environment]
   NODE_ENV = "production"
-  VITE_BACKEND_URL = "https://frontrow-tvu6.onrender.com"
-  VITE_SOCKET_URL = "https://frontrow-tvu6.onrender.com"
+  VITE_BACKEND_URL = "https://vpsmikewolf.duckdns.org:4001"
+  VITE_SOCKET_URL = "https://vpsmikewolf.duckdns.org:4001"
   VITE_LIVEKIT_URL = "wss://vpsmikewolf.duckdns.org"
   VITE_ENABLE_TEST_MODE = "true"
 
 [context.deploy-preview.environment]
   NODE_ENV = "preview"
-  VITE_BACKEND_URL = "https://frontrow-tvu6.onrender.com"
-  VITE_SOCKET_URL = "https://frontrow-tvu6.onrender.com"
+  VITE_BACKEND_URL = "https://vpsmikewolf.duckdns.org:4001"
+  VITE_SOCKET_URL = "https://vpsmikewolf.duckdns.org:4001"
   VITE_LIVEKIT_URL = "wss://vpsmikewolf.duckdns.org"
   VITE_ENABLE_TEST_MODE = "true"
