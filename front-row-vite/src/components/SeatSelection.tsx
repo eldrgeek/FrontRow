@@ -30,9 +30,10 @@ interface SeatSelectionProps {
   myVideoStream?: MediaStream;
   myCaptureMode?: 'photo' | 'video';
   hideMyPhoto?: boolean;
+  audienceStreams?: Map<string, MediaStream>;
 }
 
-function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto }: SeatSelectionProps): JSX.Element {
+function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto, audienceStreams }: SeatSelectionProps): JSX.Element {
   const seatsData: SeatData[] = [];
   const frontRowRadius = 10; // Increased radius for better spacing
   const stageZOffset = -8; // Stage position in Z
@@ -62,7 +63,7 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
           occupantImage={audienceSeats[seat.id]?.imageUrl}
           occupantSocketId={audienceSeats[seat.id]?.socketId}
           occupantCaptureMode={audienceSeats[seat.id]?.captureMode}
-          occupantVideoStream={undefined} // Video streams will be handled via WebRTC
+          occupantVideoStream={audienceStreams?.get(audienceSeats[seat.id]?.name || '')}
           mySocketId={mySocketId}
           myVideoStream={myVideoStream}
           myCaptureMode={myCaptureMode}

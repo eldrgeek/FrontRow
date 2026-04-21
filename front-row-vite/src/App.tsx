@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
@@ -54,6 +54,7 @@ function App(): JSX.Element {
   const [showState, setShowState] = useState<ShowState>('idle');
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
+  const [audienceStreams, setAudienceStreams] = useState<Map<string, MediaStream>>(new Map());
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
 
   // Debug audienceSeats changes
@@ -121,6 +122,15 @@ function App(): JSX.Element {
 
   // LiveKit hook
   const liveKit = useLiveKit();
+
+  const handleAudienceStream = useCallback((identity: string, stream: MediaStream | null) => {
+    setAudienceStreams(prev => {
+      const next = new Map(prev);
+      if (stream) next.set(identity, stream);
+      else next.delete(identity);
+      return next;
+    });
+  }, []);
 
   // E2E test auth bypass - auto-login when ?bypass_auth=true in URL
   useEffect(() => {
@@ -476,8 +486,13 @@ function App(): JSX.Element {
         const currentShowState = sessionStorage.getItem('frontrow_show_state') || showState;
         if (currentShowState === 'live') {
           const name = sessionStorage.getItem('frontrow_user_name') || userName || 'audience';
-          liveKit.connectAsAudience(config.livekitUrl, config.tokenUrl, name, (stream) => setPerformerStream(stream))
-            .catch(err => console.error('LiveKit connect failed on seat select:', err));
+          liveKit.connectAsAudience(
+            config.livekitUrl,
+            config.tokenUrl,
+            name,
+            (stream) => setPerformerStream(stream),
+            userVideoStreamRef.current || undefined
+          ).catch(err => console.error('LiveKit connect failed on seat select:', err));
         }
 
         console.log('Seat selected:', seatId);
@@ -585,7 +600,8 @@ function App(): JSX.Element {
       const stream = await liveKit.connectAsPerformer(
         config.livekitUrl,
         config.tokenUrl,
-        sessionStorage.getItem('frontrow_user_name') || 'performer'
+        sessionStorage.getItem('frontrow_user_name') || 'performer',
+        handleAudienceStream
       );
       if (stream) {
         localStreamRef.current = stream;
@@ -614,7 +630,8 @@ function App(): JSX.Element {
       const stream = await liveKit.connectAsPerformer(
         config.livekitUrl,
         config.tokenUrl,
-        sessionStorage.getItem('frontrow_user_name') || 'performer'
+        sessionStorage.getItem('frontrow_user_name') || 'performer',
+        handleAudienceStream
       );
       if (stream) {
         localStreamRef.current = stream;
@@ -776,6 +793,7 @@ function App(): JSX.Element {
               myVideoStream={userVideoStream}
               myCaptureMode={userCaptureMode}
               hideMyPhoto={currentView === 'user'}
+              audienceStreams={audienceStreams}
             />
 
             {isPerformer() && (

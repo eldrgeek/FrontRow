@@ -7,7 +7,7 @@ import {
 } from 'livekit-client';
 
 export interface LiveKitHook {
-  connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string) => Promise<MediaStream | null>;
+  connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<MediaStream | null>;
   connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void, localStream?: MediaStream) => Promise<void>;
   disconnect: () => Promise<void>;
   getLocalStream: () => MediaStream | null;
@@ -30,7 +30,7 @@ export function useLiveKit(): LiveKitHook {
     return data.token;
   };
 
-  const connectAsPerformer = useCallback(async (livekitUrl: string, tokenUrl: string, identity: string): Promise<MediaStream | null> => {
+  const connectAsPerformer = useCallback(async (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void): Promise<MediaStream | null> => {
     try {
       if (roomRef.current) {
         await roomRef.current.disconnect();
@@ -46,6 +46,34 @@ export function useLiveKit(): LiveKitHook {
 
       await room.connect(livekitUrl, token);
       console.log('🎭 LiveKit: Performer connected to room');
+
+      if (onAudienceStream) {
+        room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+          if (track.kind === Track.Kind.Video && track.source === Track.Source.Camera) {
+            const stream = new MediaStream([track.mediaStreamTrack]);
+            const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
+            if (audioPublication?.track?.mediaStreamTrack) {
+              stream.addTrack(audioPublication.track.mediaStreamTrack);
+            }
+            console.log(`🎭 LiveKit: Audience stream received from ${participant.identity}`);
+            onAudienceStream(participant.identity, stream);
+          }
+        });
+        room.on(RoomEvent.TrackUnsubscribed, (track, _pub, participant) => {
+          if (track.kind === Track.Kind.Video) {
+            onAudienceStream(participant.identity, null);
+          }
+        });
+        room.remoteParticipants.forEach((participant) => {
+          participant.trackPublications.forEach((publication) => {
+            if (!publication.isSubscribed) publication.setSubscribed(true);
+            if (publication.track && publication.kind === Track.Kind.Video && publication.source === Track.Source.Camera) {
+              const stream = new MediaStream([publication.track.mediaStreamTrack]);
+              onAudienceStream(participant.identity, stream);
+            }
+          });
+        });
+      }
 
       await room.localParticipant.enableCameraAndMicrophone();
 
