@@ -16,6 +16,7 @@ import ArtistControls from './components/ArtistControls';
 import ScreenTuner from './components/ScreenTuner';
 import AnimatedText from './components/AnimatedText';
 import SceneTestExposer from './components/SceneTestExposer';
+import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import { useLiveKit } from './hooks/useLiveKit';
 import config from './config';
 import './App.css';
@@ -95,6 +96,10 @@ function App(): JSX.Element {
   const [countdownInterval, setCountdownInterval] = useState<NodeJS.Timeout | null>(null);
   const [isCameraPreview, setIsCameraPreview] = useState(false);
   const [quickMode, setQuickMode] = useState<string | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  const userVideoStreamRef = useRef<MediaStream | null>(null);
+  useEffect(() => { userVideoStreamRef.current = userVideoStream; }, [userVideoStream]);
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
@@ -195,6 +200,7 @@ function App(): JSX.Element {
     socketRef.current.on('connect', () => {
       console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');
+      setSocketConnected(true);
 
       if (isArtistRef.current) {
         console.log('🎭 Artist connected - requesting show reset from backend');
@@ -216,7 +222,8 @@ function App(): JSX.Element {
               config.livekitUrl,
               config.tokenUrl,
               name,
-              (stream) => setPerformerStream(stream)
+              (stream) => setPerformerStream(stream),
+              userVideoStreamRef.current || undefined
             );
           } catch (err) {
             console.error('Failed to connect to LiveKit as audience:', err);
@@ -318,6 +325,10 @@ function App(): JSX.Element {
         localStreamRef.current = null;
         setPerformerStream(null);
       });
+    });
+
+    socketRef.current.on('disconnect', () => {
+      setSocketConnected(false);
     });
 
     return () => {
@@ -764,6 +775,7 @@ function App(): JSX.Element {
               mySocketId={mySocketId}
               myVideoStream={userVideoStream}
               myCaptureMode={userCaptureMode}
+              hideMyPhoto={currentView === 'user'}
             />
 
             {isPerformer() && (
@@ -1010,6 +1022,18 @@ function App(): JSX.Element {
       )}
 
       {isLoggedIn && <CameraControls />}
+
+      {new URLSearchParams(window.location.search).get('diag') === 'true' && (
+        <DiagnosticsPanel
+          socketConnected={socketConnected}
+          socketId={mySocketId}
+          showState={showState}
+          performerStream={performerStream}
+          userVideoStream={userVideoStream}
+          selectedSeat={selectedSeat}
+          isArtist={isArtist}
+        />
+      )}
     </div>
   );
 }

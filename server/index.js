@@ -86,7 +86,7 @@ app.get('/api/livekit-token', async (req, res) => {
     at.addGrant({
       roomJoin: true,
       room,
-      canPublish: role === 'performer',
+      canPublish: true,
       canSubscribe: true,
       canPublishData: true,
     });
@@ -111,6 +111,39 @@ app.get('/health', (req, res) => {
     artistId: activeShow.artistId,
     audienceCount: Object.keys(activeShow.audienceSeats).length,
     countdown: activeShow.countdown
+  });
+});
+
+// Diagnostics endpoint
+app.get('/api/diagnostics', (req, res) => {
+  const connectedSockets = [];
+  io.sockets.sockets.forEach((socket) => {
+    connectedSockets.push({
+      id: socket.id,
+      isArtist: socket.id === activeShow.artistId,
+      hasSeat: Object.entries(activeShow.audienceSeats).find(([,u]) => u.socketId === socket.id)?.[0] || null
+    });
+  });
+
+  res.json({
+    show: {
+      status: activeShow.status,
+      artistId: activeShow.artistId,
+      startTime: activeShow.startTime,
+      countdown: activeShow.countdown,
+    },
+    seats: Object.entries(activeShow.audienceSeats).map(([seatId, user]) => ({
+      seatId,
+      name: user.name,
+      socketId: user.socketId,
+      captureMode: user.captureMode,
+      hasVideoStream: user.hasVideoStream,
+    })),
+    connections: {
+      total: connectedSockets.length,
+      sockets: connectedSockets,
+    },
+    timestamp: new Date().toISOString(),
   });
 });
 

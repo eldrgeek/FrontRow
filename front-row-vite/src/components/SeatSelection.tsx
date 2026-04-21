@@ -29,9 +29,10 @@ interface SeatSelectionProps {
   mySocketId?: string;
   myVideoStream?: MediaStream;
   myCaptureMode?: 'photo' | 'video';
+  hideMyPhoto?: boolean;
 }
 
-function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode }: SeatSelectionProps): JSX.Element {
+function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto }: SeatSelectionProps): JSX.Element {
   const seatsData: SeatData[] = [];
   const frontRowRadius = 10; // Increased radius for better spacing
   const stageZOffset = -8; // Stage position in Z
@@ -65,6 +66,7 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
           mySocketId={mySocketId}
           myVideoStream={myVideoStream}
           myCaptureMode={myCaptureMode}
+          hideMyPhoto={hideMyPhoto}
           onSelect={onSeatSelect}
           allowSwitching={allowSeatSwitching}
           hasSelectedSeat={!!selectedSeat}
@@ -86,12 +88,13 @@ interface SeatProps {
   mySocketId?: string;
   myVideoStream?: MediaStream;
   myCaptureMode?: 'photo' | 'video';
+  hideMyPhoto?: boolean;
   onSelect: (seatId: string) => void;
   allowSwitching?: boolean;
   hasSelectedSeat?: boolean;
 }
 
-function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, occupantCaptureMode, occupantVideoStream, mySocketId, myVideoStream, myCaptureMode, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
+function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, occupantCaptureMode, occupantVideoStream, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
   const handleClick = () => {
     // Allow clicking if:
     // 1. Seat is not occupied by someone else AND not currently selected, OR
@@ -174,8 +177,8 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
         )}
       </group>
 
-      {/* Photo cube above seat - only for occupied seats */}
-      {isOccupied && (
+      {/* Photo cube above seat - only for occupied seats, hidden for own seat in user view */}
+      {isOccupied && !(occupiedByMe && hideMyPhoto) && (
         <PhotoCube
           key={`photo-${seat.id}-${occupantSocketId}`}
           imageUrl={occupantImage}
@@ -188,7 +191,7 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
       )}
 
       {/* Text elements outside clickable group to prevent click interference */}
-      {isOccupied && (
+      {isOccupied && !(occupiedByMe && hideMyPhoto) && (
         <>
           <Text
             position={[0, -0.3, 0.8]}

@@ -25,7 +25,7 @@ export const handler = async (event) => {
   at.addGrant({
     roomJoin: true,
     room,
-    canPublish: role === 'performer',
+    canPublish: true,
     canSubscribe: true,
     canPublishData: true,
   })

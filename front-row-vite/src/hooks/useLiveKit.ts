@@ -3,11 +3,12 @@ import {
   Room,
   RoomEvent,
   Track,
+  LocalVideoTrack,
 } from 'livekit-client';
 
 export interface LiveKitHook {
   connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string) => Promise<MediaStream | null>;
-  connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void) => Promise<void>;
+  connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void, localStream?: MediaStream) => Promise<void>;
   disconnect: () => Promise<void>;
   getLocalStream: () => MediaStream | null;
 }
@@ -73,7 +74,8 @@ export function useLiveKit(): LiveKitHook {
     livekitUrl: string,
     tokenUrl: string,
     identity: string,
-    onPerformerStream: (stream: MediaStream | null) => void
+    onPerformerStream: (stream: MediaStream | null) => void,
+    localStream?: MediaStream
   ): Promise<void> => {
     try {
       if (roomRef.current) {
@@ -115,12 +117,32 @@ export function useLiveKit(): LiveKitHook {
       await room.connect(livekitUrl, token);
       console.log('🎬 LiveKit: Audience connected to room');
 
+      // Publish audience camera if available
+      if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const lkVideoTrack = new LocalVideoTrack(videoTrack);
+          await room.localParticipant.publishTrack(lkVideoTrack, { source: Track.Source.Camera });
+          console.log('🎬 LiveKit: Audience camera published');
+        }
+      }
+
       // Check for already-publishing participants (performer already live)
       room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
-          if (publication.track && publication.kind === Track.Kind.Video) {
-            console.log('🎬 LiveKit: Found existing performer stream');
+          // Force subscribe if not already subscribed
+          if (!publication.isSubscribed) {
+            publication.setSubscribed(true);
+          }
+          // Use track if already available
+          if (publication.track && publication.kind === Track.Kind.Video &&
+              publication.source === Track.Source.Camera) {
             const stream = new MediaStream([publication.track.mediaStreamTrack]);
+            const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
+            if (audioPublication?.track?.mediaStreamTrack) {
+              stream.addTrack(audioPublication.track.mediaStreamTrack);
+            }
+            console.log('🎬 LiveKit: Found existing performer stream on connect');
             onPerformerStream(stream);
           }
         });
