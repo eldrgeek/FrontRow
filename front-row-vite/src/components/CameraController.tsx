@@ -124,7 +124,7 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
                 currentSeat.position[1] + 1.2,
                 currentSeat.position[2] + 0.5
               );
-              targetRef.current.set(0, 3, -10);
+              targetRef.current.set(0, 5, -11);
             }
           }
           beginTransition(positionRef.current, targetRef.current);
@@ -185,7 +185,7 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
             currentSeat.position[1] + 1.2,
             currentSeat.position[2] + 0.5
           ];
-          newTarget = [0, 3, -10]; // Look at performer video screen at back of stage
+          newTarget = [0, 5, -11]; // Look at performer video screen at back of stage
         } else {
           newPosition = savedPositions['user'].position;
           newTarget = savedPositions['user'].target;
@@ -209,7 +209,7 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
       const newSeat = seatsData.find(s => s.id === selectedSeat);
       if (newSeat) {
         positionRef.current.set(newSeat.position[0], newSeat.position[1] + 1.2, newSeat.position[2] + 0.5);
-        targetRef.current.set(0, 3, -10);
+        targetRef.current.set(0, 5, -11);
         beginTransition(positionRef.current, targetRef.current);
         lastSeatRef.current = selectedSeat;
       }

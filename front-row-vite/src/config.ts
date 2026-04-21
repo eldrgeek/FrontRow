@@ -24,12 +24,22 @@ function getLivekitUrl(): string {
   return 'wss://vpsmikewolf.duckdns.org';
 }
 
+function getTokenUrl(): string {
+  if (import.meta.env.VITE_TOKEN_URL) {
+    return import.meta.env.VITE_TOKEN_URL;
+  }
+  if (import.meta.env.DEV) {
+    return `${getBackendUrl()}/api/livekit-token`;
+  }
+  return '/.netlify/functions/get-livekit-token';
+}
+
 const config: Config = {
   artistName: "The Virtual Troubadour",
   backendUrl: getBackendUrl(),
   socketUrl: getBackendUrl(),
   livekitUrl: getLivekitUrl(),
-  tokenUrl: '/.netlify/functions/get-livekit-token',
+  tokenUrl: getTokenUrl(),
 };
 
 export default config;

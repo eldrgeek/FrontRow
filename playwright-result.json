@@ -1,0 +1,1 @@
+{"status":"done","passed":12,"failed":0,"skipped":0,"commit":"bc39ecc","notes":"Fixed 4 failures: strict mode locator, networkidle timeout, wrong performer control selector"}
