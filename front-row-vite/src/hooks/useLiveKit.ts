@@ -36,7 +36,7 @@ export function useLiveKit(): LiveKitHook {
         await roomRef.current.disconnect();
       }
 
-      const token = await getToken(tokenUrl, identity, 'performer');
+      const token = await getToken(tokenUrl, 'performer', 'performer');
 
       const room = new Room({
         adaptiveStream: true,
@@ -120,7 +120,8 @@ export function useLiveKit(): LiveKitHook {
 
       room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
         console.log(`🎬 LiveKit: Track subscribed from ${participant.identity}: ${track.kind}`);
-        if (track.kind === Track.Kind.Video && track.source === Track.Source.Camera) {
+        if (track.kind === Track.Kind.Video && track.source === Track.Source.Camera &&
+            participant.identity === 'performer') {
           const stream = new MediaStream([track.mediaStreamTrack]);
           const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
           if (audioPublication?.track?.mediaStreamTrack) {
@@ -133,7 +134,7 @@ export function useLiveKit(): LiveKitHook {
 
       room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
         console.log(`🎬 LiveKit: Track unsubscribed from ${participant.identity}`);
-        if (track.kind === Track.Kind.Video) {
+        if (track.kind === Track.Kind.Video && participant.identity === 'performer') {
           onPerformerStream(null);
         }
       });
@@ -164,7 +165,8 @@ export function useLiveKit(): LiveKitHook {
           }
           // Use track if already available
           if (publication.track && publication.kind === Track.Kind.Video &&
-              publication.source === Track.Source.Camera) {
+              publication.source === Track.Source.Camera &&
+              participant.identity === 'performer') {
             const stream = new MediaStream([publication.track.mediaStreamTrack]);
             const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
             if (audioPublication?.track?.mediaStreamTrack) {
