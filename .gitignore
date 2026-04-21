@@ -15,3 +15,7 @@ front-row-vite/dist/
 npm-debug.log*
 chrome-debug-profile
 package-lock.json
+test-results/
+playwright-report/
+server/.env
+*.env
