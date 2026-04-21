@@ -14,7 +14,7 @@ function getBackendUrl(): string {
   if (import.meta.env.DEV) {
     return 'http://localhost:3001';
   }
-  return 'https://frontrow-tvu6.onrender.com';
+  return 'https://vpsmikewolf.duckdns.org:4001';
 }
 
 function getLivekitUrl(): string {

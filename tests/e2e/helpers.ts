@@ -20,7 +20,7 @@ export async function waitForShowState(page: Page, state: string, timeout = 1500
   );
 }
 
-export const BACKEND_URL = process.env.VITE_BACKEND_URL || 'https://frontrow-tvu6.onrender.com';
+export const BACKEND_URL = process.env.VITE_BACKEND_URL || 'https://vpsmikewolf.duckdns.org:4001';
 
 export async function resetServer() {
   const response = await fetch(`${BACKEND_URL}/api/test/reset`, { method: 'POST' });
