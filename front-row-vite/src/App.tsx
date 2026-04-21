@@ -94,6 +94,7 @@ function App(): JSX.Element {
   const [countdownTime, setCountdownTime] = useState(0);
   const [countdownInterval, setCountdownInterval] = useState<NodeJS.Timeout | null>(null);
   const [isCameraPreview, setIsCameraPreview] = useState(false);
+  const [quickMode, setQuickMode] = useState<string | null>(null);
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
@@ -153,6 +154,36 @@ function App(): JSX.Element {
       }
     }
   }, []); // Only run once on mount
+
+  // Fast onboarding via ?mode= URL param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('mode');
+    if (!mode) return;
+
+    if (mode === 'performer') {
+      const name = params.get('name') || 'Performer';
+      sessionStorage.setItem('frontrow_user_name', name);
+      sessionStorage.setItem('frontrow_is_artist', 'true');
+      setUserName(name);
+      setIsArtist(true);
+      setIsLoggedIn(true);
+      setQuickMode('performer');
+      setTimeout(() => startCameraPreview(), 1500);
+    }
+
+    if (mode === 'watch') {
+      const guestNum = Math.floor(1000 + Math.random() * 9000);
+      const name = params.get('name') || `Guest-${guestNum}`;
+      sessionStorage.setItem('frontrow_user_name', name);
+      sessionStorage.setItem('frontrow_capture_mode', 'photo');
+      setUserName(name);
+      setUserCaptureMode('photo');
+      setIsLoggedIn(true);
+      setCurrentView('user');
+      setQuickMode('watch');
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Socket.IO Setup ---
   useEffect(() => {
@@ -919,6 +950,57 @@ function App(): JSX.Element {
               onChange={setScreenPosition}
               onClose={() => setShowScreenTuner(false)}
             />
+          )}
+
+          {/* Quick mode: performer GO LIVE button */}
+          {quickMode === 'performer' && isLoggedIn && showState !== 'live' && (
+            <div style={{
+              position: 'fixed',
+              top: '20px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 9999,
+            }}>
+              <button
+                onClick={() => {
+                  startPerformerStream();
+                  socketRef.current?.emit('artist-go-live');
+                }}
+                style={{
+                  background: '#cc0000',
+                  color: 'white',
+                  border: '3px solid #ff4444',
+                  padding: '16px 36px',
+                  borderRadius: '8px',
+                  fontSize: '22px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  animation: 'pulse 1.5s infinite',
+                  boxShadow: '0 0 20px rgba(255,0,0,0.6)',
+                }}
+              >
+                GO LIVE NOW
+              </button>
+            </div>
+          )}
+
+          {/* Quick mode: audience watch status */}
+          {quickMode === 'watch' && isLoggedIn && (
+            <div style={{
+              position: 'fixed',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 9999,
+              background: 'rgba(0,0,0,0.6)',
+              color: 'white',
+              padding: '8px 20px',
+              borderRadius: '6px',
+              fontSize: '16px',
+              pointerEvents: 'none',
+            }}>
+              {showState === 'live' ? 'WATCHING LIVE' : 'Waiting for show...'}
+            </div>
           )}
         </div>,
         document.getElementById('overlay-root') as HTMLElement

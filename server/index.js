@@ -62,6 +62,41 @@ const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), select
 
 // --- API Routes ---
 
+// LiveKit token endpoint (mirrors Netlify function for local dev)
+app.get('/api/livekit-token', async (req, res) => {
+  const identity = (req.query.identity || 'Guest').toString().slice(0, 40);
+  const role = (req.query.role || 'audience').toString();
+  const room = (req.query.room || 'frontrow-main').toString();
+
+  const apiKey = process.env.LIVEKIT_API_KEY;
+  const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+  if (!apiKey || !apiSecret) {
+    return res.status(500).json({ error: 'Server misconfigured: missing LiveKit credentials' });
+  }
+
+  try {
+    const { AccessToken } = require('livekit-server-sdk');
+    const at = new AccessToken(apiKey, apiSecret, {
+      identity,
+      name: identity,
+      ttl: '8h',
+    });
+    at.addGrant({
+      roomJoin: true,
+      room,
+      canPublish: role === 'performer',
+      canSubscribe: true,
+      canPublishData: true,
+    });
+    const token = await at.toJwt();
+    res.json({ token });
+  } catch (err) {
+    console.error('LiveKit token error:', err);
+    res.status(500).json({ error: 'Failed to generate token' });
+  }
+});
+
 // Health check endpoint for monitoring
 app.get('/health', (req, res) => {
   res.status(200).json({ 

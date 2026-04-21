@@ -150,8 +150,12 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
           position={[0, seatSize/2, 0]}
           castShadow={false}
           receiveShadow={false}
+          onClick={(e) => { e.stopPropagation(); handleClick(); }}
+          onPointerDown={(e) => { e.stopPropagation(); handleClick(); }}
+          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+          onPointerOut={(e) => { e.stopPropagation(); document.body.style.cursor = 'default'; }}
         >
-          <meshBasicMaterial 
+          <meshBasicMaterial
             color={color}
             transparent={true}
             opacity={0.9}
