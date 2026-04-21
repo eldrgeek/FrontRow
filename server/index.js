@@ -1,3 +1,4 @@
+require('dotenv').config();
 
 const express = require('express');
 const http = require('http');
@@ -875,6 +876,9 @@ io.on('connection', (socket) => {
       console.log(`Auto-notifying artist ${activeShow.artistId} about new connection ${socket.id}`);
       io.to(activeShow.artistId).emit('new-audience-member', socket.id);
   }
+
+  // Always send current show state to newly connected client
+  socket.emit('show-status-update', { status: activeShow.status, artistId: activeShow.artistId });
 
   // WebRTC Signaling: Relays messages between peers
   socket.on('offer', (data) => {

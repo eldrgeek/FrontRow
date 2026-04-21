@@ -101,6 +101,9 @@ function App(): JSX.Element {
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
 
+  const isArtistRef = useRef(isArtist);
+  useEffect(() => { isArtistRef.current = isArtist; }, [isArtist]);
+
   const isPerformer = () => {
     return isArtist;
   };
@@ -193,7 +196,7 @@ function App(): JSX.Element {
       console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');
 
-      if (isPerformer()) {
+      if (isArtistRef.current) {
         console.log('🎭 Artist connected - requesting show reset from backend');
         socketRef.current.emit('reset-show');
       }
@@ -205,7 +208,7 @@ function App(): JSX.Element {
       if (data.status === 'live') {
         console.log('🔴 SHOW IS NOW LIVE!');
 
-        if (!isPerformer()) {
+        if (!isArtistRef.current) {
           // Connect audience to LiveKit
           const name = sessionStorage.getItem('frontrow_user_name') || 'audience';
           try {
@@ -267,7 +270,7 @@ function App(): JSX.Element {
       setCountdownTime(data.timeRemaining);
       setShowState('pre-show');
 
-      if (!isPerformer()) {
+      if (!isArtistRef.current) {
         setPerformerStream(null);
       }
     });
@@ -283,7 +286,7 @@ function App(): JSX.Element {
       setCountdownTime(0);
       setShowState('live');
 
-      if (isPerformer()) {
+      if (isArtistRef.current) {
         console.log('🎥 Countdown finished - starting live stream...');
         if (localStreamRef.current) {
           console.log('🎥 Camera already active - going live with existing stream...');
