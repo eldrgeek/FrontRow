@@ -110,6 +110,32 @@ function App(): JSX.Element {
   const isArtistRef = useRef(isArtist);
   useEffect(() => { isArtistRef.current = isArtist; }, [isArtist]);
 
+  // Expose state globally for Playwright E2E tests
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__frontrow_state__ = {
+        socketConnected,
+        socketId: mySocketId,
+        showState,
+        role: isArtistRef.current ? 'performer' : 'audience',
+        selectedSeat,
+        hasPerformerStream: !!performerStream,
+        performerStreamTracks: performerStream ? performerStream.getTracks().length : 0,
+        hasUserStream: !!userVideoStream,
+        userStreamTracks: userVideoStream ? userVideoStream.getTracks().length : 0,
+        audienceSeats: Object.entries(audienceSeats).map(([seatId, user]) => ({
+          seatId,
+          name: user?.name || null,
+          captureMode: user?.captureMode || null,
+          socketId: user?.socketId || null,
+          hasLiveStream: audienceStreams.has(user?.name || ''),
+        })),
+        audienceStreamCount: audienceStreams.size,
+        timestamp: Date.now(),
+      };
+    }
+  }, [socketConnected, mySocketId, showState, selectedSeat, performerStream, userVideoStream, audienceSeats, audienceStreams]);
+
   const isPerformer = () => {
     return isArtist;
   };

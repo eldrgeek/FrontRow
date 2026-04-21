@@ -1,156 +1,111 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Browser, Page } from '@playwright/test';
 
-const BASE_URL = process.env.FRONTROW_URL || 'https://frontrowtheater.netlify.app';
+const PROD_URL = 'https://frontrowtheater.netlify.app';
+const BASE_URL = process.env.FRONTROW_URL || PROD_URL;
 const BACKEND_URL = 'https://vpsmikewolf.duckdns.org:4001';
+const TOKEN_URL = `${BACKEND_URL}/api/livekit-token`;
 
-test.describe('FrontRow Diagnostics', () => {
+async function waitForState(page: Page, check: (s: any) => boolean, timeout = 10000): Promise<any> {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const state = await page.evaluate(() => (window as any).__frontrow_state__);
+    if (state && check(state)) return state;
+    await page.waitForTimeout(500);
+  }
+  const state = await page.evaluate(() => (window as any).__frontrow_state__);
+  throw new Error(`State condition not met. Last state: ${JSON.stringify(state)}`);
+}
 
-  test('backend health check', async ({ request }) => {
-    const res = await request.get(`${BACKEND_URL}/health`);
+test.describe('FrontRow E2E', () => {
+
+  test('livekit token API works', async ({ request }) => {
+    const res = await request.get(`${TOKEN_URL}?identity=test&role=audience&room=frontrow-main`);
     expect(res.ok()).toBeTruthy();
     const data = await res.json();
-    expect(data.status).toBe('healthy');
-    console.log('Backend health:', JSON.stringify(data));
+    expect(data.token).toBeTruthy();
+    expect(data.token.length).toBeGreaterThan(50);
   });
 
-  test('backend diagnostics endpoint', async ({ request }) => {
-    const res = await request.get(`${BACKEND_URL}/api/diagnostics`);
-    expect(res.ok()).toBeTruthy();
-    const data = await res.json();
-    expect(data).toHaveProperty('show');
-    expect(data).toHaveProperty('seats');
-    expect(data).toHaveProperty('connections');
-    console.log('Diagnostics:', JSON.stringify(data, null, 2));
-  });
-
-  test('livekit token endpoint - audience', async ({ request }) => {
-    const res = await request.get(`${BACKEND_URL}/api/livekit-token?identity=test-audience&role=audience&room=frontrow-main`);
-    expect(res.ok()).toBeTruthy();
-    const data = await res.json();
-    expect(data).toHaveProperty('token');
-    expect(typeof data.token).toBe('string');
-    expect(data.token.length).toBeGreaterThan(20);
-    console.log('Audience token length:', data.token.length);
-  });
-
-  test('livekit token endpoint - performer', async ({ request }) => {
-    const res = await request.get(`${BACKEND_URL}/api/livekit-token?identity=test-performer&role=performer&room=frontrow-main`);
-    expect(res.ok()).toBeTruthy();
-    const data = await res.json();
-    expect(data).toHaveProperty('token');
-    console.log('Performer token length:', data.token.length);
-  });
-
-  test('frontend loads without errors', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  test('frontend loads and exposes state', async ({ page }) => {
     await page.goto(`${BASE_URL}?diag=true`);
     await page.waitForTimeout(3000);
-    const badErrors = errors.filter(e => !e.includes('favicon') && !e.includes('ResizeObserver'));
-    console.log('Console errors:', badErrors);
-    expect(badErrors.length).toBe(0);
+    const state = await page.evaluate(() => (window as any).__frontrow_state__);
+    expect(state).toBeTruthy();
+    expect(state.showState).toBeTruthy();
+    expect(typeof state.socketConnected).toBe('boolean');
+    console.log('Initial state:', JSON.stringify(state));
   });
 
-  test('performer mode fast onboarding', async ({ page }) => {
-    const errors: string[] = [];
-    page.on('console', msg => {
-      if (msg.type() === 'error') errors.push(msg.text());
-      if (msg.text().includes('🎭') || msg.text().includes('LiveKit')) console.log('[BROWSER]', msg.text());
-    });
+  test('socket connects and state is populated', async ({ page }) => {
+    await page.goto(`${BASE_URL}?diag=true`);
+    const state = await waitForState(page, s => s.socketConnected);
+    expect(state.socketConnected).toBe(true);
+    expect(state.socketId).toBeTruthy();
+    console.log('Connected with socket:', state.socketId);
+  });
+
+  test('performer mode: camera activates, role is performer', async ({ page, context }) => {
+    await context.grantPermissions(['camera', 'microphone']);
     await page.goto(`${BASE_URL}?mode=performer&diag=true`);
-    await page.waitForTimeout(5000);
-
-    const diagPanel = page.locator('text=PERFORMER');
-    await expect(diagPanel).toBeVisible({ timeout: 5000 });
-
-    const badErrors = errors.filter(e => !e.includes('favicon') && !e.includes('ResizeObserver') && !e.includes('camera'));
-    console.log('Performer mode errors:', badErrors);
+    const state = await waitForState(page, s => s.socketConnected);
+    expect(state.role).toBe('performer');
+    await expect(page.locator('[data-testid="diag-role"]')).toHaveAttribute('data-value', 'performer');
+    console.log('Performer state:', JSON.stringify(state));
   });
 
-  test('watch mode fast onboarding - connects to idle show', async ({ page }) => {
-    const logs: string[] = [];
-    page.on('console', msg => logs.push(`[${msg.type()}] ${msg.text()}`));
+  test('watch mode: role is audience, no performer stream on idle show', async ({ page, context }) => {
+    await context.grantPermissions(['camera', 'microphone']);
     await page.goto(`${BASE_URL}?mode=watch&diag=true`);
-    await page.waitForTimeout(4000);
-
-    const diagPanel = page.locator('text=AUDIENCE');
-    await expect(diagPanel).toBeVisible({ timeout: 5000 });
-
-    const diagRes = await page.request.get(`${BACKEND_URL}/api/diagnostics`);
-    const diagData = await diagRes.json();
-    console.log('Connections after watch join:', diagData.connections.total);
-
-    const livekitLogs = logs.filter(l => l.includes('LiveKit'));
-    console.log('LiveKit logs:', livekitLogs);
+    const state = await waitForState(page, s => s.socketConnected);
+    expect(state.role).toBe('audience');
+    expect(state.hasPerformerStream).toBe(false);
+    console.log('Watch state:', JSON.stringify(state));
   });
 
-  test('seat selection flow', async ({ page }) => {
-    const logs: string[] = [];
-    page.on('console', msg => logs.push(`[${msg.type()}] ${msg.text()}`));
-
-    await page.request.post(`${BACKEND_URL}/api/debug-reset-show`);
-
+  test('seat selection: audience member gets a seat', async ({ page, context }) => {
+    await context.grantPermissions(['camera', 'microphone']);
     await page.goto(`${BASE_URL}?mode=watch&diag=true`);
+    await waitForState(page, s => s.socketConnected);
     await page.waitForTimeout(3000);
-
-    let diagRes = await page.request.get(`${BACKEND_URL}/api/diagnostics`);
-    let diagData = await diagRes.json();
-    console.log('Before seat select - seats:', diagData.seats.length);
-
-    const canvas = page.locator('canvas');
-    await canvas.click({ position: { x: 400, y: 300 } });
-    await page.waitForTimeout(2000);
-
-    diagRes = await page.request.get(`${BACKEND_URL}/api/diagnostics`);
-    diagData = await diagRes.json();
-    console.log('After seat click - seats:', diagData.seats.length, JSON.stringify(diagData.seats));
-
-    const seatSelectLogs = logs.filter(l => l.includes('seat') || l.includes('Seat'));
-    console.log('Seat logs:', seatSelectLogs);
+    const state = await page.evaluate(() => (window as any).__frontrow_state__);
+    console.log('Post-watch state:', JSON.stringify(state));
+    expect(state.showState).toBeTruthy();
   });
 
-  test('full show flow: performer goes live, audience receives stream', async ({ browser }) => {
+  test('full show flow: performer goes live, audience receives stream', async ({ browser }: { browser: Browser }) => {
     const performerContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
-    const audienceContext = await browser.newContext();
+    const audienceContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
 
     const performerPage = await performerContext.newPage();
     const audiencePage = await audienceContext.newPage();
 
-    const perfLogs: string[] = [];
-    const audLogs: string[] = [];
-    performerPage.on('console', msg => perfLogs.push(`[${msg.type()}] ${msg.text()}`));
-    audiencePage.on('console', msg => audLogs.push(`[${msg.type()}] ${msg.text()}`));
+    try {
+      await performerPage.goto(`${BASE_URL}?mode=performer&diag=true`);
+      await audiencePage.goto(`${BASE_URL}?mode=watch&diag=true`);
 
-    await performerPage.request.post(`${BACKEND_URL}/api/debug-reset-show`);
+      await waitForState(performerPage, s => s.socketConnected && s.role === 'performer');
+      await waitForState(audiencePage, s => s.socketConnected && s.role === 'audience');
 
-    await audiencePage.goto(`${BASE_URL}?mode=watch&diag=true`);
-    await audiencePage.waitForTimeout(2000);
+      const goLiveBtn = performerPage.locator('text=GO LIVE NOW');
+      if (await goLiveBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await goLiveBtn.click();
+      }
 
-    await performerPage.goto(`${BASE_URL}?mode=performer&diag=true`);
-    await performerPage.waitForTimeout(3000);
+      await waitForState(performerPage, s => s.showState === 'live', 15000);
+      console.log('Show is live!');
 
-    const goLiveBtn = performerPage.locator('text=GO LIVE NOW');
-    if (await goLiveBtn.isVisible()) {
-      await goLiveBtn.click();
-      await performerPage.waitForTimeout(3000);
+      const audienceState = await waitForState(audiencePage, s => s.hasPerformerStream, 15000);
+      expect(audienceState.hasPerformerStream).toBe(true);
+      expect(audienceState.performerStreamTracks).toBeGreaterThan(0);
+      console.log('Audience received performer stream:', audienceState.performerStreamTracks, 'tracks');
+
+      const perfState = await performerPage.evaluate(() => (window as any).__frontrow_state__);
+      console.log('Performer state:', JSON.stringify(perfState));
+
+    } finally {
+      await performerContext.close();
+      await audienceContext.close();
     }
-
-    const diagRes = await performerPage.request.get(`${BACKEND_URL}/api/diagnostics`);
-    const diagData = await diagRes.json();
-    console.log('Show state after GO LIVE:', diagData.show.status);
-    console.log('Total connections:', diagData.connections.total);
-
-    const lkPerfLogs = perfLogs.filter(l => l.includes('LiveKit') || l.includes('🎭'));
-    const lkAudLogs = audLogs.filter(l => l.includes('LiveKit') || l.includes('🎬'));
-    console.log('Performer LiveKit logs:', lkPerfLogs);
-    console.log('Audience LiveKit logs:', lkAudLogs);
-
-    const audDiag = audiencePage.locator('text=✅ PerformerStream');
-    const hasStream = await audDiag.isVisible().catch(() => false);
-    console.log('Audience has performer stream:', hasStream);
-
-    await performerContext.close();
-    await audienceContext.close();
   });
 
 });

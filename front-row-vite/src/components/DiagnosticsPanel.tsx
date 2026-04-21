@@ -37,12 +37,12 @@ export function DiagnosticsPanel({
       overflowY: 'auto', borderTop: '1px solid #0f0'
     }}>
       <div style={{display:'flex', gap:'20px', flexWrap:'wrap'}}>
-        <span>{status(socketConnected)} Socket: {socketId || 'disconnected'}</span>
-        <span>Show: <b>{showState}</b></span>
-        <span>Role: <b>{isArtist ? 'PERFORMER' : 'AUDIENCE'}</b></span>
-        <span>{status(!!selectedSeat)} Seat: {selectedSeat || 'none'}</span>
-        <span>{status(!!performerStream)} PerformerStream</span>
-        <span>{status(!!userVideoStream)} UserStream</span>
+        <span data-testid="diag-socket" data-value={socketConnected ? 'connected' : 'disconnected'}>{status(socketConnected)} Socket: {socketId || 'disconnected'}</span>
+        <span data-testid="diag-show-state" data-value={showState}>Show: <b>{showState}</b></span>
+        <span data-testid="diag-role" data-value={isArtist ? 'performer' : 'audience'}>Role: <b>{isArtist ? 'PERFORMER' : 'AUDIENCE'}</b></span>
+        <span data-testid="diag-seat" data-value={selectedSeat || 'none'}>{status(!!selectedSeat)} Seat: {selectedSeat || 'none'}</span>
+        <span data-testid="diag-performer-stream" data-value={!!performerStream ? 'true' : 'false'}>{status(!!performerStream)} PerformerStream</span>
+        <span data-testid="diag-user-stream" data-value={!!userVideoStream ? 'true' : 'false'}>{status(!!userVideoStream)} UserStream</span>
         <span>Backend: {config.backendUrl}</span>
         <span>LiveKit: {config.livekitUrl}</span>
       </div>
