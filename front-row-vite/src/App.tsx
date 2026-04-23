@@ -17,6 +17,7 @@ import ScreenTuner from './components/ScreenTuner';
 import AnimatedText from './components/AnimatedText';
 import SceneTestExposer from './components/SceneTestExposer';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
+import AudienceMonitor from './components/AudienceMonitor';
 import { useLiveKit } from './hooks/useLiveKit';
 import config from './config';
 import './App.css';
@@ -1010,6 +1011,12 @@ function App(): JSX.Element {
               onClose={() => setShowScreenTuner(false)}
             />
           )}
+
+          {/* Audience monitor — visible only to performer, shows all live audience video streams */}
+          <AudienceMonitor
+            audienceStreams={audienceStreams}
+            isPerformer={isPerformer()}
+          />
 
           {/* Quick mode: performer GO LIVE button */}
           {quickMode === 'performer' && isLoggedIn && showState !== 'live' && (
