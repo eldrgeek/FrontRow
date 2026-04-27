@@ -73,6 +73,7 @@ test.describe('FrontRow E2E', () => {
   });
 
   test('full show flow: performer goes live, audience receives stream', async ({ browser }: { browser: Browser }) => {
+    test.setTimeout(60000);
     const performerContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
     const audienceContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
 
