@@ -57,7 +57,21 @@ let activeShow = {
     timeRemaining: 0,
     totalTime: 0,
     interval: null
-  }
+  },
+  venueConfig: {
+    seatCount: 20,
+    arrangement: 'semicircle', // 'orchestra' | 'semicircle' | 'cabaret' | 'classroom'
+    curtainStyle: 'velvet-red', // 'velvet-red' | 'none' | CSS color string
+    showTitle: '',
+    scheduledStart: null, // ISO 8601 or null
+    curtainOpen: false,
+    configLocked: false,
+  },
+  backstageClients: {}, // { socketId: { role: 'performer' | 'hm' } }
+  reactions: [], // { type, timestamp } rolling window
+  performerOnStage: false,
+  performerPosition: { x: 0, z: -8 },
+  spotlightActive: false,
 };
 const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), selectedSeat } } // Temporary store for connected users
 
@@ -434,11 +448,29 @@ app.post('/api/artist-simulate-end', (req, res) => {
 // Debug API endpoint to reset show state
 app.post('/api/debug-reset-show', (req, res) => {
   console.log('🔧 Debug: Resetting show state to idle');
+  if (activeShow.countdown && activeShow.countdown.interval) {
+    clearInterval(activeShow.countdown.interval);
+  }
   activeShow = {
     artistId: null,
     startTime: null,
     status: 'idle',
-    audienceSeats: {}
+    audienceSeats: {},
+    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
+    venueConfig: {
+      seatCount: 20,
+      arrangement: 'semicircle',
+      curtainStyle: 'velvet-red',
+      showTitle: '',
+      scheduledStart: null,
+      curtainOpen: false,
+      configLocked: false,
+    },
+    backstageClients: {},
+    reactions: [],
+    performerOnStage: false,
+    performerPosition: { x: 0, z: -8 },
+    spotlightActive: false,
   };
   io.emit('show-state-change', { status: 'idle' });
   res.json({ message: 'Show status reset to idle' });
@@ -910,8 +942,15 @@ io.on('connection', (socket) => {
       io.to(activeShow.artistId).emit('new-audience-member', socket.id);
   }
 
-  // Always send current show state to newly connected client
-  socket.emit('show-status-update', { status: activeShow.status, artistId: activeShow.artistId });
+  // Always send current show state (including venueConfig) to newly connected client
+  socket.emit('show-status-update', {
+    status: activeShow.status,
+    artistId: activeShow.artistId,
+    venueConfig: activeShow.venueConfig,
+    performerOnStage: activeShow.performerOnStage,
+    performerPosition: activeShow.performerPosition,
+    spotlightActive: activeShow.spotlightActive,
+  });
 
   // WebRTC Signaling: Relays messages between peers
   socket.on('offer', (data) => {
@@ -1298,6 +1337,119 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ── Phase 2: House Manager ──────────────────────────────────────────────
+  socket.on('hm:configUpdate', (data) => {
+    console.log('🏠 HM config update:', data);
+    const valid = {
+      seatCount: 'number',
+      arrangement: ['orchestra', 'semicircle', 'cabaret', 'classroom'],
+      curtainStyle: 'string',
+      showTitle: 'string',
+      scheduledStart: 'nullable-string',
+    };
+    const updates = {};
+    if (typeof data.seatCount === 'number' && data.seatCount >= 4 && data.seatCount <= 50) {
+      if (!activeShow.venueConfig.configLocked) updates.seatCount = data.seatCount;
+    }
+    if (valid.arrangement.includes(data.arrangement)) updates.arrangement = data.arrangement;
+    if (typeof data.curtainStyle === 'string') updates.curtainStyle = data.curtainStyle;
+    if (typeof data.showTitle === 'string') updates.showTitle = data.showTitle;
+    if (data.scheduledStart === null || typeof data.scheduledStart === 'string') {
+      updates.scheduledStart = data.scheduledStart;
+    }
+    if (typeof data.configLocked === 'boolean') updates.configLocked = data.configLocked;
+
+    Object.assign(activeShow.venueConfig, updates);
+    io.emit('venue:configUpdated', activeShow.venueConfig);
+    console.log('🏠 venue:configUpdated broadcast', activeShow.venueConfig);
+  });
+
+  socket.on('hm:curtain', (data) => {
+    const action = data.action === 'open' || data.action === 'close' ? data.action : null;
+    if (!action) return;
+    activeShow.venueConfig.curtainOpen = action === 'open';
+    io.emit('venue:curtain', { action });
+    console.log(`🎭 Curtain: ${action}`);
+  });
+
+  // ── Phase 2: Backstage ─────────────────────────────────────────────────
+  socket.on('backstage:join', (data) => {
+    const role = data && data.role ? data.role : 'performer';
+    activeShow.backstageClients[socket.id] = { role };
+    socket.join('backstage-room');
+    // Notify other backstage members
+    socket.to('backstage-room').emit('backstage:peerJoined', { socketId: socket.id, role });
+    // Send current backstage list back
+    socket.emit('backstage:state', { clients: activeShow.backstageClients });
+    console.log(`🎬 Backstage join: ${socket.id} (${role})`);
+  });
+
+  socket.on('backstage:leave', () => {
+    delete activeShow.backstageClients[socket.id];
+    socket.leave('backstage-room');
+    io.to('backstage-room').emit('backstage:peerLeft', { socketId: socket.id });
+    console.log(`🎬 Backstage leave: ${socket.id}`);
+  });
+
+  // ── Phase 2: Performer go live from backstage ──────────────────────────
+  socket.on('performer:goLive', () => {
+    console.log(`🎭 Performer ${socket.id} going live from backstage`);
+    activeShow.performerOnStage = true;
+    activeShow.performerPosition = { x: 0, z: -18 }; // start at back of stage
+    // Leave backstage
+    delete activeShow.backstageClients[socket.id];
+    socket.leave('backstage-room');
+    // Broadcast to all (audience will see entrance animation)
+    io.emit('performer:onStage', { onStage: true, socketId: socket.id });
+    // Transition show to live if not already
+    if (activeShow.status !== 'live') {
+      activeShow.status = 'live';
+      activeShow.artistId = socket.id;
+      activeShow.startTime = Date.now();
+      io.emit('show-status-update', {
+        status: 'live',
+        artistId: socket.id,
+        venueConfig: activeShow.venueConfig,
+        performerOnStage: true,
+        performerPosition: activeShow.performerPosition,
+      });
+    }
+  });
+
+  socket.on('performer:goOffstage', () => {
+    console.log(`🎭 Performer ${socket.id} going offstage`);
+    activeShow.performerOnStage = false;
+    io.emit('performer:onStage', { onStage: false, socketId: socket.id });
+    if (activeShow.status === 'live') {
+      activeShow.status = 'post-show';
+      activeShow.artistId = null;
+      io.emit('show-status-update', { status: 'post-show', venueConfig: activeShow.venueConfig });
+    }
+  });
+
+  // ── Phase 2: Performer position ────────────────────────────────────────
+  socket.on('performer:position', (data) => {
+    if (typeof data.x === 'number') activeShow.performerPosition.x = data.x;
+    if (typeof data.z === 'number') activeShow.performerPosition.z = data.z;
+    // Broadcast to audience only (not performer themselves)
+    socket.broadcast.emit('performer:position', activeShow.performerPosition);
+  });
+
+  // ── Phase 2: Performer spotlight ──────────────────────────────────────
+  socket.on('performer:spotlight', (data) => {
+    activeShow.spotlightActive = typeof data.active === 'boolean' ? data.active : false;
+    io.emit('performer:spotlight', { active: activeShow.spotlightActive });
+  });
+
+  // ── Phase 2: Audience reactions ────────────────────────────────────────
+  socket.on('audience:reaction', (data) => {
+    const type = ['clap', 'laugh', 'wow'].includes(data.type) ? data.type : 'clap';
+    activeShow.reactions.push({ type, timestamp: Date.now(), seatId: data.seatId });
+    // Prune old reactions immediately
+    const cutoff = Date.now() - 5000;
+    activeShow.reactions = activeShow.reactions.filter(r => r.timestamp > cutoff);
+  });
+
   socket.on('disconnect', () => {
     console.log('user disconnected:', socket.id);
     const userData = userProfiles[socket.id];
@@ -1321,6 +1473,18 @@ io.on('connection', (socket) => {
     delete userProfiles[socket.id]; // Remove profile from in-memory store
   });
 });
+
+// ── Phase 2: Rolling reaction aggregator (every 500ms) ────────────────────
+setInterval(() => {
+  const cutoff = Date.now() - 5000;
+  activeShow.reactions = activeShow.reactions.filter(r => r.timestamp > cutoff);
+  const count = activeShow.reactions.length;
+  // Max expected reactions in 5s window ≈ 50 → level 0-100
+  const level = Math.min(100, Math.round(count * 2));
+  if (io.engine.clientsCount > 0) {
+    io.emit('stage:reactionLevel', { level });
+  }
+}, 500);
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {

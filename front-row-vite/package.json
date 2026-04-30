@@ -11,12 +11,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
     "@react-three/drei": "^9.0.0",
     "@react-three/fiber": "^8.0.0",
+    "@types/react-router-dom": "^5.3.3",
     "@vitejs/plugin-react": "^4.6.0",
     "livekit-client": "^2.18.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-router-dom": "^7.14.2",
     "socket.io-client": "^4.0.0",
     "three": "^0.150.0",
     "typescript": "~5.8.3",

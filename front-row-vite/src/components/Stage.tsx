@@ -5,6 +5,8 @@ import { Text, Plane, Cylinder } from '@react-three/drei';
 import * as THREE from 'three';
 import YouTubeScreen from './YouTubeScreen';
 import useVideoTexture from '../hooks/useVideoTexture';
+import PerformerMesh from './PerformerMesh';
+import ReactionBar from './ReactionBar';
 
 interface StageProps {
   config: {
@@ -12,11 +14,23 @@ interface StageProps {
   };
   showState: 'idle' | 'pre-show' | 'live' | 'post-show';
   fallbackVideoUrl?: string;
-  screenPosition?: [number,number,number];
+  screenPosition?: [number, number, number];
   performerStream?: MediaStream | null;
   countdownTime?: number;
   isCountdownActive?: boolean;
   isPerformer?: boolean;
+  /** Phase 2: performer mesh on stage instead of CurvedScreen */
+  performerOnStage?: boolean;
+  performerStageZ?: number;
+  performerStageX?: number;
+  performerOpacity?: number;
+  /** Phase 2: curtain state */
+  curtainOpen?: boolean;
+  curtainStyle?: string;
+  /** Phase 2: reaction level 0-100 */
+  reactionLevel?: number;
+  /** Phase 2: spotlight */
+  spotlightActive?: boolean;
 }
 
 // Semicircle stage platform component
@@ -25,16 +39,16 @@ function SemicircleStage(): JSX.Element {
     <group>
       {/* Main semicircle stage platform - rotated 90 degrees clockwise */}
       <Cylinder
-        args={[8, 8, 0.2, 32, 1, false, -Math.PI/2, Math.PI]} // rotated 90 degrees clockwise
+        args={[8, 8, 0.2, 32, 1, false, -Math.PI / 2, Math.PI]}
         position={[0, 0.1, -8]}
         rotation-x={0}
       >
         <meshStandardMaterial color="#444444" />
       </Cylinder>
-      
+
       {/* Stage edge for visual definition */}
       <Cylinder
-        args={[8.1, 8.1, 0.25, 32, 1, false, -Math.PI/2, Math.PI]}
+        args={[8.1, 8.1, 0.25, 32, 1, false, -Math.PI / 2, Math.PI]}
         position={[0, 0.05, -8]}
         rotation-x={0}
       >
@@ -49,91 +63,128 @@ function SemicircleStage(): JSX.Element {
 }
 
 // Flat screen component for the back wall
-function CurvedScreen({ videoTexture, fallbackVideoId = "K6ZeroIZd5g", screenPosition, isPerformer = false } : { videoTexture: THREE.VideoTexture | null; fallbackVideoId?: string; screenPosition:[number,number,number]; showState: 'idle' | 'pre-show' | 'live' | 'post-show'; isPerformer?: boolean }): JSX.Element {
+function CurvedScreen({
+  videoTexture,
+  fallbackVideoId = 'K6ZeroIZd5g',
+  screenPosition,
+  showState,
+  isPerformer = false,
+  hidden = false,
+}: {
+  videoTexture: THREE.VideoTexture | null;
+  fallbackVideoId?: string;
+  screenPosition: [number, number, number];
+  showState: 'idle' | 'pre-show' | 'live' | 'post-show';
+  isPerformer?: boolean;
+  hidden?: boolean;
+}): JSX.Element | null {
+  if (hidden) return null;
+
   const hasLiveStream = !!videoTexture;
-  
-  // CurvedScreen component renders video or YouTube fallback
-  
-  // Calculate screen dimensions based on video aspect ratio
-  let screenWidth = 12; // Default width
-  let screenHeight = 5; // Default height
-  
+
+  let screenWidth = 12;
+  let screenHeight = 5;
+
   if (hasLiveStream && videoTexture && videoTexture.userData.aspectRatio) {
     const aspectRatio = videoTexture.userData.aspectRatio;
-    
-    // Keep width constant, adjust height to maintain aspect ratio
     screenWidth = 12;
     screenHeight = screenWidth / aspectRatio;
-    
-    // Ensure reasonable size limits
-    if (screenHeight > 8) {
-      screenHeight = 8;
-      screenWidth = screenHeight * aspectRatio;
-    }
-    if (screenHeight < 3) {
-      screenHeight = 3;
-      screenWidth = screenHeight * aspectRatio;
-    }
+    if (screenHeight > 8) { screenHeight = 8; screenWidth = screenHeight * aspectRatio; }
+    if (screenHeight < 3) { screenHeight = 3; screenWidth = screenHeight * aspectRatio; }
   }
-  
-  // Ensure screen doesn't extend below stage level
-  // Stage is at y=0.1, we want screen bottom to be at least at y=2.0 (well above stage)
+
   const minBottomY = 2.0;
-  const originalBottom = screenPosition[1] - screenHeight/2;
-  const adjustedY = Math.max(screenPosition[1], minBottomY + screenHeight/2);
+  const adjustedY = Math.max(screenPosition[1], minBottomY + screenHeight / 2);
   const adjustedScreenPosition: [number, number, number] = [screenPosition[0], adjustedY, screenPosition[2]];
-  
-  // Screen positioned at adjustedY to keep bottom above stage level
-  
+
   return (
     <group>
-      {/* Large flat screen at the back of the semicircle stage */}
-      <Plane
-        args={[screenWidth, screenHeight]}
-        position={adjustedScreenPosition}
-        rotation-x={0}
-      >
+      <Plane args={[screenWidth, screenHeight]} position={adjustedScreenPosition} rotation-x={0}>
         {hasLiveStream ? (
-          // Live stream mode - show video with corrected orientation
-          <meshBasicMaterial 
-            toneMapped={false}
-            side={THREE.FrontSide}
-          >
+          <meshBasicMaterial toneMapped={false} side={THREE.FrontSide}>
             <primitive attach="map" object={videoTexture} />
           </meshBasicMaterial>
         ) : (
-          // Default mode - dark screen
           <meshBasicMaterial color="#111111" side={THREE.FrontSide} />
         )}
       </Plane>
-      
-      {/* Screen frame - slightly larger than the screen */}
-      <Plane args={[screenWidth + 0.4, screenHeight + 0.4]} position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2]-0.01]}
+      <Plane
+        args={[screenWidth + 0.4, screenHeight + 0.4]}
+        position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2] - 0.01]}
         rotation-x={0}
       >
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
       </Plane>
-      
-      {/* YouTube fallback when no live stream */}
       {!hasLiveStream && (
-        <YouTubeScreen 
+        <YouTubeScreen
           videoId={fallbackVideoId}
-          position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2]+0.5]} // slightly in front
+          position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2] + 0.5]}
           isLive={false}
           isPerformer={isPerformer}
         />
       )}
+      {/* keep showState in scope to avoid lint warning */}
+      {showState === 'post-show' && null}
     </group>
   );
 }
 
-function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroIZd5g", screenPosition=[0,7.30,-12], performerStream, countdownTime = 0, isCountdownActive = false, isPerformer = false }: StageProps): JSX.Element {
-  const stageRef = useRef<THREE.Group>(null);
+// ── Curtain mesh ──────────────────────────────────────────────────────────────
+interface CurtainProps {
+  side: 'left' | 'right';
+  open: boolean;
+  style: string;
+}
 
-  // Create a video texture from the performer stream
+function Curtain({ side, open, style }: CurtainProps): JSX.Element {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const targetX = open ? (side === 'left' ? -9 : 9) : (side === 'left' ? -3 : 3);
+
+  useFrame(() => {
+    if (meshRef.current) {
+      meshRef.current.position.x += (targetX - meshRef.current.position.x) * 0.08;
+    }
+  });
+
+  const color = style === 'velvet-red' ? '#8B0000' : style === 'none' ? 'transparent' : style;
+  if (style === 'none') return <></>;
+
+  const startX = side === 'left' ? -3 : 3;
+
+  return (
+    <mesh ref={meshRef} position={[startX, 5, -11]}>
+      <planeGeometry args={[6, 10]} />
+      <meshStandardMaterial
+        color={color}
+        side={THREE.DoubleSide}
+        roughness={0.8}
+        metalness={0.05}
+      />
+    </mesh>
+  );
+}
+
+// ── Stage component ───────────────────────────────────────────────────────────
+function Stage({
+  config,
+  showState,
+  fallbackVideoUrl = 'https://youtu.be/K6ZeroIZd5g',
+  screenPosition = [0, 7.30, -12],
+  performerStream,
+  countdownTime = 0,
+  isCountdownActive = false,
+  isPerformer = false,
+  performerOnStage = false,
+  performerStageZ = -8,
+  performerStageX = 0,
+  performerOpacity = 1,
+  curtainOpen = false,
+  curtainStyle = 'velvet-red',
+  reactionLevel = 0,
+  spotlightActive = false,
+}: StageProps): JSX.Element {
+  const stageRef = useRef<THREE.Group>(null);
   const videoTexture = useVideoTexture(performerStream || null);
-  
-  // Stage renders the main performance screen with video or YouTube fallback
 
   const formatCountdown = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -141,12 +192,9 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Animation for countdown or live indicator
   useFrame(() => {
-    // Basic show state animation (e.g., pulsing live text)
     if (showState === 'live' && stageRef.current) {
-      // Example: simple scale animation for a "LIVE" text
-      // This text is now rendered in App.js HTML overlay for simplicity
+      // reserved for future animation
     }
   });
 
@@ -155,10 +203,48 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
       {/* Semicircle Stage Platform */}
       <SemicircleStage />
 
-      {/* Flat backdrop / Performer Video Screen */}
-      <CurvedScreen videoTexture={videoTexture} fallbackVideoId={fallbackVideoUrl} screenPosition={screenPosition} showState={showState} isPerformer={isPerformer} />
+      {/* Flat backdrop — hidden when performer is on stage mesh */}
+      <CurvedScreen
+        videoTexture={videoTexture}
+        fallbackVideoId={fallbackVideoUrl}
+        screenPosition={screenPosition}
+        showState={showState}
+        isPerformer={isPerformer}
+        hidden={performerOnStage}
+      />
 
-      {/* Artist name stencil on stage floor - moved forward to avoid overlap */}
+      {/* Phase 2: Performer mesh on stage floor */}
+      {performerOnStage && performerStream && (
+        <PerformerMesh
+          stream={performerStream}
+          stageZ={performerStageZ}
+          stageX={performerStageX}
+          opacity={performerOpacity}
+          visible={true}
+        />
+      )}
+
+      {/* Phase 2: Curtains */}
+      <Curtain side="left" open={curtainOpen} style={curtainStyle} />
+      <Curtain side="right" open={curtainOpen} style={curtainStyle} />
+
+      {/* Phase 2: Reaction bar at apron edge */}
+      <ReactionBar level={reactionLevel} />
+
+      {/* Phase 2: Spotlight following performer */}
+      {spotlightActive && (
+        <spotLight
+          position={[performerStageX, 10, performerStageZ + 2]}
+          target-position={[performerStageX, 0, performerStageZ]}
+          intensity={3}
+          angle={0.4}
+          penumbra={0.3}
+          color="#fffde0"
+          castShadow={false}
+        />
+      )}
+
+      {/* Artist name stencil on stage floor */}
       <Text
         position={[0, 0.02, -1]}
         rotation-x={-Math.PI / 2}
@@ -170,34 +256,31 @@ function Stage({ config, showState, fallbackVideoUrl = "https://youtu.be/K6ZeroI
         {config.artistName}
       </Text>
 
-            {/* Countdown Display */}
-            {isCountdownActive && (
-              <group>
-                {/* Countdown background */}
-                <Plane args={[8, 3]} position={[0, 4, -10]} rotation-x={0}>
-                  <meshBasicMaterial color="#000000" opacity={0.8} transparent />
-                </Plane>
-                {/* Countdown text */}
-                <Text position={[0, 4, -9.5]} fontSize={1.2} color="#ff3b3b" anchorX="center" anchorY="middle" fontWeight="bold">
-                  {formatCountdown(countdownTime)}
-                </Text>
-                <Text position={[0, 2.5, -9.5]} fontSize={0.6} color="white" anchorX="center" anchorY="middle">
-                  SHOW STARTING...
-                </Text>
-              </group>
-            )}
-            
-            {/* 3D Status Text - only show when not in countdown */}
-            {showState === 'pre-show' && !isCountdownActive && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
-            )}
-            {showState === 'live' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
-            )}
-            {showState === 'post-show' && (
-              <Text position={[0,5,-11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
-            )}
+      {/* Countdown Display */}
+      {isCountdownActive && (
+        <group>
+          <Plane args={[8, 3]} position={[0, 4, -10]} rotation-x={0}>
+            <meshBasicMaterial color="#000000" opacity={0.8} transparent />
+          </Plane>
+          <Text position={[0, 4, -9.5]} fontSize={1.2} color="#ff3b3b" anchorX="center" anchorY="middle" fontWeight="bold">
+            {formatCountdown(countdownTime)}
+          </Text>
+          <Text position={[0, 2.5, -9.5]} fontSize={0.6} color="white" anchorX="center" anchorY="middle">
+            SHOW STARTING...
+          </Text>
+        </group>
+      )}
 
+      {/* 3D Status Text */}
+      {showState === 'pre-show' && !isCountdownActive && (
+        <Text position={[0, 5, -11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
+      )}
+      {showState === 'live' && (
+        <Text position={[0, 5, -11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
+      )}
+      {showState === 'post-show' && (
+        <Text position={[0, 5, -11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
+      )}
     </group>
   );
 }

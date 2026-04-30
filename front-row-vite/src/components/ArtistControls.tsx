@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BUILD_INFO } from '../buildInfo';
 
 interface ArtistControlsProps {
@@ -17,13 +17,20 @@ interface ArtistControlsProps {
   countdownTime?: number;
   isCameraPreview?: boolean;
   showState?: 'idle' | 'pre-show' | 'live' | 'post-show';
+  // Phase 2
+  performerOnStage?: boolean;
+  performerStageZ?: number;
+  spotlightActive?: boolean;
+  onWalkOffstage?: () => void;
+  onToggleSpotlight?: () => void;
+  onStageZChange?: (z: number) => void;
 }
 
 export default function ArtistControls({ 
   performerStream, 
   onStartStream, 
   onStopStream, 
-  onResetArtistStatus, 
+  onResetArtistStatus, // eslint-disable-line @typescript-eslint/no-unused-vars
   userName,
   onResetShow,
   onEndShow,
@@ -34,7 +41,13 @@ export default function ArtistControls({
   isCountdownActive = false,
   countdownTime = 0,
   isCameraPreview = false,
-  showState = 'idle'
+  showState = 'idle',
+  performerOnStage = false,
+  performerStageZ = -8,
+  spotlightActive = false,
+  onWalkOffstage,
+  onToggleSpotlight,
+  onStageZChange,
 }: ArtistControlsProps) {
   const [countdownSeconds, setCountdownSeconds] = useState(120); // Default to 2 minutes (120 seconds)
   const [showCountdownInput, setShowCountdownInput] = useState(false);
@@ -401,6 +414,91 @@ export default function ArtistControls({
               🔄 Reset Show
             </button>
           </div>
+
+          {/* Phase 2: Stage presence controls */}
+          {performerOnStage && (
+            <div style={{ marginBottom: '15px', borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '12px' }}>
+              <div style={{ fontSize: '0.85em', color: '#ffd700', marginBottom: '8px' }}>🎭 Stage Controls</div>
+
+              {/* Stage Z slider */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.8em', display: 'block', marginBottom: '4px' }}>
+                  Position (front ↔ back): {performerStageZ.toFixed(1)}
+                </label>
+                <input
+                  type="range"
+                  min={-18}
+                  max={-4}
+                  step={0.5}
+                  value={performerStageZ}
+                  data-testid="stage-z-slider"
+                  style={{ width: '100%' }}
+                  onChange={e => onStageZChange?.(Number(e.target.value))}
+                />
+                <div style={{ fontSize: '0.7em', opacity: 0.5, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Back</span><span>Front</span>
+                </div>
+              </div>
+
+              {/* Spotlight toggle */}
+              <button
+                onClick={onToggleSpotlight}
+                data-testid="spotlight-btn"
+                style={{
+                  background: spotlightActive ? '#ffd700' : 'rgba(255,255,255,0.15)',
+                  color: spotlightActive ? '#000' : 'white',
+                  border: 'none',
+                  padding: '7px 12px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  width: '100%',
+                  marginBottom: '8px',
+                  fontWeight: spotlightActive ? 700 : 400,
+                }}
+              >
+                {spotlightActive ? '💡 Spotlight ON' : '🔦 Spotlight OFF'}
+              </button>
+
+              {/* Leave stage */}
+              <button
+                onClick={onWalkOffstage}
+                data-testid="leave-stage-btn"
+                style={{
+                  background: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  padding: '7px 12px',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  width: '100%',
+                  marginBottom: '8px',
+                }}
+              >
+                🚶 Leave Stage
+              </button>
+
+              {/* Record stub */}
+              <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
+                <button
+                  disabled
+                  data-testid="record-stub-btn"
+                  title="Coming in Phase 3."
+                  style={{
+                    background: '#333',
+                    color: '#777',
+                    border: '1px dashed #555',
+                    padding: '7px 12px',
+                    borderRadius: '5px',
+                    cursor: 'not-allowed',
+                    width: '100%',
+                    fontSize: '0.85em',
+                  }}
+                >
+                  ⏺ Record <span style={{ fontSize: '0.75em', opacity: 0.6 }}>(Coming in Phase 3)</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Artist Status */}
           <div style={{

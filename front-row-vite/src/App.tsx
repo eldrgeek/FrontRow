@@ -23,6 +23,17 @@ import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
 
+// Phase 2 types
+interface VenueConfig {
+  seatCount: number;
+  arrangement: 'orchestra' | 'semicircle' | 'cabaret' | 'classroom';
+  curtainStyle: string;
+  showTitle: string;
+  scheduledStart: string | null;
+  curtainOpen: boolean;
+  configLocked: boolean;
+}
+
 // TypeScript interfaces
 interface AudienceSeat {
   name: string;
@@ -68,6 +79,31 @@ function App(): JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [showStreamChoice, setShowStreamChoice] = useState<boolean>(false);
   const [mySocketId, setMySocketId] = useState<string>('');
+
+  // ── Phase 2 state ────────────────────────────────────────────────────────
+  const [performerOnStage, setPerformerOnStage] = useState(false);
+  const [performerStageZ, setPerformerStageZ] = useState(-18);
+  const [performerStageX, setPerformerStageX] = useState(0);
+  const [performerOpacity, setPerformerOpacity] = useState(1);
+  const [curtainOpen, setCurtainOpen] = useState(false);
+  const [curtainStyle, setCurtainStyle] = useState('velvet-red');
+  const [reactionLevel, setReactionLevel] = useState(0);
+  const [spotlightActive, setSpotlightActive] = useState(false);
+  // venueConfig is kept for future seat-count / arrangement rendering
+  const [venueConfig, setVenueConfig] = useState<VenueConfig>({
+    seatCount: 20,
+    arrangement: 'semicircle',
+    curtainStyle: 'velvet-red',
+    showTitle: '',
+    scheduledStart: null,
+    curtainOpen: false,
+    configLocked: false,
+  });
+  const stageZRef = useRef(-18);
+  const stageXRef = useRef(0);
+  const posThrottleRef = useRef(0);
+  const walkOffAnimRef = useRef<number | null>(null);
+  const entranceAnimRef = useRef<number | null>(null);
 
   // Camera position state - save positions when switching views
   const [savedCameraPositions, setSavedCameraPositions] = useState<{
@@ -120,6 +156,9 @@ function App(): JSX.Element {
         showState,
         role: isArtistRef.current ? 'performer' : 'audience',
         selectedSeat,
+        venueConfig,
+        curtainOpen,
+        performerOnStage,
         hasPerformerStream: !!performerStream,
         performerStreamTracks: performerStream ? performerStream.getTracks().length : 0,
         hasUserStream: !!userVideoStream,
@@ -135,7 +174,7 @@ function App(): JSX.Element {
         timestamp: Date.now(),
       };
     }
-  }, [socketConnected, mySocketId, showState, selectedSeat, performerStream, userVideoStream, audienceSeats, audienceStreams]);
+  }, [socketConnected, mySocketId, showState, selectedSeat, performerStream, userVideoStream, audienceSeats, audienceStreams, venueConfig, curtainOpen, performerOnStage]);
 
   const isPerformer = () => {
     return isArtist;
@@ -248,6 +287,18 @@ function App(): JSX.Element {
     socketRef.current.on('show-status-update', async (data) => {
       console.log('Show Status Update:', data);
       setShowState(data.status);
+      // Phase 2: sync venueConfig on join/update
+      if (data.venueConfig) {
+        setVenueConfig(data.venueConfig);
+        setCurtainStyle(data.venueConfig.curtainStyle);
+        setCurtainOpen(data.venueConfig.curtainOpen ?? false);
+      }
+      if (typeof data.performerOnStage === 'boolean') setPerformerOnStage(data.performerOnStage);
+      if (data.performerPosition) {
+        setPerformerStageZ(data.performerPosition.z);
+        setPerformerStageX(data.performerPosition.x);
+      }
+      if (typeof data.spotlightActive === 'boolean') setSpotlightActive(data.spotlightActive);
       if (data.status === 'live') {
         console.log('🔴 SHOW IS NOW LIVE!');
 
@@ -305,6 +356,55 @@ function App(): JSX.Element {
 
     socketRef.current.on('all-seats-empty', () => {
       setAudienceSeats({});
+    });
+
+    // ── Phase 2 socket events ──────────────────────────────────────────────
+    socketRef.current.on('venue:configUpdated', (cfg: VenueConfig) => {
+      setVenueConfig(cfg);
+      setCurtainStyle(cfg.curtainStyle);
+      setCurtainOpen(cfg.curtainOpen);
+    });
+
+    socketRef.current.on('venue:curtain', (data: { action: 'open' | 'close' }) => {
+      setCurtainOpen(data.action === 'open');
+    });
+
+    socketRef.current.on('performer:onStage', (data: { onStage: boolean }) => {
+      setPerformerOnStage(data.onStage);
+      if (data.onStage) {
+        // Trigger entrance animation
+        setPerformerStageZ(-18);
+        setPerformerStageX(0);
+        setPerformerOpacity(1);
+        stageZRef.current = -18;
+        stageXRef.current = 0;
+        if (entranceAnimRef.current) cancelAnimationFrame(entranceAnimRef.current);
+        const start = performance.now();
+        const FROM = -18, TO = -8, DUR = 3000;
+        const step = (now: number) => {
+          const t = Math.min(1, (now - start) / DUR);
+          const z = FROM + (TO - FROM) * t;
+          stageZRef.current = z;
+          setPerformerStageZ(z);
+          if (t < 1) { entranceAnimRef.current = requestAnimationFrame(step); }
+        };
+        entranceAnimRef.current = requestAnimationFrame(step);
+      }
+    });
+
+    socketRef.current.on('performer:position', (data: { x: number; z: number }) => {
+      setPerformerStageZ(data.z);
+      setPerformerStageX(data.x);
+      stageZRef.current = data.z;
+      stageXRef.current = data.x;
+    });
+
+    socketRef.current.on('performer:spotlight', (data: { active: boolean }) => {
+      setSpotlightActive(data.active);
+    });
+
+    socketRef.current.on('stage:reactionLevel', (data: { level: number }) => {
+      setReactionLevel(data.level);
     });
 
     // Countdown event listeners
@@ -380,17 +480,43 @@ function App(): JSX.Element {
     };
   }, []); // Only run once on mount - socket connection should persist
 
-  // Keyboard event listener for screen tuner
+  // Keyboard event listener for screen tuner + Phase 2 performer position
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() === 't') {
         setShowScreenTuner(prev => !prev);
       }
+      // Phase 2: arrow keys to adjust performer Z position
+      if (!isArtistRef.current || !performerOnStage) return;
+      const STEP = 0.5;
+      let moved = false;
+      if (event.key === 'ArrowUp') {
+        stageZRef.current = Math.max(-18, stageZRef.current - STEP);
+        moved = true;
+      } else if (event.key === 'ArrowDown') {
+        stageZRef.current = Math.min(-4, stageZRef.current + STEP);
+        moved = true;
+      } else if (event.key === 'ArrowLeft') {
+        stageXRef.current = Math.max(-8, stageXRef.current - STEP);
+        moved = true;
+      } else if (event.key === 'ArrowRight') {
+        stageXRef.current = Math.min(8, stageXRef.current + STEP);
+        moved = true;
+      }
+      if (moved) {
+        setPerformerStageZ(stageZRef.current);
+        setPerformerStageX(stageXRef.current);
+        const now = Date.now();
+        if (now - posThrottleRef.current >= 100) {
+          posThrottleRef.current = now;
+          socketRef.current?.emit('performer:position', { x: stageXRef.current, z: stageZRef.current });
+        }
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showScreenTuner]);
+  }, [showScreenTuner, performerOnStage]);
 
   // Trigger welcome sequence for audience members
   useEffect(() => {
@@ -575,6 +701,41 @@ function App(): JSX.Element {
       socketRef.current.emit('artist-end-show');
       console.log('Artist ending show via controls');
     }
+  };
+
+  // ── Phase 2 actions ────────────────────────────────────────────────────
+  const handleWalkOffstage = () => {
+    if (!isArtist) return;
+    const start = performance.now();
+    const DUR = 1000;
+    const startX = stageXRef.current;
+
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / DUR);
+      stageXRef.current = startX + t * 20; // slide to stage-right
+      setPerformerStageX(stageXRef.current);
+      setPerformerOpacity(1 - t);
+      if (t < 1) {
+        walkOffAnimRef.current = requestAnimationFrame(step);
+      } else {
+        // Animation complete — fire offstage event
+        socketRef.current?.emit('performer:goOffstage');
+        setPerformerOnStage(false);
+        stopPerformerStream();
+      }
+    };
+    if (walkOffAnimRef.current) cancelAnimationFrame(walkOffAnimRef.current);
+    walkOffAnimRef.current = requestAnimationFrame(step);
+  };
+
+  const handleToggleSpotlight = () => {
+    const next = !spotlightActive;
+    setSpotlightActive(next);
+    socketRef.current?.emit('performer:spotlight', { active: next });
+  };
+
+  const handleReaction = (type: 'clap' | 'laugh' | 'wow') => {
+    socketRef.current?.emit('audience:reaction', { type, seatId: selectedSeat });
   };
 
   // Countdown functions
@@ -811,7 +972,24 @@ function App(): JSX.Element {
               onPositionChange={handleCameraPositionChange}
             />
 
-            <Stage config={config} showState={showState} fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g" performerStream={performerStream} countdownTime={countdownTime} isCountdownActive={isCountdownActive} isPerformer={isPerformer()} screenPosition={screenPosition} />
+            <Stage
+              config={config}
+              showState={showState}
+              fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g"
+              performerStream={performerStream}
+              countdownTime={countdownTime}
+              isCountdownActive={isCountdownActive}
+              isPerformer={isPerformer()}
+              screenPosition={screenPosition}
+              performerOnStage={performerOnStage}
+              performerStageZ={performerStageZ}
+              performerStageX={performerStageX}
+              performerOpacity={performerOpacity}
+              curtainOpen={curtainOpen}
+              curtainStyle={curtainStyle}
+              reactionLevel={reactionLevel}
+              spotlightActive={spotlightActive}
+            />
             <SeatSelection
               selectedSeat={selectedSeat}
               onSeatSelect={handleSeatSelect}
@@ -990,7 +1168,59 @@ function App(): JSX.Element {
               countdownTime={countdownTime}
               isCameraPreview={isCameraPreview}
               showState={showState}
+              performerOnStage={performerOnStage}
+              performerStageZ={performerStageZ}
+              spotlightActive={spotlightActive}
+              onWalkOffstage={handleWalkOffstage}
+              onToggleSpotlight={handleToggleSpotlight}
+              onStageZChange={(z) => {
+                stageZRef.current = z;
+                setPerformerStageZ(z);
+                const now = Date.now();
+                if (now - posThrottleRef.current >= 100) {
+                  posThrottleRef.current = now;
+                  socketRef.current?.emit('performer:position', { x: stageXRef.current, z });
+                }
+              }}
             />
+          )}
+          {/* Phase 2: Reaction buttons — audience only in user ViewState */}
+          {isLoggedIn && !isPerformer() && currentView === 'user' && selectedSeat && (
+            <div
+              data-testid="reaction-buttons"
+              style={{
+                position: 'fixed',
+                bottom: 24,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: 12,
+                zIndex: 9998,
+              }}
+            >
+              {(['clap', 'laugh', 'wow'] as const).map((type) => (
+                <button
+                  key={type}
+                  data-testid={`reaction-${type}`}
+                  onClick={() => handleReaction(type)}
+                  style={{
+                    fontSize: 28,
+                    background: 'rgba(0,0,0,0.55)',
+                    border: '1.5px solid rgba(255,255,255,0.25)',
+                    borderRadius: 50,
+                    width: 56,
+                    height: 56,
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(6px)',
+                    transition: 'transform 0.1s',
+                  }}
+                  onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.9)')}
+                  onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+                >
+                  {type === 'clap' ? '👏' : type === 'laugh' ? '😂' : '🤩'}
+                </button>
+              ))}
+            </div>
           )}
           {isLoggedIn && selectedSeat && !isPerformer() && currentView !== 'performer' && (
             <ViewControls
