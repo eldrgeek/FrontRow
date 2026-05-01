@@ -1,4 +1,5 @@
 import React from 'react';
+import Tooltip from './Tooltip';
 import type { VenueConfig } from '../HouseManagerApp';
 
 interface HouseManagerPanelProps {
@@ -63,9 +64,11 @@ export default function HouseManagerPanel({ venueConfig, onConfigChange, onCurta
 
       {/* Seat Count */}
       <div>
-        <label style={labelStyle}>
-          Seat Count: <strong style={{ color: 'white' }}>{venueConfig.seatCount}</strong>
-        </label>
+        <Tooltip text="Set how many audience seats are available in the venue (4-50)" position="right">
+          <label style={labelStyle}>
+            Seat Count: <strong style={{ color: 'white' }}>{venueConfig.seatCount}</strong>
+          </label>
+        </Tooltip>
         <input
           type="range"
           min={4}
@@ -83,7 +86,9 @@ export default function HouseManagerPanel({ venueConfig, onConfigChange, onCurta
 
       {/* Arrangement */}
       <div>
-        <label style={labelStyle}>Seating Arrangement</label>
+        <Tooltip text="Choose how seats are laid out in the 3D venue" position="right">
+          <label style={labelStyle}>Seating Arrangement</label>
+        </Tooltip>
         <select
           value={venueConfig.arrangement}
           disabled={locked}
@@ -144,32 +149,38 @@ export default function HouseManagerPanel({ venueConfig, onConfigChange, onCurta
 
       {/* Curtain Controls */}
       <div style={{ display: 'flex', gap: 10 }}>
-        <button
-          style={btnStyle('#8B4513', venueConfig.curtainOpen)}
-          disabled={venueConfig.curtainOpen}
-          data-testid="curtain-close-btn"
-          onClick={() => onCurtain('close')}
-        >
-          🎭 Close Curtains
-        </button>
-        <button
-          style={btnStyle('#2d7a2d', !venueConfig.curtainOpen)}
-          disabled={!venueConfig.curtainOpen}
-          data-testid="curtain-open-btn"
-          onClick={() => onCurtain('open')}
-        >
-          🎬 Open Curtains
-        </button>
+        <Tooltip text="Close the stage curtains — hides the stage from the audience" position="bottom">
+          <button
+            style={btnStyle('#8B4513', !venueConfig.curtainOpen)}
+            disabled={!venueConfig.curtainOpen}
+            data-testid="curtain-close-btn"
+            onClick={() => onCurtain('close')}
+          >
+            🎭 Close Curtains
+          </button>
+        </Tooltip>
+        <Tooltip text="Open the curtains to reveal the stage" position="bottom">
+          <button
+            style={btnStyle('#2d7a2d', venueConfig.curtainOpen)}
+            disabled={venueConfig.curtainOpen}
+            data-testid="curtain-open-btn"
+            onClick={() => onCurtain('open')}
+          >
+            🎬 Open Curtains
+          </button>
+        </Tooltip>
       </div>
 
       {/* Lock Config */}
-      <button
-        style={btnStyle(locked ? '#dc3545' : '#6c3483')}
-        data-testid="lock-config-btn"
-        onClick={() => onConfigChange({ configLocked: !locked })}
-      >
-        {locked ? '🔓 Unlock Config' : '🔒 Lock Config'}
-      </button>
+      <Tooltip text={locked ? 'Unlock to allow config changes' : 'Lock config to prevent changes during a live show'} position="bottom">
+        <button
+          style={btnStyle(locked ? '#dc3545' : '#6c3483')}
+          data-testid="lock-config-btn"
+          onClick={() => onConfigChange({ configLocked: !locked })}
+        >
+          {locked ? '🔓 Unlock Config' : '🔒 Lock Config'}
+        </button>
+      </Tooltip>
 
       {locked && (
         <div style={{

@@ -20,6 +20,7 @@ import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import AudienceMonitor from './components/AudienceMonitor';
 import { useLiveKit } from './hooks/useLiveKit';
 import config from './config';
+import OnboardingOverlay from './components/OnboardingOverlay';
 import './App.css';
 import { createPortal } from 'react-dom';
 
@@ -1202,6 +1203,7 @@ function App(): JSX.Element {
                 <button
                   key={type}
                   data-testid={`reaction-${type}`}
+                  title={type === 'clap' ? 'Clap — show your appreciation' : type === 'laugh' ? 'Laugh — react to something funny' : 'Wow — express amazement'}
                   onClick={() => handleReaction(type)}
                   style={{
                     fontSize: 28,
@@ -1303,6 +1305,7 @@ function App(): JSX.Element {
       )}
 
       {isLoggedIn && <CameraControls />}
+      <OnboardingOverlay />
 
       {new URLSearchParams(window.location.search).get('diag') === 'true' && (
         <DiagnosticsPanel

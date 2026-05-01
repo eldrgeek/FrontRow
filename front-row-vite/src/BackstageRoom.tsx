@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'; // useCallback used by startCamera/stopCamera
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import Tooltip from './components/Tooltip';
 import config from './config';
 
 export default function BackstageRoom(): JSX.Element {
@@ -273,26 +274,28 @@ export default function BackstageRoom(): JSX.Element {
           </div>
 
           {/* Go Live */}
-          <button
-            data-testid="go-live-btn"
-            disabled={goingLive || !performerName.trim()}
-            onClick={handleGoLive}
-            style={{
-              padding: '14px 20px',
-              borderRadius: 8,
-              border: '2px solid #ff3b3b',
-              background: goingLive ? '#555' : 'linear-gradient(135deg, #cc0000, #ff3b3b)',
-              color: 'white',
-              fontWeight: 900,
-              fontSize: 18,
-              cursor: goingLive || !performerName.trim() ? 'not-allowed' : 'pointer',
-              opacity: goingLive ? 0.7 : 1,
-              boxShadow: goingLive ? 'none' : '0 0 20px rgba(255,59,59,0.5)',
-              transition: 'all 0.2s',
-            }}
-          >
-            {goingLive ? '⏳ Going Live...' : '🔴 Go Live'}
-          </button>
+          <Tooltip text="Transition from backstage to the main stage — audience will see your entrance" position="left">
+            <button
+              data-testid="go-live-btn"
+              disabled={goingLive || !performerName.trim()}
+              onClick={handleGoLive}
+              style={{
+                padding: '14px 20px',
+                borderRadius: 8,
+                border: '2px solid #ff3b3b',
+                background: goingLive ? '#555' : 'linear-gradient(135deg, #cc0000, #ff3b3b)',
+                color: 'white',
+                fontWeight: 900,
+                fontSize: 18,
+                cursor: goingLive || !performerName.trim() ? 'not-allowed' : 'pointer',
+                opacity: goingLive ? 0.7 : 1,
+                boxShadow: goingLive ? 'none' : '0 0 20px rgba(255,59,59,0.5)',
+                transition: 'all 0.2s',
+              }}
+            >
+              {goingLive ? '⏳ Going Live...' : '🔴 Go Live'}
+            </button>
+          </Tooltip>
 
           {isLive && (
             <div style={{
