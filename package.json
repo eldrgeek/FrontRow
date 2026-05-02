@@ -16,7 +16,10 @@
     "build": "cd front-row-vite && npm run build",
     "test": "cd tests && python auto_test.py",
     "deploy-prep": "./deploy.sh",
-    "build-test": "npm run build && echo 'Build test completed successfully!'"
+    "build-test": "npm run build && echo 'Build test completed successfully!'",
+    "demo:show": "node scripts/run-demo-show.js --live",
+    "demo:record": "node scripts/run-demo-show.js --record",
+    "review:video": "node scripts/run-video-review.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
@@ -34,6 +37,9 @@
   "author": "FRONT ROW Team",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
+    "@google/generative-ai": "^0.24.1",
+    "openai": "^6.35.0",
     "socket.io-client": "^4.8.1"
   }
 }

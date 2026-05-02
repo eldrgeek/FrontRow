@@ -561,7 +561,21 @@ app.post('/api/test/reset', (req, res) => {
     startTime: null,
     status: 'idle',
     audienceSeats: {},
-    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null }
+    reactions: [],
+    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
+    venueConfig: {
+      seatCount: 20,
+      arrangement: 'semicircle',
+      curtainStyle: 'velvet-red',
+      showTitle: '',
+      scheduledStart: null,
+      curtainOpen: false,
+      configLocked: false,
+    },
+    backstageClients: {},
+    performerOnStage: false,
+    performerPosition: { x: 0, z: -8 },
+    spotlightActive: false,
   };
   
   // Clear user profiles
@@ -1108,7 +1122,13 @@ io.on('connection', (socket) => {
         startTime: null,
         status: 'idle',
         audienceSeats: {},
-        countdown: { isActive: false, timeRemaining: 0, totalTime: 0 }
+        reactions: [],
+        countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
+        venueConfig: activeShow.venueConfig || { seatCount: 20, arrangement: 'semicircle', curtainStyle: 'velvet-red', showTitle: '', scheduledStart: null, curtainOpen: false, configLocked: false },
+        backstageClients: {},
+        performerOnStage: false,
+        performerPosition: { x: 0, z: -8 },
+        spotlightActive: false,
       };
       io.emit('show-state-change', { status: 'idle' });
     }
@@ -1183,7 +1203,13 @@ io.on('connection', (socket) => {
       startTime: null,
       status: 'idle',
       audienceSeats: {},
-      countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null }
+      reactions: [],
+      countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
+      venueConfig: activeShow.venueConfig || { seatCount: 20, arrangement: 'semicircle', curtainStyle: 'velvet-red', showTitle: '', scheduledStart: null, curtainOpen: false, configLocked: false },
+      backstageClients: {},
+      performerOnStage: false,
+      performerPosition: { x: 0, z: -8 },
+      spotlightActive: false,
     };
     io.emit('show-state-change', { status: 'idle' });
     console.log('Show state reset to idle');
