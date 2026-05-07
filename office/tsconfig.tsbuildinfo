@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/main.tsx","./src/components/desk.tsx","./src/components/floorplan.tsx","./src/components/rooms.tsx","./src/components/wall.tsx","./src/data/personas.ts","./src/hooks/usecanon.ts","./src/hooks/uselivestate.ts"],"version":"5.9.3"}
