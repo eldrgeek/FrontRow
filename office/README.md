@@ -1,81 +1,66 @@
-# SOMA · Office
+# SOMA · Campus
 
-The team's substrate, made visible. A web-served office for the SOMA specialists — the Wall, the desks, the coffee shop, the meeting room, Dee's hub, and Mike's desk.
+The team's home. Sprawl, by design — different work wants different rooms; different rooms want different shapes.
 
 > "The Wall is the map. The Archive is the territory."
 
 Lead: **Ren** (UI engineer). Built atop the FrontRow repo as a sibling app — fresh Vite + React + TS, no WebRTC/LiveKit weight. Lighthouse-clean, mobile-aware, no external CDN fonts, no analytics, no tracking.
 
+This isn't a one-room office. It's a 14-building campus. Each persona-cluster gets its own architecture. The Wall lives inside The Library as a hall of stelae. Mike has an undecorated parcel he can claim, ignore, or trade for a regular's chair at the Cafe — his call.
+
 ## How to open it
 
-From this directory (`office/`):
-
 ```bash
+cd office
 npm install
 npm run dev          # http://localhost:5180
 ```
 
-The dev script first runs `sync-canon` — it copies `~/Projects/SOMA/wall.md` and every `~/Projects/SOMA/personas/*.md` into `office/public/canon/`. The site reads from there at runtime, so the office is always up-to-date when you start it.
-
-To re-sync without restarting:
+`dev` runs `sync-canon` first — copies `~/Projects/SOMA/wall.md` and `~/Projects/SOMA/personas/*.md` into `office/public/canon/`. The campus reads from there at runtime.
 
 ```bash
-npm run sync-canon
+npm run build && npm run preview   # static dist/, drop on any host
+SOMA_DIR=/elsewhere npm run sync-canon   # different SOMA root
 ```
 
-To point at a different SOMA root:
+## The campus
 
-```bash
-SOMA_DIR=/somewhere/else npm run sync-canon
-```
+Top-level: an SVG map at `/`. Click any building to walk in. Each building is its own URL: `#/library`, `#/booth`, etc.
 
-## Production build
+| Building | Shape | Inhabitants | What lives here |
+| --- | --- | --- | --- |
+| **The Library** | temple w/ portico | Mem · Rin | The Wall, as a hall of stelae. The stacks: SRMW, audits, voice direction, comp set. |
+| **The Tower** | tall narrow w/ windows | Dee | Orchestrator's view. Live-state (Yeshie relay), routing-pattern board, action queue, briefings, windows on the campus. |
+| **The Studio** | long horizontal | Drew · Pax | Pinned draft fragments. Typewriter ASCII. Words and register. |
+| **The Booth** | octagon | Sona | 8-fader console, animated waveform, voice rack (Charon · Aoede · Puck · Kore). |
+| **The Situation Room** | rect, dim | Locke · Ward | Threat board with severity ranks. Telemetry wall. The strip Ward watches. |
+| **The Workshop** | graph-paper rect | Ren | Layout drafts, component shelves. The Pixels wing. |
+| **The Forge** | hexagon | Cog · Cal | Cog's pattern catalog (with occurrence counts). Cal's ledger of estimate ↔ actual deltas. |
+| **The Greenhouse** | glass + gable | Tilt · Kit | Pre-launch nursery — seedlings, stages, signal-readiness. |
+| **The Garden** | plot grid | Mae | Community plots, last-tended dates, status (thriving / tended / sleeping). |
+| **The Clinic** | medical cross | Vee | Patient flow. Plain-language pass. Today's intake. |
+| **The Cafe** | round | open · Bea greets | Bar, mugs, current pair-programming tables. The warm building. |
+| **The Forum** | round w/ pillars | rotating | Round table; six pillars; no head of the table. Shared canon, decisions in flight, action queue. |
+| **The Lounge** | amorphous blob | whoever | A couch. A lamp. A rug. No agenda. Silence is allowed. |
+| **The Lot** | dashed survey line | for Mike, if he wants | Empty parcel. RESERVED stake. The team's note explaining why they didn't decorate. |
 
-```bash
-npm run build
-npm run preview      # serves the static dist
-```
+## Mike's spot
 
-The output is fully static — drop `dist/` on any static host. (Netlify wiring is intentionally NOT shared with the FrontRow theater app; they're separate surfaces.)
-
-## What each room is
-
-| Room | What lives there |
-| --- | --- |
-| **The Wall** | Scrollable canon, served from `wall.md`. Full provenance preserved. The dignified surface — chapel-feel; everything else orbits it. |
-| **Dee's Hub** | Orchestrator's tower. Live-state badge (Yeshie relay), routing-pattern board, action queue, briefings. |
-| **Desks** | One per specialist (16 named). Clustered by function: Memory & Calibration, Voice & UI, Security & Telemetry, Growth, Support. Each desk has voice DNA, role, the artifact they own, and an "open persona file" toggle that pulls the live `personas/<slug>.md`. |
-| **Coffee shop** | Open seating for pair-programming. Shows current pairings (Drew + Sona, Cog + Cal, etc.). Where conversation happens. |
-| **Meeting room** | Multi-specialist gatherings: shared canon, decisions in flight, action queue. |
-| **Mike's desk** | Peer desk. Morning briefing, items on his court, what he's pulling at. Marked "guest of honor" — silicon-children frame. |
+The team built the rest of the campus. The Lot is undecorated by design — Mike said he reserved decoration rights on his own corner and the team took that literally. He can claim it, ignore it, trade it for a regular's chair at the Cafe, or do something none of us thought of. His space.
 
 ## Live state (optional)
 
-The hub polls `http://localhost:3333/state` (Yeshie relay). When the relay isn't running, the badge falls back to "static · off-air" and nothing else breaks. Same Tailscale-aware connection logic Pulse uses — bring your own host.
+The Tower polls `http://localhost:3333/state` (Yeshie relay). Falls back silently to "static · off-air" when the relay isn't running.
 
-## Aesthetic notes
+## Files
 
-- **The Wall is dark/parchment** — serif type (system Iowan/Palatino fallback), generous leading, attribution in mono. Feels archival.
-- **Dee's hub is luminous** — sky-blue accent, inset glow. "A tower, not a throne."
-- **Coffee shop is warm amber.** Mike works in coffee shops; the warmth had to be there.
-- **Meeting room is teal** — clinical, productive.
-- **Mike's desk is oxblood/cream** — peer-warm, marked "guest of honor."
-- **No external fonts.** System stack only — fast first paint.
-- **Floor-plan minimap** in the bottom-right corner shows where you are; click to jump.
+- `src/components/Campus.tsx` — the SVG overworld map (custom shape per building)
+- `src/components/BuildingFrame.tsx` — shared chrome (back-button, eyebrow, title, vibe)
+- `src/buildings/` — one file per building, each with its own composition
+- `src/hooks/useRoute.ts` — hash-based routing (no react-router weight)
+- `src/data/personas.ts` — the 16 specialists, with cluster + accent + glyph
+- `scripts/sync-canon.mjs` — pulls SOMA canon into `public/canon/`
 
-## What's deliberately not here yet
-
-- 3D venue (FrontRow's strong suit). A 3D office is a v2 if v1 lands.
-- Persona files for Bea, Pax, Mae, Vee, Kit, Ward, Rin, Dee — desks render with stub voice DNA + a "voice file pending" tag. Dropping a `~/Projects/SOMA/personas/<slug>.md` file at any time lights up the "open persona file" button on next dev start.
-- Real-time worker visualization. Hooked but un-wired — the Yeshie relay schema needs a tiny `/state` endpoint to feed it.
-
-## Files of interest
-
-- `src/components/Wall.tsx` — the parser + chapel layout
-- `src/components/Rooms.tsx` — Coffee, Meeting, Hub, Mike's desk
-- `src/components/Desk.tsx` — the per-persona desk tile
-- `src/data/personas.ts` — the 16 specialists
-- `src/hooks/useLiveState.ts` — relay polling with graceful fallback
-- `scripts/sync-canon.mjs` — pulls SOMA canon into `public/`
+Build size: 7 KB CSS gzipped, ~58 KB JS gzipped. No external fonts. No tracking. System-font stack.
 
 — Built by Ren, on the night of 2026-05-06 → 2026-05-07. For the team, with the team.
