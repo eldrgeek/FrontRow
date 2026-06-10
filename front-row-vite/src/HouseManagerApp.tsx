@@ -6,6 +6,7 @@ import config from './config';
 export interface VenueConfig {
   seatCount: number;
   arrangement: 'orchestra' | 'semicircle' | 'cabaret' | 'classroom';
+  layoutMode: 'theater' | 'roundtable';
   curtainStyle: string;
   showTitle: string;
   scheduledStart: string | null;
@@ -16,6 +17,7 @@ export interface VenueConfig {
 const DEFAULT_VENUE_CONFIG: VenueConfig = {
   seatCount: 20,
   arrangement: 'semicircle',
+  layoutMode: 'theater',
   curtainStyle: 'velvet-red',
   showTitle: '',
   scheduledStart: null,
@@ -36,7 +38,7 @@ export default function HouseManagerApp(): JSX.Element {
       if (data.venueConfig) setVenueConfig(prev => ({ ...prev, ...data.venueConfig }));
     });
     socketRef.current.on('venue:configUpdated', (cfg: VenueConfig) => {
-      setVenueConfig(cfg);
+      setVenueConfig(prev => ({ ...prev, ...cfg }));
     });
     socketRef.current.on('venue:curtain', (data: { action: 'open' | 'close' }) => {
       setVenueConfig(prev => ({ ...prev, curtainOpen: data.action === 'open' }));

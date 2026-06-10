@@ -2,6 +2,8 @@ node_modules
 __pycache__
 # Local Netlify folder
 .netlify
+# Async message store (runtime data)
+server/data/
 
 # Environment variables
 .env.local

@@ -4,6 +4,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const msgStore = require('./messageStore');
 
 const app = express();
 const server = http.createServer(app);
@@ -44,6 +45,32 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '5mb' })); // Allows larger JSON bodies for Base64 image strings
 
+// ── Async Message Drop & Retrieve ──────────────────────────────────────────
+app.get('/api/messages', (req, res) => {
+  res.json({ messages: msgStore.getAllMessages() });
+});
+
+app.post('/api/messages', (req, res) => {
+  try {
+    const msg = msgStore.saveMessage(req.body || {});
+    io.emit('message:new', msg);
+    res.status(201).json(msg);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/messages/:id/reaction', (req, res) => {
+  const { emoji, author } = req.body || {};
+  if (typeof emoji !== 'string' || !emoji.trim()) {
+    return res.status(400).json({ error: 'emoji is required' });
+  }
+  const msg = msgStore.addReaction(req.params.id, emoji, author);
+  if (!msg) return res.status(404).json({ error: 'message not found' });
+  io.emit('message:updated', msg);
+  res.json(msg);
+});
+
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
 const scheduledShows = []; // { id, artistId, title, dateTime, status: 'scheduled' | 'live' | 'ended' }
@@ -61,6 +88,7 @@ let activeShow = {
   venueConfig: {
     seatCount: 20,
     arrangement: 'semicircle', // 'orchestra' | 'semicircle' | 'cabaret' | 'classroom'
+    layoutMode: 'theater', // 'theater' | 'roundtable'
     curtainStyle: 'velvet-red', // 'velvet-red' | 'none' | CSS color string
     showTitle: '',
     scheduledStart: null, // ISO 8601 or null
@@ -460,6 +488,7 @@ app.post('/api/debug-reset-show', (req, res) => {
     venueConfig: {
       seatCount: 20,
       arrangement: 'semicircle',
+      layoutMode: 'theater',
       curtainStyle: 'velvet-red',
       showTitle: '',
       scheduledStart: null,
@@ -566,6 +595,7 @@ app.post('/api/test/reset', (req, res) => {
     venueConfig: {
       seatCount: 20,
       arrangement: 'semicircle',
+      layoutMode: 'theater',
       curtainStyle: 'velvet-red',
       showTitle: '',
       scheduledStart: null,
@@ -1124,7 +1154,7 @@ io.on('connection', (socket) => {
         audienceSeats: {},
         reactions: [],
         countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
-        venueConfig: activeShow.venueConfig || { seatCount: 20, arrangement: 'semicircle', curtainStyle: 'velvet-red', showTitle: '', scheduledStart: null, curtainOpen: false, configLocked: false },
+        venueConfig: activeShow.venueConfig || { seatCount: 20, arrangement: 'semicircle', layoutMode: 'theater', curtainStyle: 'velvet-red', showTitle: '', scheduledStart: null, curtainOpen: false, configLocked: false },
         backstageClients: {},
         performerOnStage: false,
         performerPosition: { x: 0, z: -8 },
@@ -1205,7 +1235,7 @@ io.on('connection', (socket) => {
       audienceSeats: {},
       reactions: [],
       countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
-      venueConfig: activeShow.venueConfig || { seatCount: 20, arrangement: 'semicircle', curtainStyle: 'velvet-red', showTitle: '', scheduledStart: null, curtainOpen: false, configLocked: false },
+      venueConfig: activeShow.venueConfig || { seatCount: 20, arrangement: 'semicircle', layoutMode: 'theater', curtainStyle: 'velvet-red', showTitle: '', scheduledStart: null, curtainOpen: false, configLocked: false },
       backstageClients: {},
       performerOnStage: false,
       performerPosition: { x: 0, z: -8 },
@@ -1378,6 +1408,7 @@ io.on('connection', (socket) => {
       if (!activeShow.venueConfig.configLocked) updates.seatCount = data.seatCount;
     }
     if (valid.arrangement.includes(data.arrangement)) updates.arrangement = data.arrangement;
+    if (data.layoutMode === 'theater' || data.layoutMode === 'roundtable') updates.layoutMode = data.layoutMode;
     if (typeof data.curtainStyle === 'string') updates.curtainStyle = data.curtainStyle;
     if (typeof data.showTitle === 'string') updates.showTitle = data.showTitle;
     if (data.scheduledStart === null || typeof data.scheduledStart === 'string') {

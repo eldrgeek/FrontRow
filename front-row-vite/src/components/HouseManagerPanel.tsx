@@ -103,6 +103,23 @@ export default function HouseManagerPanel({ venueConfig, onConfigChange, onCurta
         </select>
       </div>
 
+      {/* Layout Mode */}
+      <div>
+        <Tooltip text="Theater mode shows the stage and curtains; Round-Table mode arranges everyone around a central table for community gatherings" position="right">
+          <label style={labelStyle}>Layout Mode</label>
+        </Tooltip>
+        <select
+          value={venueConfig.layoutMode}
+          disabled={locked}
+          style={selectStyle}
+          data-testid="layout-mode-select"
+          onChange={e => onConfigChange({ layoutMode: e.target.value as VenueConfig['layoutMode'] })}
+        >
+          <option value="theater">🎭 Theater</option>
+          <option value="roundtable">⭕ Round-Table</option>
+        </select>
+      </div>
+
       {/* Curtain Style */}
       <div>
         <label style={labelStyle}>Curtain Style</label>

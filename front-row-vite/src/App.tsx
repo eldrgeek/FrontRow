@@ -5,6 +5,8 @@ import { OrbitControls, Environment, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 import Stage from './components/Stage';
 import SeatSelection from './components/SeatSelection';
+import RoundTableLayout from './components/RoundTableLayout';
+import AsyncMessagePanel from './components/AsyncMessagePanel';
 import UserInputForm from './components/UserInputForm';
 import PerformerView from './components/PerformerView';
 import UserView from './components/UserView';
@@ -28,6 +30,7 @@ import { createPortal } from 'react-dom';
 interface VenueConfig {
   seatCount: number;
   arrangement: 'orchestra' | 'semicircle' | 'cabaret' | 'classroom';
+  layoutMode: 'theater' | 'roundtable';
   curtainStyle: string;
   showTitle: string;
   scheduledStart: string | null;
@@ -94,6 +97,7 @@ function App(): JSX.Element {
   const [venueConfig, setVenueConfig] = useState<VenueConfig>({
     seatCount: 20,
     arrangement: 'semicircle',
+    layoutMode: 'theater',
     curtainStyle: 'velvet-red',
     showTitle: '',
     scheduledStart: null,
@@ -290,7 +294,7 @@ function App(): JSX.Element {
       setShowState(data.status);
       // Phase 2: sync venueConfig on join/update
       if (data.venueConfig) {
-        setVenueConfig(data.venueConfig);
+        setVenueConfig(prev => ({ ...prev, ...data.venueConfig }));
         setCurtainStyle(data.venueConfig.curtainStyle);
         setCurtainOpen(data.venueConfig.curtainOpen ?? false);
       }
@@ -361,7 +365,7 @@ function App(): JSX.Element {
 
     // ── Phase 2 socket events ──────────────────────────────────────────────
     socketRef.current.on('venue:configUpdated', (cfg: VenueConfig) => {
-      setVenueConfig(cfg);
+      setVenueConfig(prev => ({ ...prev, ...cfg }));
       setCurtainStyle(cfg.curtainStyle);
       setCurtainOpen(cfg.curtainOpen);
     });
@@ -973,34 +977,49 @@ function App(): JSX.Element {
               onPositionChange={handleCameraPositionChange}
             />
 
-            <Stage
-              config={config}
-              showState={showState}
-              fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g"
-              performerStream={performerStream}
-              countdownTime={countdownTime}
-              isCountdownActive={isCountdownActive}
-              isPerformer={isPerformer()}
-              screenPosition={screenPosition}
-              performerOnStage={performerOnStage}
-              performerStageZ={performerStageZ}
-              performerStageX={performerStageX}
-              performerOpacity={performerOpacity}
-              curtainOpen={curtainOpen}
-              curtainStyle={curtainStyle}
-              reactionLevel={reactionLevel}
-              spotlightActive={spotlightActive}
-            />
-            <SeatSelection
-              selectedSeat={selectedSeat}
-              onSeatSelect={handleSeatSelect}
-              audienceSeats={audienceSeats}
-              mySocketId={mySocketId}
-              myVideoStream={userVideoStream}
-              myCaptureMode={userCaptureMode}
-              hideMyPhoto={currentView === 'user'}
-              audienceStreams={audienceStreams}
-            />
+            {venueConfig.layoutMode === 'roundtable' ? (
+              <RoundTableLayout
+                numSeats={Math.min(venueConfig.seatCount, 20)}
+                audienceSeats={audienceSeats}
+                selectedSeat={selectedSeat}
+                onSeatSelect={handleSeatSelect}
+                mySocketId={mySocketId}
+                myVideoStream={userVideoStream || undefined}
+                myCaptureMode={userCaptureMode}
+                audienceStreams={audienceStreams}
+              />
+            ) : (
+              <>
+                <Stage
+                  config={config}
+                  showState={showState}
+                  fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g"
+                  performerStream={performerStream}
+                  countdownTime={countdownTime}
+                  isCountdownActive={isCountdownActive}
+                  isPerformer={isPerformer()}
+                  screenPosition={screenPosition}
+                  performerOnStage={performerOnStage}
+                  performerStageZ={performerStageZ}
+                  performerStageX={performerStageX}
+                  performerOpacity={performerOpacity}
+                  curtainOpen={curtainOpen}
+                  curtainStyle={curtainStyle}
+                  reactionLevel={reactionLevel}
+                  spotlightActive={spotlightActive}
+                />
+                <SeatSelection
+                  selectedSeat={selectedSeat}
+                  onSeatSelect={handleSeatSelect}
+                  audienceSeats={audienceSeats}
+                  mySocketId={mySocketId}
+                  myVideoStream={userVideoStream}
+                  myCaptureMode={userCaptureMode}
+                  hideMyPhoto={currentView === 'user'}
+                  audienceStreams={audienceStreams}
+                />
+              </>
+            )}
 
             {isPerformer() && (
               <PerformerView localStream={localStreamRef.current} />
@@ -1148,6 +1167,15 @@ function App(): JSX.Element {
         <div className="ui-overlay">
           {/* Hidden show state for E2E testing */}
           <span data-testid="show-state" style={{ display: 'none' }}>{showState}</span>
+
+          {/* Async message drop & retrieve */}
+          {isLoggedIn && (
+            <AsyncMessagePanel
+              userName={userName}
+              socket={socketConnected ? socketRef.current : null}
+              backendUrl={config.backendUrl}
+            />
+          )}
 
           {!isLoggedIn && !showStreamChoice && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
