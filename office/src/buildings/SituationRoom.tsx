@@ -3,28 +3,27 @@ import { Desk } from '../components/Desk';
 import { PERSONAS } from '../data/personas';
 
 const THREATS = [
-  { sev: 'high',   what: 'mock prompt-injection from email sender list',         status: 'mitigated', who: 'Locke' },
-  { sev: 'med',    what: 'cc-bridge MCP token surface — needs rotation policy',  status: 'open',      who: 'Locke' },
-  { sev: 'med',    what: 'Yeshie relay bind-address audit (was 0.0.0.0)',        status: 'closed',    who: 'Locke' },
-  { sev: 'low',    what: 'memory file write race — aggregator-only enforced',    status: 'closed',    who: 'Locke' },
+  { sev: 'high',   what: 'mock prompt-injection from email sender list',        status: 'mitigated', who: 'Locke' },
+  { sev: 'med',    what: 'cc-bridge MCP token surface — needs rotation policy', status: 'open',      who: 'Locke' },
+  { sev: 'med',    what: 'Yeshie relay bind-address audit (was 0.0.0.0)',       status: 'closed',    who: 'Locke' },
+  { sev: 'low',    what: 'memory file write race — aggregator-only enforced',   status: 'closed',    who: 'Locke' },
 ];
 
 const TELEMETRY = [
-  { metric: 'dispatch p95', value: '4.2s',  trend: 'flat' },
-  { metric: 'agent uptime', value: '99.7%', trend: 'up' },
+  { metric: 'dispatch p95',    value: '4.2s',  trend: 'flat' },
+  { metric: 'agent uptime',    value: '99.7%', trend: 'up' },
   { metric: 'tool errors / hr', value: '0.4', trend: 'down' },
-  { metric: 'queue depth', value: '3', trend: 'flat' },
+  { metric: 'queue depth',     value: '3',     trend: 'flat' },
 ];
 
 export function SituationRoom({ onBack }: { onBack: () => void }) {
   const locke = PERSONAS.find(p => p.slug === 'locke')!;
-  const ward = PERSONAS.find(p => p.slug === 'ward')!;
   return (
     <BuildingFrame
       route="situation"
-      eyebrow="trust boundaries · curves under pressure"
+      eyebrow="trust boundaries · threat models"
       title="The Situation Room"
-      inhabitants="Locke · Ward"
+      inhabitants="Locke"
       vibe="dim room, walls of telemetry, severity ranks on the threat board"
       onBack={onBack}
     >
@@ -48,7 +47,7 @@ export function SituationRoom({ onBack }: { onBack: () => void }) {
           </table>
         </div>
         <div className="sit-telemetry" aria-label="Telemetry wall">
-          <div className="sit-eyebrow">telemetry wall — Ward's view</div>
+          <div className="sit-eyebrow">telemetry wall — Locke's monitoring view</div>
           <div className="sit-metrics">
             {TELEMETRY.map(t => (
               <div key={t.metric} className="sit-metric">
@@ -64,9 +63,8 @@ export function SituationRoom({ onBack }: { onBack: () => void }) {
             ))}
           </div>
         </div>
-        <div className="sit-desks">
+        <div className="sit-desks sit-desks-solo">
           <Desk persona={locke} />
-          <Desk persona={ward} />
         </div>
       </div>
     </BuildingFrame>

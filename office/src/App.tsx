@@ -10,11 +10,13 @@ import { Workshop } from './buildings/Workshop';
 import { Forge } from './buildings/Forge';
 import { Greenhouse } from './buildings/Greenhouse';
 import { Garden } from './buildings/Garden';
-import { Clinic } from './buildings/Clinic';
+import { Switchboard } from './buildings/Switchboard';
 import { Cafe } from './buildings/Cafe';
 import { Forum } from './buildings/Forum';
-import { Lounge } from './buildings/Lounge';
-import { Lot } from './buildings/Lot';
+import { Stage } from './buildings/Stage';
+import { Atrium } from './buildings/Atrium';
+import { Lab } from './buildings/Lab';
+import { GuestHouse } from './buildings/GuestHouse';
 import { useLiveState } from './hooks/useLiveState';
 import { useManifest } from './hooks/useCanon';
 
@@ -26,21 +28,23 @@ export default function App() {
 
   let body;
   switch (route) {
-    case 'library':    body = <Library    onBack={back} />; break;
-    case 'studio':     body = <Studio     onBack={back} />; break;
-    case 'booth':      body = <Booth      onBack={back} />; break;
-    case 'situation':  body = <SituationRoom onBack={back} />; break;
-    case 'tower':      body = <Tower      onBack={back} onPick={(r) => go(r as Route)} />; break;
-    case 'workshop':   body = <Workshop   onBack={back} />; break;
-    case 'forge':      body = <Forge      onBack={back} />; break;
-    case 'greenhouse': body = <Greenhouse onBack={back} />; break;
-    case 'garden':     body = <Garden     onBack={back} />; break;
-    case 'clinic':     body = <Clinic     onBack={back} />; break;
-    case 'cafe':       body = <Cafe       onBack={back} />; break;
-    case 'forum':      body = <Forum      onBack={back} />; break;
-    case 'lounge':     body = <Lounge     onBack={back} />; break;
-    case 'lot':        body = <Lot        onBack={back} />; break;
-    default:           body = <Campus     onPick={go} />;
+    case 'library':     body = <Library      onBack={back} />; break;
+    case 'studio':      body = <Studio       onBack={back} />; break;
+    case 'booth':       body = <Booth        onBack={back} />; break;
+    case 'situation':   body = <SituationRoom onBack={back} />; break;
+    case 'tower':       body = <Tower        onBack={back} onPick={(r) => go(r as Route)} />; break;
+    case 'workshop':    body = <Workshop     onBack={back} />; break;
+    case 'forge':       body = <Forge        onBack={back} />; break;
+    case 'greenhouse':  body = <Greenhouse   onBack={back} />; break;
+    case 'garden':      body = <Garden       onBack={back} />; break;
+    case 'switchboard': body = <Switchboard  onBack={back} />; break;
+    case 'cafe':        body = <Cafe         onBack={back} />; break;
+    case 'forum':       body = <Forum        onBack={back} />; break;
+    case 'stage':       body = <Stage        onBack={back} />; break;
+    case 'atrium':      body = <Atrium       onBack={back} />; break;
+    case 'lab':         body = <Lab          onBack={back} />; break;
+    case 'guesthouse':  body = <GuestHouse   onBack={back} />; break;
+    default:            body = <Campus       onPick={go} />;
   }
 
   return (

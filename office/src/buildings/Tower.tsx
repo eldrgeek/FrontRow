@@ -20,14 +20,21 @@ export function Tower({ onBack, onPick }: { onBack: () => void; onPick: (r: stri
           <div className="tower-eyebrow">windows on the campus</div>
           <ul className="tower-list">
             {[
-              ['library', 'The Library', 'reading'],
-              ['studio',  'The Studio',  'drafting'],
-              ['booth',   'The Booth',   'rendering'],
-              ['situation','Situation Room','watching'],
-              ['workshop','The Workshop','laying out'],
-              ['forge',   'The Forge',   'pre-flighting'],
-              ['greenhouse','The Greenhouse','growing'],
-              ['cafe',    'The Cafe',    'pairing'],
+              ['library',     'The Library',      'reading'],
+              ['studio',      'The Studio',       'drafting'],
+              ['booth',       'The Booth',        'rendering'],
+              ['situation',   'Situation Room',   'watching'],
+              ['workshop',    'The Workshop',     'laying out'],
+              ['forge',       'The Forge',        'pre-flighting'],
+              ['greenhouse',  'The Greenhouse',   'growing'],
+              ['cafe',        'The Cafe',         'pairing'],
+              ['forum',       'The Forum',        'deliberating'],
+              ['garden',      'The Garden',       'tending'],
+              ['switchboard', 'The Switchboard',  'routing'],
+              ['stage',       'The Stage',        'composing'],
+              ['lab',         'The Lab',          'automating'],
+              ['guesthouse',  'The Guest House',  'serving'],
+              ['atrium',      'The Atrium',       'connecting'],
             ].map(([r, label, doing]) => (
               <li key={r}>
                 <button className="tower-win" onClick={() => onPick(r)}>
@@ -60,15 +67,15 @@ export function Tower({ onBack, onPick }: { onBack: () => void; onPick: (r: stri
             <div className="tower-eyebrow">action queue</div>
             <ol className="tower-queue">
               <li>review SOMA-STATE drift vs latest audits</li>
-              <li>Cog: extract patterns from last night's traces</li>
               <li>Cal: log estimate ↔ actual on closed work</li>
               <li>Locke: pre-merge sweep of dispatch routes</li>
               <li>Mae: backer thread that pinged twice</li>
+              <li>Opie: phase-boundary framing for Q3</li>
             </ol>
           </div>
           <div className="tower-card">
             <div className="tower-eyebrow">briefings</div>
-            <p>Morning briefing lands at 06:30 local. Cog rolls up the week's mined patterns; Cal posts the calibration trend; Mae flags any backer thread that needs Mike's eye.</p>
+            <p>Morning briefing lands at 06:30 local. Cal posts the calibration trend; Mae flags any backer thread that needs Mike's eye; Opie holds the longer arc.</p>
           </div>
           <div className="tower-card tower-deskwrap">
             <Desk persona={dee} />

@@ -30,14 +30,14 @@ export function Library({ onBack }: { onBack: () => void }) {
   const md = useWallText();
   const quotes = useMemo(() => parseQuotes(md), [md]);
   const mem = PERSONAS.find(p => p.slug === 'mem')!;
-  const rin = PERSONAS.find(p => p.slug === 'rin')!;
+  const levin = PERSONAS.find(p => p.slug === 'levin')!;
 
   return (
     <BuildingFrame
       route="library"
       eyebrow="canon · the archive · the territory"
       title="The Library"
-      inhabitants="Mem · Rin · The Wall lives here"
+      inhabitants="Mem · Levin · The Wall lives here"
       vibe="reading hall + stacks + hall of stelae"
       onBack={onBack}
     >
@@ -46,14 +46,15 @@ export function Library({ onBack }: { onBack: () => void }) {
           <header className="lib-stacks-head">stacks</header>
           <ol className="lib-shelves">
             {[
-              ['SRMW', 'Mike’s collected writings'],
+              ['SRMW', 'Mike\'s collected writings'],
               ['Wall index', 'attributed quotes, dated'],
-              ['Voice direction', 'style guide — Pax + Drew'],
+              ['Voice direction', 'style guide — Drew + team'],
               ['SOMA-v2.0', 'architectural'],
               ['SOMA-STATE', 'what works vs aspirational'],
               ['Audits', 'session synthesis logs'],
-              ['Comp set', 'Rin’s reading shelf'],
-              ['Personas', 'all 16 voices'],
+              ['Levin RAG', '13K+ chunks from papers/videos/blog'],
+              ['Yeshie recipes', 'web automation library'],
+              ['Personas', 'all 24 voices'],
             ].map(([t, s], i) => (
               <li key={i} className="lib-shelf">
                 <span className="lib-shelf-spine" />
@@ -76,7 +77,7 @@ export function Library({ onBack }: { onBack: () => void }) {
             {quotes.map((q, i) => (
               <figure key={i} className="stele">
                 <div className="stele-cap" aria-hidden />
-                <blockquote>“{q.text}”</blockquote>
+                <blockquote>"{q.text}"</blockquote>
                 {q.attribution && <figcaption>— {q.attribution}</figcaption>}
                 <div className="stele-base" aria-hidden />
               </figure>
@@ -87,7 +88,7 @@ export function Library({ onBack }: { onBack: () => void }) {
         <aside className="lib-desks" aria-label="Library desks">
           <header className="lib-desks-head">desks</header>
           <Desk persona={mem} />
-          <Desk persona={rin} />
+          <Desk persona={levin} />
         </aside>
       </div>
     </BuildingFrame>

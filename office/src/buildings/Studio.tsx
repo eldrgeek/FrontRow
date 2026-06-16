@@ -9,18 +9,20 @@ const DRAFT_FRAGMENTS = [
   'The register slipped in paragraph four — pull it back.',
   'NOT NPR. SV-startup, weird-adjacent.',
   'Land the ending on a noun, not a clause.',
+  'One motif. Let it become inevitable.',
+  'Score to the cut — not the script.',
 ];
 
 export function Studio({ onBack }: { onBack: () => void }) {
   const drew = PERSONAS.find(p => p.slug === 'drew')!;
-  const pax = PERSONAS.find(p => p.slug === 'pax')!;
+  const riff = PERSONAS.find(p => p.slug === 'riff')!;
   return (
     <BuildingFrame
       route="studio"
       eyebrow="words that get spoken"
       title="The Studio"
-      inhabitants="Drew · Pax"
-      vibe="long writing room — typewriters, pinned drafts, register on the wall"
+      inhabitants="Drew · Riff"
+      vibe="long writing room — typewriters, pinned drafts, a corner piano, register on the wall"
       onBack={onBack}
     >
       <div className="studio-shell">
@@ -43,7 +45,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
       |   ============                            |
       |                                           |
       |   Drew worries about words.               |
-      |   Pax worries about register.             |
+      |   Riff worries about what they land on.   |
       |   Together: the line earns its place.     |
       |                                           |
       |   ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮ ▮      |
@@ -53,7 +55,7 @@ export function Studio({ onBack }: { onBack: () => void }) {
         </div>
         <div className="studio-desks">
           <Desk persona={drew} />
-          <Desk persona={pax} />
+          <Desk persona={riff} />
         </div>
       </div>
     </BuildingFrame>

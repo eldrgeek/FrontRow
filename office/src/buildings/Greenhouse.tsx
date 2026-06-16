@@ -11,13 +11,13 @@ const SEEDS = [
 
 export function Greenhouse({ onBack }: { onBack: () => void }) {
   const tilt = PERSONAS.find(p => p.slug === 'tilt')!;
-  const kit = PERSONAS.find(p => p.slug === 'kit')!;
+  const rally = PERSONAS.find(p => p.slug === 'rally')!;
   return (
     <BuildingFrame
       route="greenhouse"
       eyebrow="things that need light and time"
       title="The Greenhouse"
-      inhabitants="Tilt · Kit"
+      inhabitants="Tilt · Rally"
       vibe="glass walls. tables of seedlings. a pre-launch nursery."
       onBack={onBack}
     >
@@ -40,12 +40,12 @@ export function Greenhouse({ onBack }: { onBack: () => void }) {
         </div>
         <div className="green-desks">
           <Desk persona={tilt} />
-          <Desk persona={kit} />
+          <Desk persona={rally} />
         </div>
         <div className="green-note">
           <em>Tilt:</em> "Goals are consequences, not inputs. The curve closes before launch day or the launch day's a problem."
           <br />
-          <em>Kit:</em> "Your trailer is two beats too long. I'm not telling you what to cut."
+          <em>Rally:</em> "Platform selection is a bet. Make it explicitly, with the exit clause built in."
         </div>
       </div>
     </BuildingFrame>

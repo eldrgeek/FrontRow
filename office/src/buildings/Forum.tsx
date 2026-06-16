@@ -1,13 +1,16 @@
 import { BuildingFrame } from '../components/BuildingFrame';
+import { Desk } from '../components/Desk';
+import { PERSONAS } from '../data/personas';
 
 export function Forum({ onBack }: { onBack: () => void }) {
+  const opie = PERSONAS.find(p => p.slug === 'opie')!;
   return (
     <BuildingFrame
       route="forum"
       eyebrow="round table · all voices"
       title="The Forum"
-      inhabitants="rotating · whoever the question needs"
-      vibe="round hall, columns, no head of the table."
+      inhabitants="Opie · rotating — all voices welcome"
+      vibe="round hall, columns, no head of the table. Opie holds the long view."
       onBack={onBack}
     >
       <div className="forum-shell">
@@ -26,7 +29,7 @@ export function Forum({ onBack }: { onBack: () => void }) {
             <ul>
               <li>The Wall — curated; new entries require attribution + date</li>
               <li>SOMA-v2.0 — architectural; SOMA-STATE for what actually works</li>
-              <li>Voice direction style guide — Pax + Drew</li>
+              <li>Voice direction style guide — Drew + team</li>
             </ul>
           </div>
           <div className="forum-col">
@@ -40,11 +43,15 @@ export function Forum({ onBack }: { onBack: () => void }) {
           <div className="forum-col">
             <h4>action queue</h4>
             <ul>
-              <li>Cog daemon: end-of-session trace mining</li>
               <li>Cal: weekly per-specialist coaching note</li>
               <li>Locke: threat-model review for new MCPs</li>
+              <li>Opie: phase-boundary framing for Q3</li>
             </ul>
           </div>
+        </div>
+        <div className="forum-opie-desk">
+          <div className="forum-eyebrow-desk">strategic seat</div>
+          <Desk persona={opie} />
         </div>
       </div>
     </BuildingFrame>

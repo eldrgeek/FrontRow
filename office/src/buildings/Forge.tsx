@@ -17,20 +17,21 @@ const ESTIMATES = [
 ];
 
 export function Forge({ onBack }: { onBack: () => void }) {
-  const cog = PERSONAS.find(p => p.slug === 'cog')!;
   const cal = PERSONAS.find(p => p.slug === 'cal')!;
+  const skip = PERSONAS.find(p => p.slug === 'skip')!;
+  const sol = PERSONAS.find(p => p.slug === 'sol')!;
   return (
     <BuildingFrame
       route="forge"
-      eyebrow="process · pattern · pre-flight"
+      eyebrow="estimates · critique · resolve"
       title="The Forge"
-      inhabitants="Cog · Cal"
+      inhabitants="Cal · Skip · Sol"
       vibe="hot. iron rack of catalogued patterns. ledger of estimates vs actuals."
       onBack={onBack}
     >
       <div className="forge-shell">
         <div className="forge-rack" aria-label="Pattern catalog">
-          <div className="forge-eyebrow">Cog's catalog · failure patterns</div>
+          <div className="forge-eyebrow">pattern catalog · failure lessons</div>
           <ul className="forge-patterns">
             {PATTERNS.map((p, i) => (
               <li key={i} className="forge-pattern">
@@ -58,8 +59,9 @@ export function Forge({ onBack }: { onBack: () => void }) {
           </table>
         </div>
         <div className="forge-desks">
-          <Desk persona={cog} />
           <Desk persona={cal} />
+          <Desk persona={skip} />
+          <Desk persona={sol} />
         </div>
       </div>
     </BuildingFrame>

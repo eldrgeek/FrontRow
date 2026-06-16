@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import type { Persona } from '../data/personas';
 import { usePersonaText } from '../hooks/useCanon';
+import { ChatPanel } from './ChatPanel';
 
 export function Desk({ persona }: { persona: Persona }) {
   const [open, setOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const text = usePersonaText(persona.slug, persona.fileExists);
 
-  // micro-touches per persona — small visual flourishes that echo their domain
   const tile = persona.cluster === 'orchestrator' ? 'desk-tile desk-elev' : 'desk-tile';
 
   return (
     <article
       className={tile}
-      style={{ ['--accent' as any]: persona.accent }}
+      style={{ ['--accent' as string]: persona.accent }}
       aria-labelledby={`desk-${persona.slug}`}
     >
       <div className="desk-glyph" aria-hidden>{persona.glyph}</div>
@@ -31,8 +32,29 @@ export function Desk({ persona }: { persona: Persona }) {
         </div>
       )}
       <footer className="desk-foot">
+        {persona.voiceUrl && (
+          <a
+            className="desk-voice-url"
+            href={persona.voiceUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Talk by voice →
+          </a>
+        )}
+        <button
+          className="desk-meet-btn"
+          onClick={() => { setChatOpen(o => !o); setOpen(false); }}
+          aria-expanded={chatOpen}
+        >
+          {chatOpen ? 'close chat' : `Meet ${persona.name}`}
+        </button>
         {persona.fileExists ? (
-          <button className="desk-link" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+          <button
+            className="desk-link"
+            onClick={() => { setOpen(o => !o); setChatOpen(false); }}
+            aria-expanded={open}
+          >
             {open ? 'close' : 'open'} persona file
           </button>
         ) : (
@@ -41,6 +63,9 @@ export function Desk({ persona }: { persona: Persona }) {
       </footer>
       {open && text && (
         <pre className="desk-body" tabIndex={0}>{text}</pre>
+      )}
+      {chatOpen && (
+        <ChatPanel persona={persona} systemPrompt={text} />
       )}
     </article>
   );

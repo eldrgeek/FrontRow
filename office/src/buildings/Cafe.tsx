@@ -4,21 +4,21 @@ import { PERSONAS } from '../data/personas';
 
 const PAIRS: [string, string, string][] = [
   ['Drew', 'Sona', 'mastering pass on the Alene+Jason cut'],
-  ['Cog', 'Cal', 'wiring pre-flight into estimation deltas'],
-  ['Ren', 'Pax', 'register check on the Pulse copy'],
-  ['Tilt', 'Rin', 'comp-set sanity on the Q3 launch'],
-  ['Locke', 'Ward', 'threat-model + telemetry alignment'],
+  ['Tilt', 'Rally', 'platform selection for Q3 campaign'],
+  ['Ren', 'Opie', 'long-view framing for Pulse UI'],
+  ['Kelp', 'Mae', 'pastoral register — inward vs outward boundary'],
+  ['Locke', 'Skip', 'adversarial threat-model alignment'],
 ];
 
 export function Cafe({ onBack }: { onBack: () => void }) {
-  const bea = PERSONAS.find(p => p.slug === 'bea')!;
+  const greta = PERSONAS.find(p => p.slug === 'greta')!;
   return (
     <BuildingFrame
       route="cafe"
-      eyebrow="open seating · pair-programming"
+      eyebrow="open seating · onboarding · pair-programming"
       title="The Cafe"
-      inhabitants="open · Bea greets at the door"
-      vibe="round building, warm light, the bar runs along the back wall."
+      inhabitants="Greta · open seating"
+      vibe="round building, warm light, the bar runs along the back wall. Greta greets every first visit."
       onBack={onBack}
     >
       <div className="cafe-shell">
@@ -48,7 +48,7 @@ export function Cafe({ onBack }: { onBack: () => void }) {
         </div>
         <div className="cafe-greeter">
           <div className="cafe-eyebrow">at the door</div>
-          <Desk persona={bea} />
+          <Desk persona={greta} />
         </div>
       </div>
     </BuildingFrame>

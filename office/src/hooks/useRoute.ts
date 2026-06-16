@@ -4,25 +4,28 @@ export type Route =
   | 'campus'
   | 'library' | 'studio' | 'booth' | 'situation'
   | 'tower' | 'workshop' | 'forge'
-  | 'greenhouse' | 'garden' | 'clinic'
-  | 'cafe' | 'forum' | 'lounge' | 'lot';
+  | 'greenhouse' | 'garden' | 'switchboard'
+  | 'cafe' | 'forum' | 'stage'
+  | 'atrium' | 'lab' | 'guesthouse';
 
 export const ROUTE_LABELS: Record<Route, string> = {
-  campus: 'Campus',
-  library: 'The Library',
-  studio: 'The Studio',
-  booth: 'The Booth',
-  situation: 'The Situation Room',
-  tower: 'The Tower',
-  workshop: 'The Workshop',
-  forge: 'The Forge',
-  greenhouse: 'The Greenhouse',
-  garden: 'The Garden',
-  clinic: 'The Clinic',
-  cafe: 'The Cafe',
-  forum: 'The Forum',
-  lounge: 'The Lounge',
-  lot: "The Lot",
+  campus:      'Campus',
+  library:     'The Library',
+  studio:      'The Studio',
+  booth:       'The Booth',
+  situation:   'The Situation Room',
+  tower:       'The Tower',
+  workshop:    'The Workshop',
+  forge:       'The Forge',
+  greenhouse:  'The Greenhouse',
+  garden:      'The Garden',
+  switchboard: 'The Switchboard',
+  cafe:        'The Cafe',
+  forum:       'The Forum',
+  stage:       'The Stage',
+  atrium:      'The Atrium',
+  lab:         'The Lab',
+  guesthouse:  'The Guest House',
 };
 
 const VALID = new Set(Object.keys(ROUTE_LABELS));
