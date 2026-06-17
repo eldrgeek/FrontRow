@@ -3,9 +3,24 @@
   publish = "dist"
   functions = "netlify/functions"
 
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/api/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Access-Control-Allow-Methods = "POST, OPTIONS"
     Access-Control-Allow-Headers = "Content-Type"
+
+[dev]
+  command = "npm run dev"
+  framework = "#custom"
+  targetPort = 5180
+  port = 8888
+  publish = "dist"
+  autoLaunch = false
