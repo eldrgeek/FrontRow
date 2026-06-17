@@ -1,0 +1,139 @@
+{
+  "generatedAt": "2026-06-17T01:42:42.630Z",
+  "wall": {
+    "exists": true,
+    "bytes": 22110
+  },
+  "personas": [
+    {
+      "slug": "cal",
+      "file": "personas/cal.md",
+      "bytes": 43222
+    },
+    {
+      "slug": "coach",
+      "file": "personas/coach.md",
+      "bytes": 3116
+    },
+    {
+      "slug": "cora",
+      "file": "personas/cora.md",
+      "bytes": 2874
+    },
+    {
+      "slug": "dee",
+      "file": "personas/dee.md",
+      "bytes": 6579
+    },
+    {
+      "slug": "dewey",
+      "file": "personas/dewey.md",
+      "bytes": 1729
+    },
+    {
+      "slug": "drew",
+      "file": "personas/drew.md",
+      "bytes": 313
+    },
+    {
+      "slug": "greta",
+      "file": "personas/greta.md",
+      "bytes": 30466
+    },
+    {
+      "slug": "hermes",
+      "file": "personas/hermes.md",
+      "bytes": 6340
+    },
+    {
+      "slug": "kelp",
+      "file": "personas/kelp.md",
+      "bytes": 9656
+    },
+    {
+      "slug": "levin",
+      "file": "personas/levin.md",
+      "bytes": 5970
+    },
+    {
+      "slug": "locke",
+      "file": "personas/locke.md",
+      "bytes": 32188
+    },
+    {
+      "slug": "mae",
+      "file": "personas/mae.md",
+      "bytes": 5942
+    },
+    {
+      "slug": "mem",
+      "file": "personas/mem.md",
+      "bytes": 5857
+    },
+    {
+      "slug": "mem-memory-patches",
+      "file": "personas/MEM-MEMORY-PATCHES.md",
+      "bytes": 1189
+    },
+    {
+      "slug": "opie",
+      "file": "personas/opie.md",
+      "bytes": 6598
+    },
+    {
+      "slug": "penn",
+      "file": "personas/penn.md",
+      "bytes": 3155
+    },
+    {
+      "slug": "rally",
+      "file": "personas/rally.md",
+      "bytes": 9969
+    },
+    {
+      "slug": "registry",
+      "file": "personas/REGISTRY.md",
+      "bytes": 11094
+    },
+    {
+      "slug": "ren",
+      "file": "personas/ren.md",
+      "bytes": 14604
+    },
+    {
+      "slug": "riff",
+      "file": "personas/riff.md",
+      "bytes": 7445
+    },
+    {
+      "slug": "skip",
+      "file": "personas/skip.md",
+      "bytes": 5289
+    },
+    {
+      "slug": "sol",
+      "file": "personas/sol.md",
+      "bytes": 5331
+    },
+    {
+      "slug": "sona",
+      "file": "personas/sona.md",
+      "bytes": 10046
+    },
+    {
+      "slug": "tilt",
+      "file": "personas/tilt.md",
+      "bytes": 24298
+    },
+    {
+      "slug": "vera",
+      "file": "personas/vera.md",
+      "bytes": 4532
+    },
+    {
+      "slug": "yeshie",
+      "file": "personas/yeshie.md",
+      "bytes": 6158
+    }
+  ]
+}

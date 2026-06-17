@@ -13,6 +13,13 @@ const outCanon = resolve(root, 'public/canon');
 const outPersonas = resolve(outCanon, 'personas');
 mkdirSync(outPersonas, { recursive: true });
 
+// CI safety: if the SOMA source isn't present (e.g. cloud build runner),
+// keep the canon already committed to the repo instead of wiping it.
+if (!existsSync(join(SOMA, 'personas')) && existsSync(join(outCanon, 'manifest.json'))) {
+  console.log('[sync-canon] SOMA source not found at ' + SOMA + ' — keeping committed canon.');
+  process.exit(0);
+}
+
 const wallSrc = join(SOMA, 'wall.md');
 const wallDst = join(outCanon, 'wall.md');
 let wallSize = 0;
