@@ -51,6 +51,9 @@ export function Lobby() {
           <div className="lobby-user-info">
             <span>{user.email}</span>
             {user.is_super_admin && <span className="badge badge-admin">Admin</span>}
+            <button onClick={() => navigate('/settings')} className="btn-settings">
+              Delegation Settings
+            </button>
             <button onClick={() => signOut()} className="btn-logout">
               Logout
             </button>

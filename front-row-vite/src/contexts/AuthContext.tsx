@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session as AuthSession } from '@supabase/supabase-js';
 import { supabase, isSuperAdmin } from '../lib/supabase';
-import { FrontRowUser, UserRole } from '../types/frontrow';
+import { FrontRowUser } from '../types/frontrow';
 
 export interface Agent {
   id: string;
@@ -77,23 +77,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setIsAIUser(profileData?.is_ai || false);
 
-      // Get delegations: who I've delegated to (my agents)
-      const { data: agentsData } = await supabase
-        .from('delegations')
-        .select('agent:agent_id(id, email, is_ai)')
-        .eq('user_id', userId)
-        .is('revoked_at', null);
+      // Get session token for API calls
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
 
-      setAgents(agentsData?.map(d => (d.agent as any)) || []);
+      if (token) {
+        // Get delegations from API: who I've delegated to (my agents)
+        const agentsRes = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/v1/delegations/agents`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const agentsData = agentsRes.ok ? await agentsRes.json() : [];
+        setAgents(agentsData);
 
-      // Get delegations: who I'm agent for
-      const { data: agentForData } = await supabase
-        .from('delegations')
-        .select('user:user_id(id, email, is_ai)')
-        .eq('agent_id', userId)
-        .is('revoked_at', null);
-
-      setAgentFor(agentForData?.map(d => (d.user as any)) || []);
+        // Get delegations from API: who I'm agent for
+        const agentForRes = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/v1/delegations/agent-for`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const agentForData = agentForRes.ok ? await agentForRes.json() : [];
+        setAgentFor(agentForData);
+      } else {
+        setAgents([]);
+        setAgentFor([]);
+      }
 
       setUser({
         id: userId,
@@ -114,22 +119,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function delegateTo(agentId: string) {
     if (!user) throw new Error('Not authenticated');
-    const { error } = await supabase
-      .from('delegations')
-      .insert({ user_id: user.id, agent_id: agentId });
-    if (error) throw error;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('No active session');
+
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/v1/delegations`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ agent_id: agentId }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || 'Failed to delegate');
+    }
+
     // Refresh delegations
     initializeUser(user.id, user.email);
   }
 
   async function revokeDelegation(agentId: string) {
     if (!user) throw new Error('Not authenticated');
-    const { error } = await supabase
-      .from('delegations')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('user_id', user.id)
-      .eq('agent_id', agentId);
-    if (error) throw error;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error('No active session');
+
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'}/api/v1/delegations/${agentId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || 'Failed to revoke delegation');
+    }
+
     // Refresh delegations
     initializeUser(user.id, user.email);
   }

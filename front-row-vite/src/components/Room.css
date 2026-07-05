@@ -1,0 +1,141 @@
+.room-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.room-header {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 20px 40px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.room-header h1 {
+  margin: 0;
+  font-size: 28px;
+  flex: 1;
+}
+
+.btn-back {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.room-main {
+  padding: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.room-loading,
+.room-error {
+  text-align: center;
+  padding: 40px 20px;
+  font-size: 18px;
+}
+
+.room-error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.room-content {
+  display: grid;
+  gap: 40px;
+}
+
+.room-info,
+.room-sessions,
+.room-placeholder {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 30px;
+  backdrop-filter: blur(10px);
+}
+
+.room-info h2,
+.room-sessions h2 {
+  margin-top: 0;
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.room-meta {
+  display: grid;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.room-meta p {
+  margin: 0;
+}
+
+.room-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 20px;
+  font-style: italic;
+}
+
+.session-list {
+  display: grid;
+  gap: 12px;
+}
+
+.session-item {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 3px solid #4CAF50;
+}
+
+.session-item h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+}
+
+.session-item p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.room-placeholder {
+  text-align: center;
+  padding: 60px 30px;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-text {
+  font-size: 20px;
+  margin: 0 0 10px 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.placeholder-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+}

@@ -60,6 +60,22 @@
   color: #fff;
 }
 
+.btn-settings {
+  background: rgba(212, 175, 55, 0.2);
+  color: #d4af37;
+  border: 1px solid #d4af37;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-settings:hover {
+  background: rgba(212, 175, 55, 0.3);
+}
+
 .btn-logout {
   background: #d4af37;
   color: #1a1a2e;

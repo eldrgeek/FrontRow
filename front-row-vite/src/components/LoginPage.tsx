@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginPage.css';
 
 export function LoginPage() {
-  const navigate = useNavigate();
   const { signInWithMagicLink } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
