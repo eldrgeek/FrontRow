@@ -19,3 +19,6 @@ test-results/
 playwright-report/
 server/.env
 *.env
+
+# Claude Code worktree checkouts — never commit as gitlinks (breaks Netlify/CI checkout)
+.claude/worktrees/
