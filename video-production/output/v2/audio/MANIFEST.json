@@ -1,0 +1,42 @@
+{
+  "beat_01": {
+    "duration": 7.344,
+    "file": "beat_01.mp3"
+  },
+  "beat_02": {
+    "duration": 7.848,
+    "file": "beat_02.mp3"
+  },
+  "beat_03": {
+    "duration": 7.152,
+    "file": "beat_03.mp3"
+  },
+  "beat_04": {
+    "duration": 5.4,
+    "file": "beat_04.mp3"
+  },
+  "beat_05": {
+    "duration": 4.008,
+    "file": "beat_05.mp3"
+  },
+  "beat_06": {
+    "duration": 6.456,
+    "file": "beat_06.mp3"
+  },
+  "beat_07": {
+    "duration": 4.896,
+    "file": "beat_07.mp3"
+  },
+  "beat_08": {
+    "duration": 4.224,
+    "file": "beat_08.mp3"
+  },
+  "beat_09": {
+    "duration": 2.352,
+    "file": "beat_09.mp3"
+  },
+  "beat_10": {
+    "duration": 3.768,
+    "file": "beat_10.mp3"
+  }
+}

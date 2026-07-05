@@ -1,0 +1,58 @@
+{
+  "beat_01": {
+    "file": "beat_01.wav",
+    "duration_s": 5.08
+  },
+  "beat_02": {
+    "file": "beat_02.wav",
+    "duration_s": 8.89
+  },
+  "beat_03": {
+    "file": "beat_03.wav",
+    "duration_s": 3.26
+  },
+  "beat_04": {
+    "file": "beat_04.wav",
+    "duration_s": 5.16
+  },
+  "beat_05": {
+    "file": "beat_05.wav",
+    "duration_s": 8.03
+  },
+  "beat_06": {
+    "file": "beat_06.wav",
+    "duration_s": 11.55
+  },
+  "beat_07": {
+    "file": "beat_07.wav",
+    "duration_s": 7.94
+  },
+  "beat_08": {
+    "file": "beat_08.wav",
+    "duration_s": 6.42
+  },
+  "beat_09": {
+    "file": "beat_09.wav",
+    "duration_s": 3.48
+  },
+  "beat_10": {
+    "file": "beat_10.wav",
+    "duration_s": 6.94
+  },
+  "beat_11": {
+    "file": "beat_11.wav",
+    "duration_s": 7.5
+  },
+  "beat_12": {
+    "file": "beat_12.wav",
+    "duration_s": 5.29
+  },
+  "beat_13": {
+    "file": "beat_13.wav",
+    "duration_s": 4.6
+  },
+  "beat_14": {
+    "file": "beat_14.wav",
+    "duration_s": 5.25
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "state": {
+    "anthropic": {
+      "current_delay": 50625000000,
+      "consecutive_success": 1,
+      "last_rate_limit": "2026-05-02T12:04:03.919001-06:00",
+      "cooldown_until": "2026-05-02T12:04:54.544001-06:00",
+      "total_rate_limits": 3,
+      "total_successes": 3
+    }
+  },
+  "history": {
+    "anthropic": [
+      {
+        "time": "2026-05-01T18:32:45.515969-06:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-01T22:16:27.419985-06:00",
+        "provider": "anthropic",
+        "action": "send"
+      },
+      {
+        "time": "2026-05-02T12:04:03.919001-06:00",
+        "provider": "anthropic",
+        "action": "send"
+      }
+    ]
+  }
+}
