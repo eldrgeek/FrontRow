@@ -282,9 +282,9 @@ app.get('/dashboard', (req, res) => {
         <div class="status-card">
             <h3>☁️ Production</h3>
             <p><strong>Frontend:</strong> https://frontrowtheater.netlify.app</p>
-            <p><strong>Backend:</strong> https://frontrow-tvu6.onrender.com</p>
+            <p><strong>Backend:</strong> https://vpsmikewolf.duckdns.org:4001</p>
             <a href="https://frontrowtheater.netlify.app" target="_blank" class="btn">Open Production</a>
-            <a href="https://frontrow-tvu6.onrender.com/health" target="_blank" class="btn">Prod Health</a>
+            <a href="https://vpsmikewolf.duckdns.org:4001/health" target="_blank" class="btn">Prod Health</a>
         </div>
 
         <div class="status-card">
