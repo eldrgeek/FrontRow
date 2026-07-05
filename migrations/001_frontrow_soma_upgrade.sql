@@ -4,7 +4,60 @@
 -- Author: Claude (Sonnet 5) for Mike Wolf
 
 -- ============================================================================
--- 1. SUPER ADMIN REGISTRY
+-- 1. USER PROFILES (including delegation model)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email text NOT NULL,
+  is_ai boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE public.profiles IS 'User profiles for FrontRow (human or AI). is_ai flag is ONLY for UX affordances.';
+COMMENT ON COLUMN public.profiles.is_ai IS 'Is this user an AI? Only affects UI/UX, NOT permissions or capabilities.';
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "anyone_read_public_profiles" ON public.profiles
+  FOR SELECT USING (true);
+
+CREATE POLICY "users_update_own_profile" ON public.profiles
+  FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
+-- ============================================================================
+-- 2. DELEGATION MODEL (many-to-many: users can have multiple agents)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS public.delegations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  agent_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz,
+  UNIQUE(user_id, agent_id),
+  CONSTRAINT cannot_delegate_to_self CHECK (user_id != agent_id)
+);
+
+COMMENT ON TABLE public.delegations IS 'Many-to-many delegation: user delegates to agent (human or AI). Agent has full authority to act on user behalf.';
+COMMENT ON COLUMN public.delegations.user_id IS 'The person/entity delegating authority.';
+COMMENT ON COLUMN public.delegations.agent_id IS 'The person/AI acting on behalf of user_id.';
+COMMENT ON COLUMN public.delegations.revoked_at IS 'When delegation was revoked (null = active).';
+
+ALTER TABLE public.delegations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "delegator_revokes_own_delegation" ON public.delegations
+  FOR DELETE USING (auth.uid() = user_id);
+
+CREATE POLICY "user_sees_own_delegations" ON public.delegations
+  FOR SELECT USING (auth.uid() = user_id OR auth.uid() = agent_id);
+
+CREATE POLICY "super_admin_read_all_delegations" ON public.delegations
+  FOR SELECT USING (auth.uid() IN (SELECT user_id FROM public.frontrow_admins));
+
+-- ============================================================================
+-- 3. SUPER ADMIN REGISTRY
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.frontrow_admins (
