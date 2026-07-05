@@ -10,6 +10,7 @@
     "build": "echo 'No build step required for backend - using plain Node.js'"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.18.2",
