@@ -1,18 +1,18 @@
 # FrontRow SOMA Upgrade — Implementation Plan
 
-**Status:** Phase 1 complete (schema + auth scaffolding) | Phase 2 ready (integration)  
+**Status:** Phase 1 complete (schema + auth scaffolding + canon) | Phase 2 in progress (components + integration)  
 **Branch:** `frontrow-soma-upgrade`  
-**Date:** 2026-07-05  
-**Author:** Claude (Sonnet 5) for Mike Wolf
+**Last updated:** 2026-07-05 (evening)  
+**Author:** Claude team (Sonnet 5, Opie, Haiku) for Mike Wolf
 
 ---
 
-## What's Been Built (Phase 1)
+## What's Been Built (Phase 1 + Early Phase 2)
 
 ### 1. Database Schema ✅
 **File:** `migrations/001_frontrow_soma_upgrade.sql`
 
-11 tables + RLS policies:
+13 tables + RLS policies (updated for delegation model):
 - `frontrow_admins` — super admin registry (5 people)
 - `room_templates` — immutable layout dictionary (Proscenium, Cabaret, Black Box)
 - `venues` — theater venues with hierarchy (super_venue_id for complexes)
@@ -24,6 +24,15 @@
 - `venue_changelog` — audit log of venue changes
 - `session_changelog` — audit log of session events
 - `audience_attendance` — tracks who attended a session (for feedback eligibility)
+- `profiles` — user profiles with `is_ai` flag (for UX affordances only)
+- `delegations` — many-to-many user delegation table (principal → agent)
+
+**Delegation model (NEW):**
+- Any user can have multiple agents, be agent for multiple users
+- `is_ai` flag is ONLY for UI labels ("agent is AI" vs "agent is human")
+- Zero permission/capability distinction between human and AI agents
+- Trust-based: agent gets full authority once delegated to
+- Audit trail: every action logged with agent_id + principal_id
 
 **RLS policies enforce:**
 - Super admins: full access to all tables
@@ -92,25 +101,72 @@ Super admin management interface:
 - **Feedback tab:** design feedback queue (scaffolded, not yet implemented)
 - Only accessible to super admins (redirects otherwise)
 
+### 7. REST API Routes ✅
+**File:** `server/api-routes.js`
+
+Delegation-aware REST endpoints:
+- **Venues:** GET (all active), POST (create — super admin only)
+- **Sessions:** GET (all), POST (create — theater manager+), include optional `?on_behalf_of=user_id`
+- **Performers:** POST `/sessions/:id/invite-performer` (theater manager+)
+- **Feedback:** POST `/feedback/show` (audience), POST `/feedback/design` (any user)
+- **Delegations:** GET agents, GET agent-for, POST (create), DELETE (revoke)
+- **Auth middleware:** `extractUser()` validates JWT, `checkDelegation()` verifies delegation chain
+- **Audit logging:** every action logged with actor + on_behalf_of + details
+
+All endpoints respect delegation: requester is principal OR requester is delegated by principal.
+
+### 8. Login Page ✅
+**File:** `front-row-vite/src/components/LoginPage.tsx` + `LoginPage.css`
+
+Magic-link email auth flow:
+- Email input form
+- Magic link sent confirmation
+- Responsive design
+- Error handling
+
+### 9. Auth Callback ✅
+**File:** `front-row-vite/src/components/AuthCallback.tsx` + `AuthCallback.css`
+
+OAuth redirect handler:
+- Validates session after email link click
+- Redirects to lobby if authenticated, login if not
+- Loading spinner during check
+
+### 10. Auth Context (Enhanced) ✅
+**File:** `front-row-vite/src/contexts/AuthContext.tsx`
+
+Expanded to track delegation:
+- `agents` array (people/AIs this user delegated to)
+- `agentFor` array (people this user is agent for)
+- `isAI` boolean (for UX affordances)
+- Methods: `delegateTo()`, `revokeDelegation()`
+- Auto-loads delegation data on auth
+
+### 11. SOMA Canon Standard ✅
+**File:** `~/Projects/SOMA/SOMA-APP-STANDARD.md` (§14)
+
+Documented agent/delegation pattern as load-bearing standard:
+- Any user can delegate to any user (many-to-many, no scoping)
+- `is_ai` flag for UX only
+- REST API surface for universal accessibility
+- RLS enforcement (one-line check per table)
+- Audit trail (agent_id + principal_id + action)
+- Reference implementation: FrontRow (performers delegating on behalf of manager)
+- Load-bearing for Legends Connect Phase 0, Playmaker, future SOMA apps
+
 ---
 
-## What's Still Needed (Phase 2)
+## What's Still Needed (Phase 2 Remaining)
 
 ### A. Router Setup
 **What:** Wire up React Router to use the new auth + lobby flow  
-**Files to create:**
+**Work:**
 - Update `App.tsx` to:
   - Wrap app in `<AuthProvider>`
-  - Set up routes: `/login` → auth flow, `/` → lobby, `/venue/[id]` → theater room, `/admin` → admin dashboard
-  - Redirect unauthenticated users to `/login`
+  - Set up routes: `/login` → LoginPage, `/auth/callback` → AuthCallback, `/` → Lobby, `/venue/[id]` → Room, `/admin` → AdminDashboard, `/settings` → DelegationSettings
+  - Add route guards (redirect unauthenticated users to `/login`)
 
-### B. Login Page
-**What:** SOMA Auth magic-link flow  
-**Files to create:**
-- `components/LoginPage.tsx` — email input + "Sign in with magic link" flow
-- `components/AuthCallback.tsx` — handle OAuth redirect from Supabase (e.g., `/auth/callback`)
-
-### C. Venue Room Component (Refactor App.tsx)
+### B. Venue Room Component (Refactor App.tsx) ⏳
 **What:** Multi-venue room support (currently App.tsx is single-venue)  
 **Work:**
 - Extract current App.tsx logic into a reusable `<Room>` component
@@ -119,42 +175,58 @@ Super admin management interface:
 - Fetch session state from database on mount
 - Subscribe to real-time updates via Supabase (session status, performer_ids, settings)
 
-### D. Performer Invite Flow
-**What:** Theater/performance managers can invite performers  
-**Files to create:**
-- `components/PerformerInviteModal.tsx` — form to email invite
-- Netlify function `netlify/functions/invite-performer.js` — send email + generate invite token
-- `components/InviteAccept.tsx` — `/invite/performer?token=...` link handling
+### C. Server Integration
+**What:** Wire REST API routes into Express server  
+**Work:**
+- Import `api-routes.js` into `server/index.js`
+- Mount routes: `app.use('/api/v1', router)`
+- Integrate with Socket.io namespaces (one per venue)
+- CORS config for frontend origin
 
-### E. LiveKit Token Integration
+### D. Delegation Settings UI
+**What:** User can manage agents  
+**Files to create:**
+- `components/DelegationSettings.tsx` — "Your agents" + "You are agent for" lists
+- Add to settings page (accessible from `/settings`)
+
+### E. Performer Invite Flow
+**What:** Theater/performance managers can invite performers  
+**Work:**
+- Theater manager sees `POST /api/v1/sessions/:id/invite-performer` available
+- Can call it directly or from admin dashboard
+- Email invite (optional Phase 2 deferred) — invite token + link flow
+
+### F. LiveKit Token Integration
 **What:** Tie LiveKit tokens to venue membership  
 **Work:**
 - Update existing LiveKit token endpoint to validate:
   - User is authenticated
   - User is in this venue (performer_ids or attended the session)
-  - Issue token scoped to that venue + session
+  - `?on_behalf_of` support for delegated performers
+  - Issue token scoped to venue + session
 - Prevent token generation for unauthorized users
 
-### F. Feedback Submission
-**What:** Wire up feedback forms  
+### G. Feedback Forms
+**What:** Wire up feedback submission  
 **Files to create:**
-- `components/ShowFeedbackForm.tsx` — post-show rating + anonymous comment
-- `components/DesignFeedbackWidget.tsx` — SOMA-standard feedback for admins
-- Netlify function `netlify/functions/submit-show-feedback.js` — store in Supabase
+- `components/ShowFeedbackForm.tsx` — post-show rating + anonymous comment (anonymous by default, self-identify optional)
+- `components/DesignFeedbackWidget.tsx` — SOMA-standard design feedback for admins
+- Use `/api/v1/feedback/show` and `/api/v1/feedback/design` endpoints
 
-### G. Admin Features
-**What:** Full admin CRUD  
-**Files to create:**
-- `components/AdminVenueForm.tsx` — create/edit venues, set theater manager
-- `components/AdminSessionManager.tsx` — create sessions, invite performers, manage state
-- `components/AdminFeedbackList.tsx` — view + respond to design feedback
+### H. Server-side API Integration
+**What:** Connect API routes to Supabase  
+**Work:**
+- Add SUPABASE_SERVICE_ROLE_KEY to Netlify env
+- Wire up audit logging to a table or JSONL
+- Test delegation chain validation (on_behalf_of parameter)
+- Verify RLS policies work as expected
 
-### H. Supabase Invite System
-**What:** Super admin invites for registering new super admins  
-**Files to create:**
-- Netlify function `netlify/functions/invite-super-admin.js` — send invite email
-- `components/InviteSuperAdmin.tsx` — form for admins to send invites
-- Invite token logic (store in a table or JWT)
+### I. OpenAPI Spec (Optional Phase 2)
+**What:** Document REST API for AI agents  
+**Work:**
+- Generate OpenAPI spec from routes
+- Host at `/api/openapi.json`
+- Makes it easy for AIs to discover available operations
 
 ---
 
