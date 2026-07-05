@@ -4,6 +4,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const { router: apiRouter } = require('./api-routes.js');
 
 const app = express();
 const server = http.createServer(app);
@@ -43,6 +44,9 @@ app.use(cors({
   credentials: false
 }));
 app.use(express.json({ limit: '5mb' })); // Allows larger JSON bodies for Base64 image strings
+
+// --- SOMA API ROUTES (Phase 2) ---
+app.use('/api/v1', apiRouter);
 
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
