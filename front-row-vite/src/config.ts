@@ -21,7 +21,7 @@ function getLivekitUrl(): string {
   if (import.meta.env.VITE_LIVEKIT_URL) {
     return import.meta.env.VITE_LIVEKIT_URL;
   }
-  return 'wss://vpsmikewolf.duckdns.org';
+  return 'wss://hootnet-zkp2l3aj.livekit.cloud';
 }
 
 function getTokenUrl(): string {
