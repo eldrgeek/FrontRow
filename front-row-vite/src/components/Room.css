@@ -63,7 +63,8 @@
 
 .room-info,
 .room-sessions,
-.room-placeholder {
+.room-placeholder,
+.room-enter {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
@@ -138,4 +139,66 @@
   font-size: 14px;
   color: rgba(255, 255, 255, 0.6);
   margin: 0;
+}
+
+/* Enter-the-theater call to action */
+.room-enter {
+  text-align: center;
+  padding: 48px 30px;
+}
+
+.enter-headline {
+  font-size: 20px;
+  margin: 0 0 24px 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.enter-headline strong {
+  color: #ffd700;
+}
+
+.btn-enter-theater {
+  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 10px;
+  padding: 16px 40px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 6px 18px rgba(212, 175, 55, 0.25);
+}
+
+.btn-enter-theater:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(212, 175, 55, 0.4);
+}
+
+.enter-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 20px 0 0 0;
+}
+
+/* Back-to-lobby control shown while inside the full-screen 3D theater */
+.theater-exit-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 100000;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  backdrop-filter: blur(6px);
+  transition: all 0.2s;
+}
+
+.theater-exit-btn:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.5);
 }

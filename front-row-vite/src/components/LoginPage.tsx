@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginPage.css';
 
@@ -7,11 +8,19 @@ type Method = 'password' | 'magic';
 
 export function LoginPage() {
   const {
+    session,
     signInWithMagicLink,
     signInWithGoogle,
     signInWithPassword,
     signUpWithPassword,
   } = useAuth();
+  const navigate = useNavigate();
+
+  // Once authenticated (password sign-in, or landing here already signed in),
+  // leave the login page. Magic-link/OAuth returns route through /auth/callback.
+  useEffect(() => {
+    if (session) navigate('/', { replace: true });
+  }, [session, navigate]);
 
   const [mode, setMode] = useState<Mode>('signin');
   const [method, setMethod] = useState<Method>('password');

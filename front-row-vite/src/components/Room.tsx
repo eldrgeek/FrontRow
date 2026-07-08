@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Venue, Session } from '../types/frontrow';
+import App from '../App';
 import './Room.css';
 
 export function Room() {
@@ -13,6 +14,7 @@ export function Room() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [entered, setEntered] = useState(false);
 
   const loadVenueData = useCallback(async () => {
     try {
@@ -47,6 +49,25 @@ export function Room() {
     if (!venueId || !session?.user) return;
     loadVenueData();
   }, [venueId, session, loadVenueData]);
+
+  // Once the audience member steps in, hand the whole screen to the 3D theater
+  // (the legacy App experience: name/photo entry → seats, stage, backdrop video).
+  if (entered) {
+    return (
+      <>
+        <button
+          className="theater-exit-btn"
+          onClick={() => setEntered(false)}
+          title="Leave the theater"
+        >
+          ← Back to Lobby
+        </button>
+        <App />
+      </>
+    );
+  }
+
+  const upcoming = sessions.find((s) => s.status === 'pre-show' || s.status === 'live');
 
   return (
     <div className="room-container">
@@ -90,10 +111,20 @@ export function Room() {
               )}
             </section>
 
-            {/* TODO: Phase 2 - Add 3D theater component, LiveKit integration, audience/performer controls */}
-            <section className="room-placeholder">
-              <p className="placeholder-text">3D theater experience loading...</p>
-              <p className="placeholder-subtitle">This will render the venue's 3D space with performer and audience controls.</p>
+            <section className="room-enter">
+              {upcoming ? (
+                <p className="enter-headline">
+                  Tonight: <strong>{upcoming.title}</strong>
+                </p>
+              ) : (
+                <p className="enter-headline">Step inside the theater</p>
+              )}
+              <button className="btn-enter-theater" onClick={() => setEntered(true)}>
+                🎭 Enter the Theater
+              </button>
+              <p className="enter-subtitle">
+                Take your seat — stage, backdrop, and the live performance await.
+              </p>
             </section>
           </div>
         )}
