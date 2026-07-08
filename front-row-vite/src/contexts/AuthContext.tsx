@@ -3,6 +3,11 @@ import { Session as AuthSession } from '@supabase/supabase-js';
 import { supabase, isSuperAdmin } from '../lib/supabase';
 import { FrontRowUser } from '../types/frontrow';
 
+// Identifies this app inside the shared SOMA Auth (Supabase) project. Passed as
+// user metadata on sign-in so the shared auth email can name the site the link
+// is for, instead of looking like it came from another SOMA app.
+export const SITE_NAME = 'FrontRow Theater';
+
 export interface Agent {
   id: string;
   email: string;
@@ -18,6 +23,9 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isAI: boolean;
   signInWithMagicLink: (email: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  signUpWithPassword: (name: string, email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   delegateTo: (agentId: string) => Promise<void>;
   revokeDelegation: (agentId: string) => Promise<void>;
@@ -166,9 +174,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // Names the site in the shared SOMA auth email (see SITE_NAME).
+        data: { site_name: SITE_NAME },
       },
     });
     if (error) throw error;
+  }
+
+  async function signInWithGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) throw error;
+  }
+
+  async function signInWithPassword(email: string, password: string) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  }
+
+  async function signUpWithPassword(name: string, email: string, password: string) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        // full_name feeds the profiles row; site_name names the site in the
+        // shared confirmation email.
+        data: { full_name: name, site_name: SITE_NAME },
+      },
+    });
+    if (error) throw error;
+    // When email confirmation is required, Supabase returns a user with no
+    // active session until the emailed link is clicked.
+    return { needsConfirmation: !data.session };
   }
 
   async function signOut() {
@@ -193,6 +235,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isSuperAdmin: isSuperAdminUser,
         isAI: isAIUser,
         signInWithMagicLink,
+        signInWithGoogle,
+        signInWithPassword,
+        signUpWithPassword,
         signOut,
         delegateTo,
         revokeDelegation,
