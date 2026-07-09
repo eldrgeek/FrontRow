@@ -19,10 +19,14 @@ import { requireUser, AuthError, type AuthedUser } from './auth';
 
 const APP = 'frontrow';
 
-// Fallback allow-list: Mike's two identities. Migrate to app_roles (RPC).
+// Fallback allow-list. Migrate to app_roles (RPC) once these users have SOMA
+// accounts. Jess Jessop + George Coveney named as FrontRow admins in the
+// 2026-07-08 review meeting ("grant Jess and George admin access").
 const ADMIN_EMAILS = [
   'mw@mike-wolf.com',
   'mike@embeddedsystemsresearch.org',
+  'dwjessop@gmail.com',
+  'gtcoveney@gmail.com',
 ];
 
 /**
