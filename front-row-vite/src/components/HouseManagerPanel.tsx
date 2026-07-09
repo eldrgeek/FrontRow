@@ -145,16 +145,16 @@ export default function HouseManagerPanel({ venueConfig, onConfigChange, onCurta
       {/* Curtain Controls */}
       <div style={{ display: 'flex', gap: 10 }}>
         <button
-          style={btnStyle('#8B4513', venueConfig.curtainOpen)}
-          disabled={venueConfig.curtainOpen}
+          style={btnStyle('#8B4513', !venueConfig.curtainOpen)}
+          disabled={!venueConfig.curtainOpen}
           data-testid="curtain-close-btn"
           onClick={() => onCurtain('close')}
         >
           🎭 Close Curtains
         </button>
         <button
-          style={btnStyle('#2d7a2d', !venueConfig.curtainOpen)}
-          disabled={!venueConfig.curtainOpen}
+          style={btnStyle('#2d7a2d', venueConfig.curtainOpen)}
+          disabled={venueConfig.curtainOpen}
           data-testid="curtain-open-btn"
           onClick={() => onCurtain('open')}
         >
