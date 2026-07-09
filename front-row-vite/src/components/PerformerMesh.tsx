@@ -76,7 +76,7 @@ export default function PerformerMesh({
     <mesh
       ref={meshRef}
       position={[stageX, 2.5, stageZ]}
-      data-testid="performer-mesh"
+      name="performer-mesh"
     >
       {/* 3.2 × 5.8 plane — roughly human-proportioned */}
       <planeGeometry args={[3.2, 5.8]} />

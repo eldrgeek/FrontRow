@@ -33,7 +33,7 @@ export default function ReactionBar({ level }: ReactionBarProps): JSX.Element {
     <mesh
       ref={meshRef}
       position={[0, 0.15, -6]}
-      data-testid="reaction-bar"
+      name="reaction-bar"
     >
       <planeGeometry args={[2, 0.1]} />
       <meshStandardMaterial
