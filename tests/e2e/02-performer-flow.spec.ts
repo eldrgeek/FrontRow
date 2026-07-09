@@ -18,9 +18,12 @@ test.describe('Performer: going live', () => {
 
     await setShowState('pre-show');
 
-    const response = await page.request.get(`${BACKEND_URL}/health`);
-    const data = await response.json();
-    expect(['pre-show', 'live']).toContain(data.showStatus);
+    // The performer page holds a live socket; poll until the backend reflects
+    // the state change rather than reading once (avoids an async-settle race).
+    await expect.poll(async () => {
+      const data = await (await page.request.get(`${BACKEND_URL}/health`)).json();
+      return data.showStatus;
+    }, { timeout: 8000 }).toMatch(/pre-show|live/);
   });
 
   test('show state changes to live', async ({ page }) => {
@@ -29,8 +32,9 @@ test.describe('Performer: going live', () => {
 
     await setShowState('live', 'test-performer-id');
 
-    const response = await page.request.get(`${BACKEND_URL}/health`);
-    const data = await response.json();
-    expect(data.showStatus).toBe('live');
+    await expect.poll(async () => {
+      const data = await (await page.request.get(`${BACKEND_URL}/health`)).json();
+      return data.showStatus;
+    }, { timeout: 8000 }).toBe('live');
   });
 });
