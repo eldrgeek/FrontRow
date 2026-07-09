@@ -2,6 +2,9 @@ import { Page } from '@playwright/test';
 
 export async function bypassAuth(page: Page, role: 'audience' | 'performer' = 'audience', name = 'TestUser') {
   const url = new URL(page.url());
+  // The 3D theater renders on the catch-all route (App). After the SOMA-auth
+  // migration '/' is the protected Lobby, so force the theater path.
+  if (url.pathname === '/' || url.pathname === '') url.pathname = '/theater';
   url.searchParams.set('test', 'true');
   url.searchParams.set('bypass_auth', 'true');
   url.searchParams.set('test_name', name);

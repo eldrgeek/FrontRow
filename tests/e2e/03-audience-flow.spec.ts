@@ -7,13 +7,13 @@ test.describe('Audience: joining and watching', () => {
   });
 
   test('audience can see 3D theater scene after login', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=AudienceMember&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=AudienceMember&test_role=audience');
     await page.waitForSelector('canvas', { timeout: 15000 });
     await expect(page.locator('canvas')).toBeVisible();
   });
 
   test('audience can select a seat', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=SeatPicker&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=SeatPicker&test_role=audience');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     const seatResponse = await page.request.post(`${BACKEND_URL}/api/test/show/state`, {

@@ -24,7 +24,7 @@ test.describe('HM config: seat count update', () => {
 
     // Open audience page in another tab to receive broadcast
     const audiencePage = await context.newPage();
-    await audiencePage.goto('/?test=true&bypass_auth=true&test_name=AudienceUser&test_role=audience');
+    await audiencePage.goto('/theater?test=true&bypass_auth=true&test_name=AudienceUser&test_role=audience');
     await audiencePage.waitForSelector('canvas', { timeout: 15000 });
 
     // Track socket event on audience page

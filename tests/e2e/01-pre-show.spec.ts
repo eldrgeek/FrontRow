@@ -4,12 +4,15 @@ import { resetServer, setShowState } from './helpers';
 test.describe('Pre-show: YouTube plays before performer arrives', () => {
   test.beforeEach(async ({ page }) => {
     await resetServer();
-    await page.goto('/?test=true&bypass_auth=true&test_name=TestViewer&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=TestViewer&test_role=audience');
   });
 
-  test('shows login form on first load', async ({ page }) => {
+  test('shows SOMA login when unauthenticated', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('input[type="text"], input[placeholder*="name" i]').first()).toBeVisible({ timeout: 10000 });
+    // After the SOMA-auth migration, an unauthenticated visit to '/' redirects
+    // to the SOMA login page (email + Google), not the old theater name form.
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+    await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 10000 });
   });
 
   test('YouTube video plays when show is idle (pre-show)', async ({ page }) => {

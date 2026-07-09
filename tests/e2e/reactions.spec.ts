@@ -11,14 +11,14 @@ test.describe('Audience reactions', () => {
   });
 
   test('Reaction buttons are NOT visible before selecting a seat', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
     await page.waitForSelector('canvas', { timeout: 15000 });
     // No seat selected yet — buttons should not exist
     await expect(page.locator('[data-testid="reaction-buttons"]')).not.toBeVisible({ timeout: 3000 });
   });
 
   test('Reaction buttons are visible in user view after seat selection', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Inject seat selection directly
@@ -32,7 +32,7 @@ test.describe('Audience reactions', () => {
     // Simulate seat selection via backend test API
     // (In unit test context the buttons appear based on selectedSeat state in React)
     // We can verify the button structure by forcing the URL param
-    await page.goto('/?test=true&bypass_auth=true&test_name=Watcher&test_role=audience&seat=seat-1');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Watcher&test_role=audience&seat=seat-1');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Reaction buttons render — check structure exists in DOM after state update
@@ -47,7 +47,7 @@ test.describe('Audience reactions', () => {
 
   test('Clicking clap 5 times emits audience:reaction events', async ({ page }) => {
     // Use audience page with seat
-    await page.goto('/?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Track socket events emitted from this page
@@ -91,7 +91,7 @@ test.describe('Audience reactions', () => {
   });
 
   test('stage:reactionLevel received after reactions', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Watcher&test_role=audience');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Monitor for stage:reactionLevel socket event

@@ -64,7 +64,7 @@ test.describe('Backstage: Go Live flow', () => {
   test('Go Live navigates to main app and performer:onStage fires', async ({ page, context }) => {
     // Track performer:onStage on an audience page
     const audiencePage = await context.newPage();
-    await audiencePage.goto('/?test=true&bypass_auth=true&test_name=Viewer&test_role=audience');
+    await audiencePage.goto('/theater?test=true&bypass_auth=true&test_name=Viewer&test_role=audience');
     await audiencePage.waitForSelector('canvas', { timeout: 15000 });
 
     const onStagePromise = audiencePage.evaluate(() => {

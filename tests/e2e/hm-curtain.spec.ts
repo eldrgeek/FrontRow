@@ -24,7 +24,7 @@ test.describe('HM curtain control', () => {
   test('HM opens curtains and audience page receives venue:curtain event', async ({ page, context }) => {
     // Audience page
     const audiencePage = await context.newPage();
-    await audiencePage.goto('/?test=true&bypass_auth=true&test_name=Viewer&test_role=audience');
+    await audiencePage.goto('/theater?test=true&bypass_auth=true&test_name=Viewer&test_role=audience');
     await audiencePage.waitForSelector('canvas', { timeout: 15000 });
 
     // Track curtain state on audience page

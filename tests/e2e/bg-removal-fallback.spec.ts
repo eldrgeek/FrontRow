@@ -34,7 +34,7 @@ test.describe('Background removal fallback', () => {
       route.abort('failed');
     });
 
-    await page.goto('/?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Trigger camera preview
@@ -87,7 +87,7 @@ test.describe('Background removal fallback', () => {
     await page.route('**/@mediapipe**', (route) => route.abort());
     await page.route('**/selfie_segmentation*', (route) => route.abort());
 
-    await page.goto('/?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // No JS error should bubble up to the console that crashes the app

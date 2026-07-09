@@ -22,7 +22,7 @@ test.describe('Walk offstage animation', () => {
   });
 
   test('Leave Stage button appears when performerOnStage is true', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
     await page.waitForSelector('[data-testid="show-state"]', { timeout: 10000 });
 
@@ -38,7 +38,7 @@ test.describe('Walk offstage animation', () => {
   });
 
   test('performer:goOffstage fires within 1200ms of clicking Leave Stage', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Track when performer:goOffstage is emitted
@@ -83,7 +83,7 @@ test.describe('Walk offstage animation', () => {
   });
 
   test('Record stub button is disabled with Phase 3 tooltip', async ({ page }) => {
-    await page.goto('/?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
+    await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
     // Trigger performerOnStage so controls section appears
