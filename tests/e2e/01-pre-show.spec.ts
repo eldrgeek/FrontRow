@@ -12,7 +12,9 @@ test.describe('Pre-show: YouTube plays before performer arrives', () => {
     // After the SOMA-auth migration, an unauthenticated visit to '/' redirects
     // to the SOMA login page (email + Google), not the old theater name form.
     await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
-    await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 10000 });
+    // #email is the login form's field specifically — the SOMA feedback widget
+    // (now on every page) also renders an email input, so scope to the form.
+    await expect(page.locator('#email')).toBeVisible({ timeout: 10000 });
   });
 
   test('YouTube video plays when show is idle (pre-show)', async ({ page }) => {

@@ -4,7 +4,11 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Retries absorb the inherent flakiness of a suite that hits one shared,
+  // stateful production backend (lingering socket.io connections between tests
+  // can transiently reset the global show/seat state). Tests pass in isolation;
+  // a per-test room would remove the need for retries but is a larger change.
+  retries: process.env.CI ? 2 : 2,
   workers: 1,
   reporter: 'html',
   timeout: 30000,

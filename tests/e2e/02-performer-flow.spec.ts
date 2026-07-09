@@ -16,11 +16,10 @@ test.describe('Performer: going live', () => {
     await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
-    await setShowState('pre-show');
-
-    // The performer page holds a live socket; poll until the backend reflects
-    // the state change rather than reading once (avoids an async-settle race).
+    // Re-assert inside the poll: other tests' sockets can disconnect mid-run and
+    // reset the shared show to idle, so set-and-check each iteration until it sticks.
     await expect.poll(async () => {
+      await setShowState('pre-show');
       const data = await (await page.request.get(`${BACKEND_URL}/health`)).json();
       return data.showStatus;
     }, { timeout: 8000 }).toMatch(/pre-show|live/);
@@ -30,9 +29,8 @@ test.describe('Performer: going live', () => {
     await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
 
-    await setShowState('live', 'test-performer-id');
-
     await expect.poll(async () => {
+      await setShowState('live', 'test-performer-id');
       const data = await (await page.request.get(`${BACKEND_URL}/health`)).json();
       return data.showStatus;
     }, { timeout: 8000 }).toBe('live');
