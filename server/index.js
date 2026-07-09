@@ -559,15 +559,33 @@ app.post('/api/test/reset', (req, res) => {
     clearInterval(activeShow.countdown.interval);
   }
   
-  // Reset show state
+  // Reset show state — must mirror the full activeShow schema (see initial
+  // definition near the top of this file). A partial object here dropped
+  // `reactions`, which crashed the 500ms reaction aggregator
+  // (activeShow.reactions.filter) and sent the process into a restart loop
+  // after every test reset.
   activeShow = {
     artistId: null,
     startTime: null,
     status: 'idle',
     audienceSeats: {},
-    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null }
+    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
+    venueConfig: {
+      seatCount: 20,
+      arrangement: 'semicircle',
+      curtainStyle: 'velvet-red',
+      showTitle: '',
+      scheduledStart: null,
+      curtainOpen: false,
+      configLocked: false,
+    },
+    backstageClients: {},
+    reactions: [],
+    performerOnStage: false,
+    performerPosition: { x: 0, z: -8 },
+    spotlightActive: false,
   };
-  
+
   // Clear user profiles
   for (const socketId in userProfiles) {
     delete userProfiles[socketId];
@@ -1481,6 +1499,9 @@ io.on('connection', (socket) => {
 // ── Phase 2: Rolling reaction aggregator (every 500ms) ────────────────────
 setInterval(() => {
   const cutoff = Date.now() - 5000;
+  // Defensive: never let a partial activeShow (e.g. after a reset) crash the
+  // process — a thrown error here would take down the whole server on a timer.
+  if (!Array.isArray(activeShow.reactions)) activeShow.reactions = [];
   activeShow.reactions = activeShow.reactions.filter(r => r.timestamp > cutoff);
   const count = activeShow.reactions.length;
   // Max expected reactions in 5s window ≈ 50 → level 0-100

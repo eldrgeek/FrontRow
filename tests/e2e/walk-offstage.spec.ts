@@ -24,10 +24,14 @@ test.describe('Walk offstage animation', () => {
   test('Leave Stage button appears when performerOnStage is true', async ({ page }) => {
     await page.goto('/theater?test=true&bypass_auth=true&test_name=Performer&test_role=performer');
     await page.waitForSelector('canvas', { timeout: 15000 });
-    await page.waitForSelector('[data-testid="show-state"]', { timeout: 10000 });
+    // show-state is an intentionally display:none machine-readable signal
+    // (App.tsx), so wait for it attached, not visible.
+    await page.waitForSelector('[data-testid="show-state"]', { state: 'attached', timeout: 10000 });
 
-    // Hover on ArtistControls panel to expand it
-    await page.hover('[data-testid="show-state"]').catch(() => {});
+    // Hover on ArtistControls panel to expand it. show-state is display:none,
+    // so this can't actually hover — bound it so the catch fires fast instead
+    // of hanging until the test timeout.
+    await page.hover('[data-testid="show-state"]', { timeout: 2000 }).catch(() => {});
 
     // The leave-stage button only shows when performerOnStage is true
     // We can check it's present in DOM (may be hidden if not on stage)
@@ -71,14 +75,16 @@ test.describe('Walk offstage animation', () => {
 
     if (visible) {
       await leaveBtn.click();
-      const elapsed = await offstagePromise;
-      console.log('Time until performer:goOffstage:', elapsed, 'ms');
-      if (elapsed > 0) {
-        // Should fire around 1000ms + network latency — allow up to 2500ms
-        expect(elapsed).toBeLessThan(2500);
-      }
     } else {
       console.log('Leave stage button not visible in this test context — skipping click test');
+    }
+    // Always drain the tracking promise so the page.evaluate isn't abandoned
+    // when the test ends (resolves -1 after its own 10s timeout if nothing fired).
+    const elapsed = await offstagePromise;
+    console.log('Time until performer:goOffstage:', elapsed, 'ms');
+    if (visible && elapsed > 0) {
+      // Should fire around 1000ms + network latency — allow up to 2500ms
+      expect(elapsed).toBeLessThan(2500);
     }
   });
 
