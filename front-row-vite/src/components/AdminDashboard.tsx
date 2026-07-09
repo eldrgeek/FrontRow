@@ -70,9 +70,14 @@ export function AdminDashboard() {
     <div className="admin-dashboard">
       <header className="admin-header">
         <h1>FrontRow Administration</h1>
-        <button onClick={() => navigate('/')} className="btn-back">
-          ← Back to Lobby
-        </button>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={() => navigate('/admin/feedback')} className="btn-back">
+            Feedback queue →
+          </button>
+          <button onClick={() => navigate('/')} className="btn-back">
+            ← Back to Lobby
+          </button>
+        </div>
       </header>
 
       <nav className="admin-tabs">
