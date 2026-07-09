@@ -9,9 +9,25 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { DelegationSettings } from './components/DelegationSettings';
 import { Room } from './components/Room';
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import { FeedbackQueue } from './components/FeedbackQueue';
+import { installSomaFeedbackIdentityHook } from './lib/somaFeedbackIdentity';
+import { installSomaFeedbackAuthHook } from './lib/somaFeedbackAuth';
+import { installGlobalErrorHandlers } from './lib/errorReport';
 import App from './App';
 import HouseManagerApp from './HouseManagerApp';
 import BackstageRoom from './BackstageRoom';
+
+// SOMA feedback stack — boot wiring (must run before render):
+//  - identity/auth hooks let the soma-feedback widget autofill the signed-in
+//    user and carry their Supabase bearer so the intake function can verify
+//    is_app_admin('frontrow').
+//  - global error handlers report uncaught window errors / rejections to the
+//    SOMA error intake service (inert in prod until soma-errors is deployed;
+//    fail-soft by contract).
+installSomaFeedbackIdentityHook();
+installSomaFeedbackAuthHook();
+installGlobalErrorHandlers();
 
 // Router wrapper that requires auth setup
 function AppRoutes() {
@@ -64,6 +80,14 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
+      <Route
+        path="/admin/feedback"
+        element={
+          <AdminRoute>
+            <FeedbackQueue />
+          </AdminRoute>
+        }
+      />
 
       {/* Catch-all for legacy App */}
       <Route path="*" element={<App />} />
@@ -76,11 +100,13 @@ const root = ReactDOM.createRoot(
 );
 root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>
 );
 

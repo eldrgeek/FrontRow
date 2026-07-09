@@ -16,5 +16,18 @@
     <div id="root"></div>
     <div id="overlay-root"></div>
     <script type="module" src="/src/index.tsx"></script>
+
+    <!-- SOMA App Standard §8 — feedback lifecycle widget. Canonical UI served
+         live from the VPS (SOMA/standards/soma-feedback/). data-endpoint points
+         at FrontRow's OWN function (submit-feedback-widget.ts), so an admin
+         submission lands straight in FrontRow's real feedback/build queue.
+         data-no-google: FrontRow verifies admin status via its own Supabase
+         session (src/lib/somaFeedbackAuth.ts), not the widget's Google Sign-In.
+         data-site names this app inside the shared app-scoped tables. -->
+    <link rel="stylesheet" href="https://vpsmikewolf.duckdns.org/feedback-svc/soma-feedback.css">
+    <script src="https://vpsmikewolf.duckdns.org/feedback-svc/soma-feedback.js"
+            data-endpoint="/api/submit-feedback-widget"
+            data-no-google
+            data-site="frontrow" defer></script>
   </body>
 </html>

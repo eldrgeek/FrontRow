@@ -6,6 +6,13 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# Stale build-request escalation (SOMA-APP-STANDARD.md §15a) — re-notifies Rigg
+# about a build request nobody's picked up, without depending on an admin having
+# the Feedback Queue page open. Runs every 30 minutes; the function itself
+# re-escalates a given request at most once per 2h window.
+[functions."check-stale-build-requests"]
+  schedule = "*/30 * * * *"
+
 [[headers]]
   for = "/*"
   [headers.values]
@@ -23,6 +30,13 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# SOMA feedback stack — route /api/* to the Netlify Functions. MUST come before
+# the SPA catch-all below, or the /* rule would swallow these paths.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
 
 [[redirects]]
   from = "/*"

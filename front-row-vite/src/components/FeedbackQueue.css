@@ -1,0 +1,272 @@
+/* FeedbackQueue — FrontRow admin review / build-queue / changelog page.
+   Restyled from Playmaker's Tailwind original into FrontRow's dark/gold
+   aesthetic (matches AdminDashboard.css / Lobby.css: #1a1a2e→#16213e bg,
+   #d4af37 gold accent). Namespaced `fq-` so it can't collide with the rest
+   of the app's plain-CSS components. */
+
+.fq-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: #e8e8ef;
+  padding: 40px 24px 80px;
+}
+
+.fq-inner {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.fq-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.fq-title {
+  font-size: 1.7rem;
+  color: #d4af37;
+  margin: 0;
+}
+
+.fq-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: #9a9aab;
+}
+
+.fq-back {
+  background: transparent;
+  border: 2px solid #d4af37;
+  color: #d4af37;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.fq-back:hover { background: #d4af37; color: #1a1a2e; }
+
+/* ── counter tabs ─────────────────────────────────────────────────────── */
+.fq-tabs {
+  display: flex;
+  align-items: stretch;
+  margin-top: 20px;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.fq-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 12px 10px;
+  text-align: center;
+  cursor: pointer;
+  color: inherit;
+  transition: all 0.2s;
+}
+.fq-tab + .fq-tab { border-left: 1px solid rgba(212, 175, 55, 0.15); }
+.fq-tab:hover { background: rgba(212, 175, 55, 0.06); }
+.fq-tab.active { border-bottom-color: #d4af37; background: rgba(212, 175, 55, 0.08); }
+
+.fq-tab-value { font-size: 1.5rem; font-weight: 700; color: #e8e8ef; line-height: 1.1; }
+.fq-tab.accent .fq-tab-value { color: #d4af37; }
+.fq-tab-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9a9aab;
+  margin-top: 2px;
+}
+
+/* ── sections / cards ─────────────────────────────────────────────────── */
+.fq-body { margin-top: 20px; }
+
+.fq-section-header {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #9a9aab;
+  margin: 18px 0 8px;
+}
+
+.fq-card {
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.fq-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+}
+
+.fq-pill {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #9a9aab;
+  padding: 2px 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.fq-pill.admin { background: rgba(212, 175, 55, 0.16); color: #d4af37; }
+
+.fq-card-area { color: #9a9aab; }
+.fq-card-time { margin-left: auto; color: #8a8a99; }
+.fq-card-desc { margin: 10px 0 0; font-size: 0.92rem; color: #e8e8ef; }
+.fq-card-reporter { margin: 4px 0 0; font-size: 0.75rem; color: #9a9aab; }
+
+.fq-card-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+/* ── buttons ──────────────────────────────────────────────────────────── */
+.fq-btn {
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+.fq-btn:disabled { opacity: 0.45; cursor: default; }
+
+.fq-btn-primary { background: #d4af37; color: #1a1a2e; border-color: #d4af37; }
+.fq-btn-primary:hover:not(:disabled) { background: #e5c14a; }
+
+.fq-btn-ghost { background: transparent; color: #9a9aab; border-color: rgba(212, 175, 55, 0.25); }
+.fq-btn-ghost:hover:not(:disabled) { color: #e8e8ef; }
+
+.fq-btn-gold-outline { background: transparent; color: #d4af37; border-color: rgba(212, 175, 55, 0.5); }
+.fq-btn-gold-outline:hover:not(:disabled) { background: rgba(212, 175, 55, 0.1); }
+
+.fq-btn-danger { background: transparent; color: #ff9a9a; border-color: rgba(255, 120, 120, 0.5); }
+.fq-btn-danger:hover:not(:disabled) { background: rgba(255, 120, 120, 0.1); }
+
+.fq-btn-sm { padding: 5px 11px; font-size: 0.72rem; }
+
+/* ── request rows ─────────────────────────────────────────────────────── */
+.fq-request {
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.fq-request.stale { border-color: rgba(255, 120, 120, 0.4); background: rgba(255, 120, 120, 0.05); }
+.fq-request.review { border-color: rgba(212, 175, 55, 0.4); background: rgba(212, 175, 55, 0.06); }
+
+.fq-request-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.fq-request-main { font-size: 0.9rem; color: #e8e8ef; }
+.fq-request-sub { margin-left: 8px; font-size: 0.74rem; color: #9a9aab; }
+.fq-request-status { color: #d4af37; font-weight: 600; }
+.fq-request-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.fq-stale-note { margin-top: 8px; font-size: 0.74rem; color: #ff9a9a; }
+
+.fq-buildbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+/* ── changelog ────────────────────────────────────────────────────────── */
+.fq-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  color: #e8e8ef;
+}
+.fq-search::placeholder { color: #8a8a99; }
+.fq-search:focus { outline: none; border-color: #d4af37; }
+
+.fq-cl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fq-cl-title { font-weight: 600; color: #e8e8ef; }
+.fq-cl-meta { display: flex; align-items: center; gap: 8px; font-size: 0.72rem; color: #9a9aab; }
+.fq-cl-body { margin: 6px 0 0; font-size: 0.88rem; color: #9a9aab; }
+.fq-cl-verdicts { display: flex; gap: 8px; margin-top: 12px; }
+
+.fq-verdict {
+  border-radius: 6px;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  background: transparent;
+  color: #9a9aab;
+  padding: 5px 11px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fq-verdict:disabled { opacity: 0.5; cursor: default; }
+.fq-verdict.on-accept { border-color: rgba(80, 200, 120, 0.5); background: rgba(80, 200, 120, 0.12); color: #7fe0a0; }
+.fq-verdict.on-change { border-color: rgba(212, 175, 55, 0.5); background: rgba(212, 175, 55, 0.12); color: #d4af37; }
+.fq-verdict.on-revert { border-color: rgba(255, 120, 120, 0.5); background: rgba(255, 120, 120, 0.12); color: #ff9a9a; }
+
+.fq-badge {
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  padding: 2px 9px;
+  font-size: 0.68rem;
+}
+.fq-badge.accepted { border-color: rgba(80, 200, 120, 0.5); background: rgba(80, 200, 120, 0.1); color: #7fe0a0; }
+.fq-badge.needs-change { border-color: rgba(212, 175, 55, 0.5); background: rgba(212, 175, 55, 0.1); color: #d4af37; }
+.fq-badge.reverted { border-color: rgba(255, 120, 120, 0.5); background: rgba(255, 120, 120, 0.1); color: #ff9a9a; }
+
+/* ── misc ─────────────────────────────────────────────────────────────── */
+.fq-empty {
+  border: 1px dashed rgba(212, 175, 55, 0.25);
+  border-radius: 10px;
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: #9a9aab;
+}
+
+.fq-resolved { margin-top: 22px; }
+.fq-resolved summary { cursor: pointer; font-size: 0.85rem; color: #9a9aab; }
+.fq-resolved summary:hover { color: #e8e8ef; }
+
+.fq-loading { min-height: 60vh; display: grid; place-items: center; color: #9a9aab; }
+
+.fq-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  background: #16213e;
+  color: #e8e8ef;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
