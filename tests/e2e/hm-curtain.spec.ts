@@ -16,7 +16,7 @@ test.describe('HM curtain control', () => {
   // against prod "Close" is enabled while closed. Fixed on this branch in
   // src/components/HouseManagerPanel.tsx and VERIFIED green against a local
   // prod build (vite preview). Un-skip once the frontend deploys to prod.
-  test.fixme('Curtain open button is visible and clickable', async ({ page }) => {
+  test('Curtain open button is visible and clickable', async ({ page }) => {
     await page.goto('/housemanager');
     await expect(page.locator('[data-testid="hm-panel"]')).toBeVisible({ timeout: 10000 });
     // By default curtain is closed, so "Open Curtains" button should be enabled
@@ -31,7 +31,7 @@ test.describe('HM curtain control', () => {
   // This clicks "Open Curtains", which prod renders disabled while closed, so
   // the click can't proceed. Fixed in HouseManagerPanel.tsx on this branch and
   // VERIFIED green against a local prod build. Un-skip once frontend deploys.
-  test.fixme('HM opens curtains and audience page receives venue:curtain event', async ({ page, context }) => {
+  test('HM opens curtains and audience page receives venue:curtain event', async ({ page, context }) => {
     // Audience page
     const audiencePage = await context.newPage();
     await audiencePage.goto('/theater?test=true&bypass_auth=true&test_name=Viewer&test_role=audience');
