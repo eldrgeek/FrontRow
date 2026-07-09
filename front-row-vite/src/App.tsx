@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 import Stage from './components/Stage';
 import SeatSelection from './components/SeatSelection';
 import UserInputForm from './components/UserInputForm';
+import CanvasErrorBoundary from './components/CanvasErrorBoundary';
 import PerformerView from './components/PerformerView';
 import UserView from './components/UserView';
 import LoadingScreen from './components/LoadingScreen';
@@ -949,8 +950,11 @@ function App(): JSX.Element {
     <div className="App">
       {webglSupported && isLoggedIn ? (
         <Suspense fallback={<LoadingScreen />}>
+          <CanvasErrorBoundary>
           <Canvas
             camera={{ position: [-0.57, 6.69, 20.30], fov: 50 }}
+            style={{ width: '100%', height: '100%' }}
+            resize={{ offsetSize: true }}
             onCreated={({ gl }) => {
               console.log('WebGL context created successfully');
             }}
@@ -1047,6 +1051,7 @@ function App(): JSX.Element {
 
             {(import.meta.env.MODE === 'development' || import.meta.env.VITE_ENABLE_TEST_MODE === 'true') && <SceneTestExposer />}
           </Canvas>
+          </CanvasErrorBoundary>
         </Suspense>
       ) : showStreamChoice ? (
         <div className="stream-choice-background" style={{

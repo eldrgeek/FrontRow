@@ -53,8 +53,12 @@ export function Room() {
   // Once the audience member steps in, hand the whole screen to the 3D theater
   // (the legacy App experience: name/photo entry → seats, stage, backdrop video).
   if (entered) {
+    // Fixed, viewport-sized mount: the legacy theater's own `.App { height:100vh }`
+    // collapses to 0 in this embedded context, so R3F can't size its canvas.
+    // A position:fixed wrapper is viewport-relative regardless of ancestor
+    // heights; we force .App to fill it so the 3D scene renders full-screen.
     return (
-      <>
+      <div className="theater-mount">
         <button
           className="theater-exit-btn"
           onClick={() => setEntered(false)}
@@ -63,7 +67,7 @@ export function Room() {
           ← Back to Lobby
         </button>
         <App />
-      </>
+      </div>
     );
   }
 

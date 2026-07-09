@@ -181,6 +181,24 @@
   margin: 20px 0 0 0;
 }
 
+/* Full-viewport mount for the legacy 3D theater. position:fixed sizes it from
+   the viewport regardless of the collapsed ancestor height chain, and we force
+   the theater's own .App container (and its R3F canvas) to fill it. */
+.theater-mount {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #000;
+  z-index: 40;
+}
+
+.theater-mount > .App {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* Back-to-lobby control shown while inside the full-screen 3D theater */
 .theater-exit-btn {
   position: fixed;
