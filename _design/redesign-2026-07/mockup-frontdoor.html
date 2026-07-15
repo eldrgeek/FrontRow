@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrontRow — Front Door (concept)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --house-black:#140508; --velvet:#2a0812; --velvet-2:#3d0f1c; --velvet-hi:#5a1626;
+    --brass-lo:#a9791f; --brass:#d4af37; --brass-hi:#f6e3a1;
+    --marquee:#fff4d2; --marquee-glow:#ffd66b; --spotlight:#fff8ec;
+    --playbill:#f4ead3; --playbill-dim:#c9b48a; --ok:#5fbf6a;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,Roboto,Arial,sans-serif;
+    --serif:"Playfair Display",Georgia,serif;
+    --sign:"Limelight",var(--serif);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    font-family:var(--sans); color:var(--playbill);
+    background:
+      radial-gradient(1200px 700px at 50% -8%, rgba(255,214,107,.16), transparent 60%),
+      radial-gradient(900px 900px at 50% 42%, rgba(255,248,236,.10), transparent 55%),
+      radial-gradient(700px 500px at 50% 120%, rgba(90,22,38,.55), transparent 60%),
+      linear-gradient(180deg, var(--house-black), var(--velvet) 55%, var(--house-black));
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    overflow-x:hidden;
+  }
+  /* Velvet curtain frame down the sides */
+  .curtain-side{position:fixed; top:0; bottom:0; width:9vw; min-width:60px; z-index:0; pointer-events:none;}
+  .curtain-side.left{left:0; background:
+      repeating-linear-gradient(90deg, var(--velvet) 0 14px, var(--velvet-hi) 16px, var(--velvet-2) 30px);
+      box-shadow:inset -30px 0 50px rgba(0,0,0,.6);}
+  .curtain-side.right{right:0; background:
+      repeating-linear-gradient(90deg, var(--velvet-2) 0 14px, var(--velvet-hi) 16px, var(--velvet) 30px);
+      box-shadow:inset 30px 0 50px rgba(0,0,0,.6);}
+
+  .stage{position:relative; z-index:2; width:100%; max-width:560px; padding:44px 24px 64px; text-align:center;}
+
+  /* ---- Marquee sign ---- */
+  .marquee{position:relative; display:inline-block; padding:26px 40px 22px; margin-top:8px;
+    border-radius:10px;
+    background:linear-gradient(180deg, #1c0509, #360b16);
+    box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 0 40px rgba(0,0,0,.5);}
+  .marquee::before{content:""; position:absolute; inset:9px; border-radius:6px;
+    border:2px solid rgba(212,175,55,.35);}
+  .bulbs{position:absolute; inset:0; border-radius:10px;}
+  .bulb{position:absolute; width:9px; height:9px; border-radius:50%;
+    background:var(--marquee); box-shadow:0 0 8px 2px var(--marquee-glow);
+    animation:chase 1.4s linear infinite;}
+  @keyframes chase{0%,100%{opacity:.28; box-shadow:0 0 4px 1px rgba(255,214,107,.4);}
+    45%{opacity:1; box-shadow:0 0 12px 4px var(--marquee-glow);}}
+  .wordmark{font-family:var(--sign); font-size:clamp(38px,10vw,64px);
+    line-height:.92; color:var(--brass-hi); letter-spacing:.06em;
+    text-shadow:0 0 18px rgba(255,214,107,.55), 0 2px 0 var(--brass-lo), 0 3px 12px rgba(0,0,0,.7);}
+  .wordmark small{display:block; font-family:var(--sign); font-size:.32em; letter-spacing:.42em;
+    color:var(--playbill-dim); margin-top:6px; text-shadow:0 0 8px rgba(255,214,107,.3);}
+  .now-showing{font-family:var(--serif); font-style:italic; font-size:19px; color:var(--playbill);
+    margin:26px 0 4px;}
+  .now-showing b{font-style:normal; color:var(--brass-hi);}
+  .eyebrow{font-size:11px; letter-spacing:.34em; text-transform:uppercase; color:var(--playbill-dim);}
+
+  /* ---- Primary: walk right in ---- */
+  .door{position:relative; z-index:2; margin:30px auto 0; max-width:440px; text-align:left;}
+  .door-primary{
+    background:linear-gradient(180deg, rgba(90,22,38,.55), rgba(42,8,18,.65));
+    border:1px solid rgba(246,227,161,.35); border-radius:16px; padding:26px 24px 24px;
+    box-shadow:0 24px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,244,210,.12);}
+  .door-primary .kicker{display:flex; align-items:center; gap:10px; margin-bottom:4px;}
+  .door-primary h2{font-family:var(--serif); font-weight:900; font-size:26px; margin:2px 0 4px; color:var(--playbill);}
+  .door-primary p{margin:0 0 18px; color:var(--playbill-dim); font-size:14px; line-height:1.5;}
+  .field label{display:block; font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--brass); margin-bottom:7px;}
+  .field input{width:100%; padding:15px 16px; border-radius:10px; font-size:16px; color:var(--playbill);
+    font-family:var(--sans);
+    background:rgba(20,5,8,.6); border:1.5px solid rgba(212,175,55,.35); transition:.2s;}
+  .field input::placeholder{color:#8a6d5a;}
+  .field input:focus{outline:none; border-color:var(--brass-hi);
+    box-shadow:0 0 0 4px rgba(255,214,107,.14), 0 0 22px rgba(255,214,107,.2);}
+  .btn-seat{margin-top:16px; width:100%; padding:16px; border:none; border-radius:11px; cursor:pointer;
+    font-family:var(--sans); font-weight:700; font-size:16px; letter-spacing:.02em; color:#2a0812;
+    background:linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+    box-shadow:0 10px 24px rgba(212,175,55,.35), inset 0 1px 0 rgba(255,255,255,.5); transition:.18s;}
+  .btn-seat:hover{transform:translateY(-2px); box-shadow:0 16px 34px rgba(255,214,107,.45), inset 0 1px 0 rgba(255,255,255,.6);}
+  .ticket-note{display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12.5px; color:var(--playbill-dim);}
+  .ticket-note .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);}
+
+  /* divider */
+  .or{display:flex; align-items:center; gap:14px; margin:22px 4px; color:var(--playbill-dim);
+    font-size:11px; letter-spacing:.28em; text-transform:uppercase;}
+  .or::before,.or::after{content:""; height:1px; flex:1; background:linear-gradient(90deg,transparent,rgba(212,175,55,.4),transparent);}
+
+  /* ---- Secondary: SOMA pass ---- */
+  .door-secondary{border:1px solid rgba(212,175,55,.18); border-radius:14px; padding:18px 20px 20px;
+    background:rgba(20,5,8,.35);}
+  .door-secondary h3{margin:0 0 3px; font-size:15px; color:var(--playbill);}
+  .door-secondary .sub{margin:0 0 16px; font-size:12.5px; color:var(--playbill-dim);}
+  .pass-row{display:flex; gap:10px; flex-wrap:wrap;}
+  .pass-btn{flex:1 1 120px; padding:12px; border-radius:9px; cursor:pointer; font-family:var(--sans);
+    font-size:13.5px; font-weight:600; color:var(--playbill);
+    background:rgba(90,22,38,.35); border:1px solid rgba(212,175,55,.3); transition:.18s;
+    display:flex; align-items:center; justify-content:center; gap:8px;}
+  .pass-btn:hover{border-color:var(--brass-hi); background:rgba(90,22,38,.6);}
+  .pass-btn .g{font-weight:700;}
+  .fine{text-align:center; margin:26px auto 0; font-size:11.5px; color:#8a6d5a; max-width:400px; position:relative; z-index:2;}
+  .fine a{color:var(--brass);}
+  @media (prefers-reduced-motion: reduce){ .bulb{animation:none; opacity:1;} }
+</style>
+</head>
+<body>
+  <div class="curtain-side left"></div>
+  <div class="curtain-side right"></div>
+
+  <div class="stage">
+    <div class="marquee">
+      <div class="bulbs" id="bulbs"></div>
+      <div class="wordmark">FRONT ROW<small>THEATER</small></div>
+    </div>
+    <div class="now-showing eyebrow" style="margin-top:22px;">You've been invited to</div>
+    <div class="now-showing"><b>An Evening with the Levinson Quartet</b></div>
+    <div class="eyebrow">Tonight · 8:00 PM · Doors open 7:45</div>
+  </div>
+
+  <div class="door">
+    <div class="door-primary">
+      <div class="kicker"><span class="eyebrow" style="color:var(--brass)">The easy way in</span></div>
+      <h2>Walk right in.</h2>
+      <p>No account, no password. Tell us your name for the seat card and take your seat.</p>
+      <div class="field">
+        <label for="nm">Name on your ticket</label>
+        <input id="nm" type="text" placeholder="e.g. Jess J." autocomplete="name">
+      </div>
+      <button class="btn-seat">Take your seat &nbsp;→</button>
+      <div class="ticket-note"><span class="dot"></span> This link seats you directly. Your name shows on your seat — you can hide it once inside.</div>
+    </div>
+
+    <div class="or">or</div>
+
+    <div class="door-secondary">
+      <h3>Have a SOMA pass?</h3>
+      <p class="sub">Optional — sign in to save your seats and settings across shows.</p>
+      <div class="pass-row">
+        <button class="pass-btn"><span class="g">G</span> Continue with Google</button>
+        <button class="pass-btn">✉ Magic link</button>
+        <button class="pass-btn">Password</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="fine">A production of <b style="color:var(--playbill-dim)">FrontRow Theater</b>. &nbsp;·&nbsp; Trouble at the door? <a href="#">Ask the house manager</a>.</p>
+
+<script>
+  // Ring of marquee bulbs around the sign, with a chasing delay.
+  const wrap = document.getElementById('bulbs');
+  const N = 34;
+  for(let i=0;i<N;i++){
+    const b=document.createElement('span'); b.className='bulb';
+    const t=i/N, per=N/4|0;
+    // place around rounded rectangle perimeter
+    let x,y;
+    if(t<0.25){x=t/0.25;y=0;} else if(t<0.5){x=1;y=(t-0.25)/0.25;}
+    else if(t<0.75){x=1-(t-0.5)/0.25;y=1;} else {x=0;y=1-(t-0.75)/0.25;}
+    b.style.left='calc('+(6+x*88)+'% - 4.5px)';
+    b.style.top='calc('+(6+y*88)+'% - 4.5px)';
+    b.style.animationDelay=(i*0.06)+'s';
+    wrap.appendChild(b);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrontRow — In-Theater HUD (concept)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --house-black:#0c0406; --velvet:#2a0812; --velvet-hi:#5a1626;
+    --brass-lo:#a9791f; --brass:#d4af37; --brass-hi:#f6e3a1;
+    --marquee:#fff4d2; --marquee-glow:#ffd66b;
+    --playbill:#f4ead3; --playbill-dim:#c9b48a; --ok:#5fbf6a;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,Roboto,Arial,sans-serif;
+    --serif:"Playfair Display",Georgia,serif; --sign:"Limelight",var(--serif);
+  }
+  *{box-sizing:border-box;} html,body{margin:0; height:100%;}
+  body{font-family:var(--sans); color:var(--playbill); height:100vh; overflow:hidden; position:relative;}
+  /* the "stage video" behind the HUD — stand-in for the live 3D/WebRTC room */
+  .stage-bg{position:absolute; inset:0; z-index:0;
+    background:
+      radial-gradient(700px 500px at 50% 32%, rgba(255,248,236,.22), transparent 55%),
+      radial-gradient(400px 300px at 50% 30%, rgba(255,214,107,.25), transparent 60%),
+      linear-gradient(180deg, #1a0a10 0%, #0c0406 65%);}
+  .stage-bg .performer{position:absolute; left:50%; top:34%; transform:translate(-50%,-50%); text-align:center;}
+  .stage-bg .performer .silh{width:120px;height:170px; margin:0 auto 6px; border-radius:60px 60px 20px 20px;
+    background:linear-gradient(180deg, rgba(20,5,8,.9), rgba(42,8,18,.7)); box-shadow:0 0 60px rgba(255,214,107,.3);}
+  .stage-bg .performer .cap{font-family:var(--serif); font-style:italic; color:rgba(244,234,211,.5); font-size:13px;}
+  .hint{position:absolute; top:14px; left:50%; transform:translateX(-50%); z-index:1; font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:rgba(201,180,138,.5);}
+
+  /* ---- top strip: show + live ---- */
+  .topstrip{position:absolute; top:0; left:0; right:0; z-index:10; display:flex; align-items:center; justify-content:space-between;
+    padding:12px 18px; background:linear-gradient(180deg, rgba(12,4,6,.85), transparent);}
+  .topstrip .mk{font-family:var(--sign); font-size:17px; color:var(--brass-hi); letter-spacing:.05em; text-shadow:0 0 10px rgba(255,214,107,.4);}
+  .live-tag{display:inline-flex; align-items:center; gap:7px; font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    padding:6px 12px; border-radius:999px; background:rgba(95,191,106,.14); color:#a7e6ac; border:1px solid rgba(95,191,106,.45);}
+  .live-tag .d{width:8px;height:8px;border-radius:50%;background:var(--ok); box-shadow:0 0 8px var(--ok); animation:pulse 1.3s infinite;}
+  @keyframes pulse{50%{opacity:.35;}}
+
+  /* ---- seats overlay (bottom rows) ---- */
+  .house{position:absolute; left:0; right:0; bottom:96px; z-index:8; display:flex; flex-direction:column; gap:12px; align-items:center; padding:0 16px;}
+  .seatrow{display:flex; gap:12px; flex-wrap:wrap; justify-content:center;}
+  .chip{display:flex; align-items:center; gap:9px; padding:7px 12px 7px 7px; border-radius:999px;
+    background:rgba(12,4,6,.6); border:1px solid rgba(212,175,55,.35); backdrop-filter:blur(6px); transition:.15s;}
+  .chip:hover{border-color:var(--brass-hi);}
+  .chip .face{width:32px;height:32px;border-radius:50%; display:grid; place-items:center; font-family:var(--serif); font-weight:800; font-size:15px; color:#2a0812;
+    background:linear-gradient(180deg,var(--brass-hi),var(--brass-lo));}
+  .chip .nm{font-size:13px; font-weight:600;}
+  .chip .st{font-size:10px; color:var(--playbill-dim); letter-spacing:.06em;}
+  .chip.you{border-color:var(--brass-hi); box-shadow:0 0 16px rgba(255,214,107,.3); background:rgba(90,22,38,.55);}
+  .chip.you .gear{margin-left:4px; cursor:pointer; opacity:.7; font-size:13px;}
+  .chip.faceonly .nm-wrap{display:none;}     /* config: just face */
+  .chip.nameonly .face{display:none;}          /* config: just name */
+  .chip.empty{opacity:.45; border-style:dashed;}
+  .chip.empty .face{background:transparent; border:1px dashed rgba(212,175,55,.4);}
+
+  /* ---- reaction bar ---- */
+  .reactions{position:absolute; left:50%; bottom:22px; transform:translateX(-50%); z-index:12;
+    display:flex; gap:8px; padding:9px 12px; border-radius:999px;
+    background:rgba(12,4,6,.75); border:1px solid rgba(212,175,55,.4); backdrop-filter:blur(8px);
+    box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .react{width:44px;height:44px;border-radius:50%; border:none; cursor:pointer; font-size:20px;
+    background:rgba(90,22,38,.4); transition:.15s;}
+  .react:hover{transform:translateY(-4px) scale(1.12); background:rgba(90,22,38,.75); box-shadow:0 0 16px rgba(255,214,107,.3);}
+  .applause{width:auto; padding:0 16px; font-family:var(--sans); font-weight:700; font-size:13px; color:#2a0812; gap:6px;
+    background:linear-gradient(180deg,var(--brass-hi),var(--brass-lo)); display:flex; align-items:center;}
+
+  /* ---- performer placard (bottom-left) ---- */
+  .placard{position:absolute; left:18px; bottom:22px; z-index:12; display:flex; align-items:center; gap:12px;
+    padding:10px 16px 10px 10px; border-radius:14px; background:rgba(12,4,6,.72); border:1px solid rgba(212,175,55,.4);
+    backdrop-filter:blur(8px); box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .placard .med{width:44px;height:44px;border-radius:50%; display:grid; place-items:center; font-family:var(--serif); font-weight:900; font-size:19px; color:#2a0812;
+    background:radial-gradient(circle at 40% 30%, var(--brass-hi), var(--brass-lo));}
+  .placard .t .nm{font-family:var(--serif); font-weight:700; font-size:15px;}
+  .placard .t .sub{font-size:11px; color:var(--playbill-dim); letter-spacing:.04em;}
+
+  /* ---- "In the House" chat tab (right) ---- */
+  .house-tab{position:absolute; right:18px; bottom:22px; z-index:12;}
+  .tab-btn{display:flex; align-items:center; gap:8px; padding:11px 16px; border-radius:14px; cursor:pointer;
+    background:rgba(12,4,6,.72); border:1px solid rgba(212,175,55,.4); backdrop-filter:blur(8px); color:var(--playbill); font-weight:600; font-size:13px;}
+  .tab-btn .badge{background:var(--brass); color:#2a0812; border-radius:999px; font-size:10px; font-weight:800; padding:1px 7px;}
+  .chatpanel{position:absolute; right:0; bottom:56px; width:270px; max-height:300px; display:none; flex-direction:column;
+    border-radius:14px; overflow:hidden; background:rgba(12,4,6,.92); border:1px solid rgba(212,175,55,.4); backdrop-filter:blur(10px);}
+  .chatpanel.open{display:flex;}
+  .chatpanel .ch{padding:10px 14px; font-family:var(--serif); font-size:14px; border-bottom:1px solid rgba(212,175,55,.2); display:flex; justify-content:space-between; align-items:center;}
+  .chatpanel .msgs{padding:12px 14px; display:flex; flex-direction:column; gap:10px; overflow:auto;}
+  .msg{font-size:12.5px;} .msg b{color:var(--brass-hi); font-weight:700;} .msg span{color:var(--playbill-dim);}
+  .chatpanel .compose{padding:10px 12px; border-top:1px solid rgba(212,175,55,.2);}
+  .chatpanel .compose input{width:100%; padding:9px 12px; border-radius:9px; border:1px solid rgba(212,175,55,.3);
+    background:rgba(20,5,8,.6); color:var(--playbill); font-family:var(--sans); font-size:12.5px;}
+  @media (prefers-reduced-motion: reduce){ .live-tag .d{animation:none;} }
+</style>
+</head>
+<body>
+  <div class="stage-bg">
+    <div class="performer"><div class="silh"></div><div class="cap">— the live stage renders here —</div></div>
+  </div>
+  <div class="hint">In-theater overlay · sits over the live 3D / video stage</div>
+
+  <div class="topstrip">
+    <span class="mk">FRONT ROW</span>
+    <span class="live-tag"><span class="d"></span>Live · An Evening with the Levinson Quartet</span>
+  </div>
+
+  <!-- audience seats -->
+  <div class="house">
+    <div class="seatrow">
+      <div class="chip"><div class="face">J</div><div class="nm-wrap"><div class="nm">Jess J.</div><div class="st">Row A · Seat 1</div></div></div>
+      <div class="chip nameonly"><div class="face">G</div><div class="nm-wrap"><div class="nm">George C.</div><div class="st">Row A · Seat 2</div></div></div>
+      <div class="chip you"><div class="face">Y</div><div class="nm-wrap"><div class="nm">You</div><div class="st">Row A · Seat 4</div></div><span class="gear" title="Seat privacy: face / name / both">⚙</span></div>
+      <div class="chip faceonly"><div class="face">M</div><div class="nm-wrap"><div class="nm">Mira</div><div class="st">Row A · Seat 5</div></div></div>
+      <div class="chip empty"><div class="face">+</div><div class="nm-wrap"><div class="nm">Open seat</div><div class="st">Row A · Seat 6</div></div></div>
+    </div>
+    <div class="seatrow">
+      <div class="chip faceonly"><div class="face">R</div><div class="nm-wrap"><div class="nm">R.O.</div><div class="st">Row B · 2</div></div></div>
+      <div class="chip"><div class="face">D</div><div class="nm-wrap"><div class="nm">Drew</div><div class="st">Row B · 3</div></div></div>
+      <div class="chip empty"><div class="face">+</div><div class="nm-wrap"><div class="nm">Open seat</div><div class="st">Row B · 4</div></div></div>
+      <div class="chip nameonly"><div class="face">S</div><div class="nm-wrap"><div class="nm">Sona</div><div class="st">Row B · 5</div></div></div>
+    </div>
+  </div>
+
+  <!-- performer placard -->
+  <div class="placard">
+    <div class="med">L</div>
+    <div class="t"><div class="nm">The Levinson Quartet</div><div class="sub">Now performing · Movement II</div></div>
+  </div>
+
+  <!-- reaction bar -->
+  <div class="reactions">
+    <button class="react" title="Love">❤️</button>
+    <button class="react" title="Bravo">👏</button>
+    <button class="react" title="Wow">😮</button>
+    <button class="react" title="Laugh">😄</button>
+    <button class="react applause">🌹 Bravo!</button>
+  </div>
+
+  <!-- in-the-house chat -->
+  <div class="house-tab">
+    <div class="chatpanel" id="chat">
+      <div class="ch">In the House <span class="st" style="font-size:11px;color:var(--playbill-dim)">7 here</span></div>
+      <div class="msgs">
+        <div class="msg"><b>George C.</b> <span>· this second movement, wow</span></div>
+        <div class="msg"><b>Mira</b> <span>· front row was the right call 😌</span></div>
+        <div class="msg"><b>Drew</b> <span>· staying for the halftime lounge?</span></div>
+      </div>
+      <div class="compose"><input placeholder="Say something to the house…"></div>
+    </div>
+    <div class="tab-btn" onclick="document.getElementById('chat').classList.toggle('open')">💬 In the House <span class="badge">3</span></div>
+  </div>
+</body>
+</html>

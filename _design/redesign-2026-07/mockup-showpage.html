@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrontRow — Show Page (concept)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --house-black:#140508; --velvet:#2a0812; --velvet-2:#3d0f1c; --velvet-hi:#5a1626;
+    --brass-lo:#a9791f; --brass:#d4af37; --brass-hi:#f6e3a1;
+    --marquee:#fff4d2; --marquee-glow:#ffd66b; --spotlight:#fff8ec;
+    --playbill:#f4ead3; --playbill-dim:#c9b48a; --ok:#5fbf6a; --warn:#e0803a;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,Roboto,Arial,sans-serif;
+    --serif:"Playfair Display",Georgia,serif; --sign:"Limelight",var(--serif);
+  }
+  *{box-sizing:border-box;} html,body{margin:0;}
+  body{font-family:var(--sans); color:var(--playbill); min-height:100vh; overflow-x:hidden;
+    background:
+      radial-gradient(1000px 600px at 50% 0%, rgba(255,214,107,.13), transparent 60%),
+      linear-gradient(180deg, var(--house-black), var(--velvet) 45%, var(--house-black));}
+  .eyebrow{font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--playbill-dim);}
+  .back{position:fixed; top:18px; left:20px; z-index:30; font-size:13px; color:var(--playbill-dim);
+    text-decoration:none; background:rgba(20,5,8,.6); padding:8px 14px; border-radius:8px; border:1px solid rgba(212,175,55,.25);}
+
+  .wrap{max-width:900px; margin:0 auto; padding:70px 24px 60px; display:grid; gap:28px; grid-template-columns:1fr 320px;}
+  @media(max-width:760px){.wrap{grid-template-columns:1fr;}}
+
+  /* poster hero */
+  .hero{grid-column:1/-1; text-align:center; padding:14px 0 6px;}
+  .hero .eyebrow{color:var(--brass);}
+  .hero h1{font-family:var(--serif); font-weight:900; font-size:clamp(34px,6vw,56px); line-height:1.02;
+    margin:12px 0 8px; color:var(--playbill); text-shadow:0 4px 24px rgba(0,0,0,.5);}
+  .hero .by{font-family:var(--serif); font-style:italic; font-size:20px; color:var(--brass-hi);}
+  .hero .lights{display:flex; gap:8px; justify-content:center; margin:18px 0 4px;}
+  .hero .lights span{width:8px;height:8px;border-radius:50%;background:var(--marquee);
+    box-shadow:0 0 8px 2px var(--marquee-glow); animation:chase 1.4s linear infinite;}
+  @keyframes chase{0%,100%{opacity:.3;}45%{opacity:1;}}
+
+  .card{background:linear-gradient(180deg, var(--velvet-2), var(--velvet));
+    border:1px solid rgba(212,175,55,.28); border-radius:16px; padding:22px 24px; box-shadow:0 14px 34px rgba(0,0,0,.4);}
+  .card h2{font-family:var(--serif); font-size:18px; margin:0 0 14px; color:var(--playbill);}
+
+  /* left: about + seat map */
+  .about p{color:var(--playbill-dim); font-size:14.5px; line-height:1.6; margin:0 0 18px;}
+  .facts{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .fact{background:rgba(20,5,8,.5); border:1px solid rgba(212,175,55,.18); border-radius:11px; padding:12px 14px;}
+  .fact .k{font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--brass);}
+  .fact .v{font-family:var(--serif); font-size:17px; margin-top:3px;}
+
+  .seatmap{margin-top:20px;}
+  .stagebar{text-align:center; font-size:10.5px; letter-spacing:.4em; text-transform:uppercase; color:var(--playbill-dim);
+    padding:7px; border-radius:6px; margin-bottom:16px;
+    background:linear-gradient(180deg, rgba(255,214,107,.22), rgba(255,214,107,.04)); border:1px solid rgba(212,175,55,.3);}
+  .rows{display:flex; flex-direction:column; gap:10px; align-items:center;}
+  .row{display:flex; gap:9px;}
+  .seat{width:26px;height:26px;border-radius:7px 7px 4px 4px; background:var(--velvet-hi); border:1px solid rgba(212,175,55,.35); cursor:pointer; transition:.15s;}
+  .seat:hover{background:var(--brass); border-color:var(--brass-hi);}
+  .seat.taken{background:rgba(90,22,38,.5); border-color:rgba(212,175,55,.15); cursor:not-allowed;}
+  .seat.you{background:var(--brass-hi); box-shadow:0 0 12px var(--marquee-glow);}
+  .legend{display:flex; gap:16px; justify-content:center; margin-top:16px; font-size:11.5px; color:var(--playbill-dim);}
+  .legend i{display:inline-block; width:12px;height:12px;border-radius:3px; vertical-align:middle; margin-right:5px;}
+
+  /* right rail: placard + countdown + enter */
+  .placard{text-align:center;}
+  .medallion{width:84px;height:84px;border-radius:50%; margin:0 auto 12px; display:grid; place-items:center;
+    background:radial-gradient(circle at 40% 30%, var(--brass-hi), var(--brass-lo));
+    color:#2a0812; font-family:var(--serif); font-weight:900; font-size:34px;
+    box-shadow:0 0 0 4px rgba(212,175,55,.2), 0 8px 20px rgba(0,0,0,.5);}
+  .placard .name{font-family:var(--serif); font-size:20px; font-weight:700;}
+  .placard .role{font-style:italic; color:var(--playbill-dim); font-size:13.5px; margin-top:2px;}
+  .placard .status{margin-top:12px; display:inline-flex; align-items:center; gap:7px; font-size:11.5px;
+    letter-spacing:.14em; text-transform:uppercase; padding:6px 12px; border-radius:999px;
+    background:rgba(224,128,58,.16); color:#f0b487; border:1px solid rgba(224,128,58,.45);}
+  .placard .status .d{width:7px;height:7px;border-radius:50%;background:var(--warn);}
+
+  /* countdown */
+  .count{text-align:center; margin-top:20px;}
+  .count .lbl{font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:var(--playbill-dim);}
+  .count .clock{font-family:var(--serif); font-weight:900; font-size:42px; color:var(--brass-hi); margin:6px 0;
+    text-shadow:0 0 18px rgba(255,214,107,.4);}
+  .count .host{font-style:italic; font-size:13px; color:var(--playbill-dim);}
+
+  .btn-enter{margin-top:20px; width:100%; padding:17px; border:none; border-radius:12px; cursor:pointer;
+    font-family:var(--sans); font-weight:800; font-size:17px; letter-spacing:.01em; color:#2a0812;
+    background:linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+    box-shadow:0 12px 28px rgba(212,175,55,.4), inset 0 1px 0 rgba(255,255,255,.55); transition:.18s;}
+  .btn-enter:hover{transform:translateY(-2px); box-shadow:0 18px 38px rgba(255,214,107,.5), inset 0 1px 0 rgba(255,255,255,.65);}
+  .rail-note{text-align:center; font-size:11.5px; color:#8a6d5a; margin-top:12px;}
+
+  /* ---- curtain reveal overlay ---- */
+  .curtain{position:fixed; inset:0; z-index:100; display:flex; pointer-events:none; opacity:0; visibility:hidden;}
+  .curtain.show{opacity:1; visibility:visible; pointer-events:auto;}
+  .panel{width:50%; height:100%; background:
+      repeating-linear-gradient(90deg, var(--velvet) 0 26px, var(--velvet-hi) 30px, var(--velvet-2) 54px);
+      box-shadow:inset 0 0 120px rgba(0,0,0,.7); transition:transform 1.15s cubic-bezier(.7,0,.2,1);}
+  .panel.l{transform:translateX(0);} .curtain.show .panel.l{transform:translateX(0);}
+  .panel.r{transform:translateX(0);}
+  .curtain.parting .panel.l{transform:translateX(-102%);}
+  .curtain.parting .panel.r{transform:translateX(102%);}
+  .curtain .spot{position:absolute; inset:0; display:grid; place-items:center; z-index:-1;
+    background:radial-gradient(circle at 50% 45%, rgba(255,248,236,.14), transparent 45%);}
+  .curtain .spot .msg{font-family:var(--sign); font-size:clamp(28px,6vw,54px); color:var(--brass-hi);
+    text-shadow:0 0 22px rgba(255,214,107,.5); text-align:center;}
+  .curtain .spot .msg small{display:block; font-family:var(--serif); font-style:italic; font-size:.34em; color:var(--playbill-dim); margin-top:10px; letter-spacing:.05em;}
+  @media (prefers-reduced-motion: reduce){ .hero .lights span{animation:none;opacity:1;} .panel{transition:opacity .3s;} }
+</style>
+</head>
+<body>
+  <a href="#" class="back">← Back to the lobby</a>
+
+  <div class="wrap">
+    <div class="hero">
+      <div class="eyebrow">Tonight · 8:00 PM · Doors 7:45 · An intimate house</div>
+      <h1>An Evening with<br>the Levinson Quartet</h1>
+      <div class="by">a first-look chamber set, live from Studio A</div>
+      <div class="lights"><span style="animation-delay:0s"></span><span style="animation-delay:.12s"></span><span style="animation-delay:.24s"></span><span style="animation-delay:.36s"></span><span style="animation-delay:.48s"></span><span style="animation-delay:.6s"></span><span style="animation-delay:.72s"></span></div>
+    </div>
+
+    <div class="card about">
+      <h2>Tonight's program</h2>
+      <p>Four movements, one hour, no intermission — or a short halftime in the Lobby Lounge if the room wants to stretch. Bring a friend; there are only two rows and they fill fast.</p>
+      <div class="facts">
+        <div class="fact"><div class="k">Runtime</div><div class="v">~60 min</div></div>
+        <div class="fact"><div class="k">House</div><div class="v">2 rows · 24 seats</div></div>
+        <div class="fact"><div class="k">Doors</div><div class="v">7:45 PM</div></div>
+        <div class="fact"><div class="k">Seats left</div><div class="v">6</div></div>
+      </div>
+
+      <div class="seatmap">
+        <div class="stagebar">The Stage</div>
+        <div class="rows" id="rows"></div>
+        <div class="legend">
+          <span><i style="background:var(--velvet-hi);border:1px solid rgba(212,175,55,.4)"></i>Open</span>
+          <span><i style="background:rgba(90,22,38,.6)"></i>Taken</span>
+          <span><i style="background:var(--brass-hi)"></i>Your seat</span>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card placard">
+        <div class="medallion">L</div>
+        <div class="name">The Levinson Quartet</div>
+        <div class="role">tonight's performers</div>
+        <div class="status"><span class="d"></span>In the green room</div>
+      </div>
+
+      <div class="card count" style="margin-top:20px;">
+        <div class="lbl">Curtain in</div>
+        <div class="clock" id="clock">04:58</div>
+        <div class="host">“Take your seats — we're live in five.”</div>
+        <button class="btn-enter" id="enterBtn">Enter the Theater →</button>
+        <div class="rail-note">Seat B-4 is held for you · hidden name is on</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- curtain reveal -->
+  <div class="curtain" id="curtain">
+    <div class="spot"><div class="msg">Welcome to your seat<small>the house lights are going down…</small></div></div>
+    <div class="panel l"></div>
+    <div class="panel r"></div>
+  </div>
+
+<script>
+  // build seat map
+  const rows=document.getElementById('rows');
+  const layout=[ ['taken','open','open','you','taken','open','open','taken','open','open','open','open'],
+                 ['open','taken','open','open','open','taken','open','open','taken','open','open','open'] ];
+  const label=['A','B'];
+  layout.forEach((r,ri)=>{
+    const el=document.createElement('div'); el.className='row';
+    r.forEach((s,si)=>{ const seat=document.createElement('div');
+      seat.className='seat'+(s==='taken'?' taken':s==='you'?' you':'');
+      seat.title=label[ri]+'-'+(si+1); el.appendChild(seat); });
+    rows.appendChild(el);
+  });
+
+  // curtain reveal on "Enter the Theater"
+  const curtain=document.getElementById('curtain'), btn=document.getElementById('enterBtn');
+  btn.addEventListener('click',()=>{
+    curtain.classList.add('show');
+    // curtain starts closed = "house being seated", then parts
+    setTimeout(()=>curtain.classList.add('parting'), 650);
+    setTimeout(()=>{ curtain.classList.remove('show','parting'); }, 2400);
+  });
+
+  // gentle countdown
+  let t=298; const clk=document.getElementById('clock');
+  setInterval(()=>{ if(t>0)t--; const m=String(Math.floor(t/60)).padStart(2,'0'),s=String(t%60).padStart(2,'0'); clk.textContent=m+':'+s; },1000);
+</script>
+</body>
+</html>

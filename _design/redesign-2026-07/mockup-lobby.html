@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FrontRow — Lobby (concept)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Limelight&family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --house-black:#140508; --velvet:#2a0812; --velvet-2:#3d0f1c; --velvet-hi:#5a1626;
+    --brass-lo:#a9791f; --brass:#d4af37; --brass-hi:#f6e3a1;
+    --marquee:#fff4d2; --marquee-glow:#ffd66b;
+    --playbill:#f4ead3; --playbill-dim:#c9b48a; --ok:#5fbf6a; --warn:#e0803a;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,Roboto,Arial,sans-serif;
+    --serif:"Playfair Display",Georgia,serif; --sign:"Limelight",var(--serif);
+  }
+  *{box-sizing:border-box;} html,body{margin:0;}
+  body{font-family:var(--sans); color:var(--playbill); min-height:100vh;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(255,214,107,.14), transparent 60%),
+      radial-gradient(900px 700px at 90% 10%, rgba(90,22,38,.5), transparent 55%),
+      linear-gradient(180deg, var(--house-black), var(--velvet) 40%, var(--house-black));}
+  .eyebrow{font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--playbill-dim);}
+
+  /* ---- Marquee header ---- */
+  header{position:sticky; top:0; z-index:20; backdrop-filter:blur(8px);
+    background:linear-gradient(180deg, rgba(20,5,8,.92), rgba(20,5,8,.7));
+    border-bottom:1px solid rgba(212,175,55,.35);}
+  .bar{max-width:1120px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px;}
+  .brand{display:flex; align-items:baseline; gap:12px;}
+  .brand .mk{font-family:var(--sign); font-size:26px; color:var(--brass-hi);
+    text-shadow:0 0 14px rgba(255,214,107,.5); letter-spacing:.05em;}
+  .brand .tag{font-family:var(--serif); font-style:italic; color:var(--playbill-dim); font-size:13px;}
+  .who{display:flex; align-items:center; gap:12px; font-size:13px;}
+  .who .avatar{width:34px;height:34px;border-radius:50%; display:grid; place-items:center;
+    background:linear-gradient(180deg,var(--brass-hi),var(--brass-lo)); color:#2a0812; font-weight:800; font-family:var(--serif);}
+  .btn-ghost{padding:8px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;
+    color:var(--brass); background:rgba(212,175,55,.12); border:1px solid rgba(212,175,55,.4);}
+
+  /* ---- Marquee banner ---- */
+  .marquee-banner{max-width:1120px; margin:26px auto 6px; padding:0 24px; text-align:center;}
+  .marquee-banner .lit{position:relative; display:inline-block; padding:16px 40px;
+    border-top:2px dashed rgba(255,214,107,.4); border-bottom:2px dashed rgba(255,214,107,.4);}
+  .marquee-banner h1{font-family:var(--serif); font-weight:900; font-size:clamp(28px,5vw,46px); margin:6px 0; color:var(--playbill);}
+  .marquee-banner h1 em{font-style:italic; color:var(--brass-hi);}
+  .marquee-banner .sub{color:var(--playbill-dim); font-size:14px;}
+
+  /* ---- section head ---- */
+  .section{max-width:1120px; margin:34px auto; padding:0 24px;}
+  .sh{display:flex; align-items:center; gap:14px; margin-bottom:18px;}
+  .sh h2{font-family:var(--serif); font-size:22px; margin:0; color:var(--playbill);}
+  .sh .rule{flex:1; height:1px; background:linear-gradient(90deg,rgba(212,175,55,.5),transparent);}
+
+  /* ---- poster grid ---- */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:22px;}
+  .poster{position:relative; border-radius:14px; overflow:hidden; cursor:pointer; transition:.2s;
+    background:linear-gradient(180deg, var(--velvet-2), var(--velvet));
+    border:1px solid rgba(212,175,55,.28); box-shadow:0 14px 34px rgba(0,0,0,.45);}
+  .poster:hover{transform:translateY(-4px); border-color:var(--brass-hi); box-shadow:0 22px 44px rgba(0,0,0,.55), 0 0 26px rgba(255,214,107,.16);}
+  .poster .art{height:150px; position:relative; display:grid; place-items:center;
+    background:radial-gradient(circle at 50% 30%, var(--velvet-hi), var(--velvet) 70%);}
+  .poster .art .mono{font-family:var(--serif); font-size:44px; font-weight:900; color:rgba(246,227,161,.85);
+    text-shadow:0 2px 12px rgba(0,0,0,.5);}
+  .poster .art::after{content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, transparent 55%, rgba(20,5,8,.9));}
+  .pill{position:absolute; top:12px; left:12px; z-index:2; display:inline-flex; align-items:center; gap:6px;
+    padding:5px 10px; border-radius:999px; font-size:10.5px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;}
+  .pill .d{width:7px;height:7px;border-radius:50%;}
+  .pill.live{background:rgba(95,191,106,.18); color:#a7e6ac; border:1px solid rgba(95,191,106,.5);}
+  .pill.live .d{background:var(--ok); box-shadow:0 0 8px var(--ok); animation:pulse 1.3s infinite;}
+  @keyframes pulse{50%{opacity:.35;}}
+  .pill.soon{background:rgba(224,128,58,.15); color:#f0b487; border:1px solid rgba(224,128,58,.5);}
+  .pill.soon .d{background:var(--warn);}
+  .pill.few{background:rgba(212,175,55,.15); color:var(--brass-hi); border:1px solid rgba(212,175,55,.5);}
+  .pill.few .d{background:var(--brass);}
+  .poster .body{padding:14px 16px 18px;}
+  .poster .when{font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--brass);}
+  .poster h3{font-family:var(--serif); font-weight:700; font-size:19px; margin:6px 0 4px; line-height:1.15;}
+  .poster .by{font-style:italic; color:var(--playbill-dim); font-size:13px; margin-bottom:12px;}
+  .poster .meta{display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--playbill-dim);}
+  .poster .seats{display:flex; align-items:center; gap:6px;}
+  .btn-enter{margin-top:14px; width:100%; padding:11px; border:none; border-radius:9px; cursor:pointer;
+    font-family:var(--sans); font-weight:700; font-size:13.5px; color:#2a0812;
+    background:linear-gradient(180deg,var(--brass-hi),var(--brass) 55%,var(--brass-lo));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5); transition:.18s;}
+  .btn-enter:hover{transform:translateY(-1px); box-shadow:0 8px 18px rgba(255,214,107,.35), inset 0 1px 0 rgba(255,255,255,.6);}
+
+  /* featured bulb ring */
+  .poster.featured{border-color:rgba(255,214,107,.6);}
+  .poster.featured .art{background:radial-gradient(circle at 50% 30%, #6a1a2e, var(--velvet) 72%);}
+  .bulbrow{position:absolute; top:6px; left:0; right:0; display:flex; justify-content:space-around; z-index:3;}
+  .bulbrow span{width:6px;height:6px;border-radius:50%;background:var(--marquee);
+    box-shadow:0 0 7px 2px var(--marquee-glow); animation:chase 1.3s linear infinite;}
+  @keyframes chase{0%,100%{opacity:.3;}45%{opacity:1;}}
+
+  /* halftime lounge nook */
+  .lounge{max-width:1120px; margin:34px auto 60px; padding:0 24px;}
+  .lounge-card{display:flex; align-items:center; gap:20px; flex-wrap:wrap;
+    background:linear-gradient(120deg, rgba(90,22,38,.5), rgba(42,8,18,.4));
+    border:1px solid rgba(212,175,55,.25); border-radius:16px; padding:22px 26px;}
+  .lounge-card .ico{font-size:34px;}
+  .lounge-card h3{font-family:var(--serif); margin:0 0 4px; font-size:20px;}
+  .lounge-card p{margin:0; color:var(--playbill-dim); font-size:13.5px; max-width:560px;}
+  @media (prefers-reduced-motion: reduce){ .bulbrow span,.pill.live .d{animation:none; opacity:1;} }
+</style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <div class="brand"><span class="mk">FRONT ROW</span><span class="tag">— the house is open</span></div>
+      <div class="who">
+        <button class="btn-ghost">Post a show</button>
+        <span class="eyebrow">Jess J.</span>
+        <div class="avatar">J</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="marquee-banner">
+    <div class="lit">
+      <div class="eyebrow">Thursday, July 8 · The house is open</div>
+      <h1>Tonight <em>on the FrontRow stage</em></h1>
+      <div class="sub">Pick a show. Take a seat. The lights go down soon.</div>
+    </div>
+  </div>
+
+  <section class="section">
+    <div class="sh"><h2>On now &amp; up next</h2><span class="rule"></span></div>
+    <div class="grid">
+
+      <div class="poster featured">
+        <div class="bulbrow"><span style="animation-delay:0s"></span><span style="animation-delay:.15s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.45s"></span><span style="animation-delay:.6s"></span><span style="animation-delay:.75s"></span></div>
+        <div class="art"><span class="pill live"><span class="d"></span>Live now</span><span class="mono">L</span></div>
+        <div class="body">
+          <div class="when">On stage · Started 7:58 PM</div>
+          <h3>An Evening with the Levinson Quartet</h3>
+          <div class="by">with the Levinson Quartet</div>
+          <div class="meta"><span class="seats">◗ Intimate house</span><span>6 of 24 seats left</span></div>
+          <button class="btn-enter">Enter the theater →</button>
+        </div>
+      </div>
+
+      <div class="poster">
+        <div class="art"><span class="pill soon"><span class="d"></span>Doors 8:30</span><span class="mono">M</span></div>
+        <div class="body">
+          <div class="when">Tonight · 8:45 PM</div>
+          <h3>Midnight Monologues</h3>
+          <div class="by">a solo set by R. Okafor</div>
+          <div class="meta"><span class="seats">◗ 2 rows</span><span>Seats open</span></div>
+          <button class="btn-enter">Reserve a seat →</button>
+        </div>
+      </div>
+
+      <div class="poster">
+        <div class="art"><span class="pill few"><span class="d"></span>Few seats</span><span class="mono">S</span></div>
+        <div class="body">
+          <div class="when">Tonight · 9:15 PM</div>
+          <h3>Songs from the Green Room</h3>
+          <div class="by">an acoustic hour</div>
+          <div class="meta"><span class="seats">◗ Intimate house</span><span>3 of 16 left</span></div>
+          <button class="btn-enter">Reserve a seat →</button>
+        </div>
+      </div>
+
+      <div class="poster">
+        <div class="art"><span class="pill soon"><span class="d"></span>Tomorrow</span><span class="mono">C</span></div>
+        <div class="body">
+          <div class="when">Fri · 8:00 PM</div>
+          <h3>The Coveney Reading</h3>
+          <div class="by">new work, first look</div>
+          <div class="meta"><span class="seats">◗ 2 rows</span><span>Seats open</span></div>
+          <button class="btn-enter">Get an invite →</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="lounge">
+    <div class="lounge-card">
+      <div class="ico">🥂</div>
+      <div>
+        <h3>The Lobby Lounge</h3>
+        <p>Between acts and at halftime, step out here to mingle with tonight's audience — then head back to your seat when the bell rings. Post-show, the conversation keeps going.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
