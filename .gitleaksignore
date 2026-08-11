@@ -1,0 +1,17 @@
+# Deliberate, documented secret-gate exceptions — narrow per-finding
+# fingerprints only (commit:file:rule:line). Never add blanket allows.
+#
+# ── LiveKit pair in commit 1541720b (server/.env, 2026-04-21) ──────────────
+# VERIFIED DEAD 2026-08-11 (CCc-Fable, LiveKit credential verification pass):
+# a token minted with this pair is REJECTED (HTTP 401) by the live server at
+# wss://vpsmikewolf.duckdns.org, while the current post-reimage pair validates
+# (HTTP 200). The pair was rotated away at the 2026-07-23 VPS reimage
+# (Group-C mint); current credential lives in wolfchat/livekit.yaml +
+# vps-rebuild/env/frontrow-server.env and appears nowhere in git history.
+# This commit was already public via origin/chore/overnight-2026-05-01,
+# origin/feat/community-v1, origin/feat/video-reviewer — the exception exists
+# so the claude/* branches sharing this ancestor can land without the gate
+# re-flagging a historical, dead credential.
+# Record: ~/Projects/_estate/KEY-REFRESH-LEDGER.md (2026-08-11 LiveKit entry).
+1541720b604a9b0d2953ab19250549f152ba6e45:server/.env:generic-api-key:1
+1541720b604a9b0d2953ab19250549f152ba6e45:server/.env:generic-api-key:2
