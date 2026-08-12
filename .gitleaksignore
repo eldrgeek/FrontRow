@@ -1,17 +1,21 @@
 # Deliberate, documented secret-gate exceptions — narrow per-finding
 # fingerprints only (commit:file:rule:line). Never add blanket allows.
 #
-# ── LiveKit pair in commit 1541720b (server/.env, 2026-04-21) ──────────────
-# VERIFIED DEAD 2026-08-11 (CCc-Fable, LiveKit credential verification pass):
-# a token minted with this pair is REJECTED (HTTP 401) by the live server at
-# wss://vpsmikewolf.duckdns.org, while the current post-reimage pair validates
-# (HTTP 200). The pair was rotated away at the 2026-07-23 VPS reimage
-# (Group-C mint); current credential lives in wolfchat/livekit.yaml +
-# vps-rebuild/env/frontrow-server.env and appears nowhere in git history.
-# This commit was already public via origin/chore/overnight-2026-05-01,
-# origin/feat/community-v1, origin/feat/video-reviewer — the exception exists
-# so the claude/* branches sharing this ancestor can land without the gate
-# re-flagging a historical, dead credential.
-# Record: ~/Projects/_estate/KEY-REFRESH-LEDGER.md (2026-08-11 LiveKit entry).
-1541720b604a9b0d2953ab19250549f152ba6e45:server/.env:generic-api-key:1
-1541720b604a9b0d2953ab19250549f152ba6e45:server/.env:generic-api-key:2
+# History note: this file previously carried two fingerprints for a LiveKit
+# pair in commit 1541720b:server/.env (verified DEAD 2026-08-11 — live server
+# rejects it HTTP 401). That commit was rewritten out of every branch on
+# 2026-08-12 (git filter-repo, server/.env removed from all history), so the
+# entries are gone; nothing in current history contains the pair. Record:
+# ~/Projects/_estate/KEY-REFRESH-LEDGER.md (2026-08-11/12 LiveKit entries).
+#
+# ── Supabase CLIENT-SIDE keys in front-row-vite/src/lib/supabase.ts ────────
+# Anon/publishable keys ship in the browser bundle by design (RLS is the
+# guard). Both flagged values were additionally probed 2026-08-12 against the
+# live project (omfwcodoimjmbrhssvfl.supabase.co, apikey-only request) and
+# both return HTTP 401 — DEAD/disabled, not just public-by-design:
+#   - legacy eyJ… anon JWT (added 07-05, retired at the 07-15 sb_* migration)
+#   - sb_publishable_… (in the 07-15 migration commit; now also rejected —
+#     flagged separately: the deployed client may hold a stale Supabase key)
+977ace50081a4dfd525c64c7e3f95279b8bad5c1:front-row-vite/src/lib/supabase.ts:jwt:7
+b0f11f178437b54a937447cb02e193c4dd624e62:front-row-vite/src/lib/supabase.ts.bak-20260715-125655:jwt:7
+b0f11f178437b54a937447cb02e193c4dd624e62:front-row-vite/src/lib/supabase.ts:generic-api-key:7
