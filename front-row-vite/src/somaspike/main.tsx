@@ -141,6 +141,19 @@ function SpikeApp() {
         } catch {}
       });
       await room.connect(j.wsUrl, j.token);
+      // PUBLISH THE MIC — the seat must speak, not only listen. (First live
+      // test, 2026-08-30: Mike talked to a page that never published audio;
+      // Izzy heard silence. The green-room stage page always did this.)
+      // Mic denial must NOT strand a connected seat: degrade to listen-only
+      // with a visible note instead of an error state (found in verification,
+      // 2026-08-30 — the room was live while the page said Permission denied).
+      try {
+        const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+        await room.localParticipant.publishTrack(mic.getAudioTracks()[0], { name: j.displayName || 'seat mic' });
+      } catch {
+        setNote('Mic unavailable — you can hear Izzy but she cannot hear you. Allow mic access and reload to talk.');
+      }
+      (window as any).somaRoom = room; // debug/verification handle
       await ctx.resume();
       setStatus('live');
     } catch (e: any) {
@@ -156,20 +169,27 @@ function SpikeApp() {
         <ambientLight intensity={0.45} />
         <directionalLight position={[4, 8, 4]} intensity={0.9} />
         <spotLight position={[0, 9, -4]} angle={0.5} intensity={2.2} penumbra={0.6} target-position={[0, 1.5, -8]} />
+        {/* performerOnStage=true HIDES CurvedScreen/YouTubeScreen — that
+            component mounts a DOM iframe layer over the whole canvas that
+            both buries our UI overlay and plays FRT's fallback reel
+            (found live 2026-08-30: "Jess in the background"). */}
         <Stage
           config={{ artistName: 'Izzy' }}
           showState="live"
-          performerOnStage={false}
+          performerOnStage={true}
           curtainOpen={true}
           spotlightActive={true}
         />
+        <Text position={[0, 6.6, -11]} fontSize={0.62} color="#c8a24a" anchorX="center">
+          SOMA ROOMS × FRONT ROW
+        </Text>
         <IzzyAvatar levelRef={levelRef} />
         <OrbitControls target={[0, 1.8, -7]} maxPolarAngle={Math.PI / 2.05} />
       </Canvas>
 
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, padding: '18px 20px 26px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, zIndex: 1000,
         color: '#e7e7ee', font: '15px/1.4 -apple-system, sans-serif', pointerEvents: 'none',
       }}>
         {caption && (
@@ -188,8 +208,10 @@ function SpikeApp() {
             {status === 'joining' ? 'Taking your seat…' : 'Take your seat'}
           </button>
         )}
-        {status === 'error' && <div style={{ color: '#ef4444', pointerEvents: 'auto' }}>{note}</div>}
-        <div style={{ opacity: 0.55, fontSize: 12 }}>SOMA Rooms × Front Row Theater — live avatar spike</div>
+        {note && <div style={{ color: status === 'error' ? '#ef4444' : '#f59e0b', pointerEvents: 'auto' }}>{note}</div>}
+        <div style={{ opacity: 0.55, fontSize: 12 }}>
+          {status === 'live' ? 'Your mic is live — just talk to her. · ' : ''}SOMA Rooms × Front Row Theater — live avatar spike
+        </div>
       </div>
     </div>
   );
