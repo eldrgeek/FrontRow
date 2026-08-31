@@ -89,7 +89,11 @@ type SessionEvent = { room: string; talent: { name: string; theaterPath: string;
 function DirectorVenue() {
   const [status, setStatus] = useState<'idle' | 'joining' | 'live' | 'error'>('idle');
   const [note, setNote] = useState('');
-  const [caption, setCaption] = useState<{ name: string; text: string; final: boolean } | null>(null);
+  // Rolling caption log (Mike, 2026-08-31: single-slot captions "popping up
+  // and disappearing" while choppy ASR streamed — finals accumulate, the
+  // in-flight partial rides below them in italic).
+  const [capLines, setCapLines] = useState<{ name: string; text: string }[]>([]);
+  const [partial, setPartial] = useState<{ name: string; text: string } | null>(null);
   const [tool, setTool] = useState<'none' | 'notes' | 'sessions'>('none');
   const [sessions, setSessions] = useState<SessionEvent[]>([]);
   const [savedFlash, setSavedFlash] = useState('');
@@ -128,14 +132,29 @@ function DirectorVenue() {
       room.on(RoomEvent.DataReceived, (payload) => {
         try {
           const m = JSON.parse(new TextDecoder().decode(payload));
-          if (m?.type === 'transcript' && m.text) setCaption({ name: m.name || 'Someone', text: m.text, final: !!m.final });
+          if (m?.type === 'transcript' && m.text) {
+            if (m.final) { setPartial(null); setCapLines((ls) => [...ls, { name: m.name || 'Someone', text: m.text }].slice(-3)); }
+            else setPartial({ name: m.name || 'Someone', text: m.text });
+          }
           if (m?.type === 'manager-event') {
             if (m.kind === 'session-started') { setSessions((s) => [m as SessionEvent, ...s]); setTool('sessions'); }
             if (m.kind === 'note-saved') { setSavedFlash(`Saved: ${m.note?.title || 'note'}`); setTimeout(() => setSavedFlash(''), 4000); }
           }
         } catch {}
       });
+      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        setNote(room.canPlaybackAudio ? '' : 'Sound is blocked by the browser — click the page once to enable it.');
+        if (!room.canPlaybackAudio) {
+          const unlock = () => { room.startAudio().catch(() => {}); document.removeEventListener('click', unlock); };
+          document.addEventListener('click', unlock);
+        }
+      });
       await room.connect(j.wsUrl, j.token);
+      // The browser may refuse autoplay of remote audio even after the join
+      // click (found live 2026-08-31: captions worked, voice silent).
+      // startAudio() ties playback to the gesture; the handler above recovers
+      // if the browser still balks.
+      await room.startAudio().catch(() => {});
       try {
         const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
         await room.localParticipant.publishTrack(mic.getAudioTracks()[0], { name: 'director mic' });
@@ -204,12 +223,19 @@ function DirectorVenue() {
         color: '#e7e7ee', font: '15px/1.4 -apple-system, sans-serif', pointerEvents: 'none',
       }}>
         {savedFlash && <div style={{ color: '#34d399', fontSize: 13 }}>{savedFlash}</div>}
-        {caption && (
+        {(capLines.length > 0 || partial) && (
           <div style={{
             background: 'rgba(14,15,19,.82)', border: '1px solid #2a2d3a', borderRadius: 10, padding: '8px 14px',
-            maxWidth: 680, opacity: caption.final ? 1 : 0.75, fontStyle: caption.final ? 'normal' : 'italic',
+            maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 4,
           }}>
-            <span style={{ color: '#c8a24a', fontWeight: 600, marginRight: 6 }}>{caption.name}</span>{caption.text}
+            {capLines.map((c, i) => (
+              <div key={i}><span style={{ color: '#c8a24a', fontWeight: 600, marginRight: 6 }}>{c.name}</span>{c.text}</div>
+            ))}
+            {partial && (
+              <div style={{ opacity: 0.7, fontStyle: 'italic' }}>
+                <span style={{ color: '#c8a24a', fontWeight: 600, marginRight: 6 }}>{partial.name}</span>{partial.text}
+              </div>
+            )}
           </div>
         )}
         {status === 'live' && (

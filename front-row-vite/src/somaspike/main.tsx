@@ -195,7 +195,19 @@ function SpikeApp() {
           if (m?.type === 'transcript' && m.text) setCaption({ name: m.name || 'Someone', text: m.text, final: !!m.final });
         } catch {}
       });
+      room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+        setNote(room.canPlaybackAudio ? '' : 'Sound is blocked by the browser — click the page once to enable it.');
+        if (!room.canPlaybackAudio) {
+          const unlock = () => { room.startAudio().catch(() => {}); document.removeEventListener('click', unlock); };
+          document.addEventListener('click', unlock);
+        }
+      });
       await room.connect(j.wsUrl, j.token);
+      // The browser may refuse autoplay of remote audio even after the join
+      // click (found live 2026-08-31: captions worked, voice silent).
+      // startAudio() ties playback to the gesture; the handler above recovers
+      // if the browser still balks.
+      await room.startAudio().catch(() => {});
       // PUBLISH THE MIC — the seat must speak, not only listen. (First live
       // test, 2026-08-30: Mike talked to a page that never published audio;
       // Izzy heard silence. The green-room stage page always did this.)
