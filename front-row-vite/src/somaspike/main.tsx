@@ -93,14 +93,69 @@ function IzzyAvatar({ levelRef }: { levelRef: React.MutableRefObject<number> }) 
 function SpikeApp() {
   const [status, setStatus] = useState<'idle' | 'joining' | 'live' | 'error'>('idle');
   const [note, setNote] = useState('');
-  const [caption, setCaption] = useState('');
+  // Captions render PARTIALS live and update in place (Mike, 2026-08-30:
+  // final-only captions trailed speech by seconds and misrepresented what
+  // Izzy was actually hearing in real time).
+  const [caption, setCaption] = useState<{ name: string; text: string; final: boolean } | null>(null);
+  const [camOn, setCamOn] = useState(false);
   const levelRef = useRef(0);
   const roomRef = useRef<Room | null>(null);
+  const inviteRef = useRef('');
+  const camStreamRef = useRef<MediaStream | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const uploadChain = useRef<Promise<any>>(Promise.resolve());
+  const selfviewRef = useRef<HTMLVideoElement>(null);
+
+  // Camera + self-recording, ported from the green-room stage page (Mike,
+  // 2026-08-30: "we've lost the ability to render and record video" — the
+  // spike never had it). Publishes the camera to the room AND streams webm
+  // slices of cam+mic to the invite-authed /api/rooms/video appender.
+  async function toggleCam() {
+    const room = roomRef.current;
+    if (!room) return;
+    if (camOn) {
+      try { recRef.current?.stop(); } catch {}
+      recRef.current = null;
+      camStreamRef.current?.getTracks().forEach((t) => {
+        room.localParticipant.unpublishTrack(t).catch(() => {});
+        t.stop();
+      });
+      camStreamRef.current = null;
+      setCamOn(false);
+      return;
+    }
+    try {
+      const cam = await navigator.mediaDevices.getUserMedia({ video: true });
+      camStreamRef.current = cam;
+      const vTrack = cam.getVideoTracks()[0];
+      await room.localParticipant.publishTrack(vTrack, { name: 'camera' });
+      if (selfviewRef.current) selfviewRef.current.srcObject = new MediaStream([vTrack]);
+      const recTracks: MediaStreamTrack[] = [vTrack];
+      for (const pub of room.localParticipant.trackPublications.values()) {
+        const t = (pub as any).track?.mediaStreamTrack;
+        if (t && t.kind === 'audio') recTracks.push(t);
+      }
+      const rec = new MediaRecorder(new MediaStream(recTracks), { mimeType: 'video/webm', videoBitsPerSecond: 1_200_000 });
+      rec.ondataavailable = (e) => {
+        if (!e.data?.size) return;
+        const blob = e.data;
+        uploadChain.current = uploadChain.current.then(() =>
+          fetch(`../api/rooms/video?i=${encodeURIComponent(inviteRef.current)}`, { method: 'POST', body: blob }).catch(() => {})
+        );
+      };
+      rec.start(5000);
+      recRef.current = rec;
+      setCamOn(true);
+    } catch {
+      setNote('Camera unavailable — check permissions.');
+    }
+  }
 
   async function takeSeat() {
     setStatus('joining');
     try {
       const invite = new URL(location.href).searchParams.get('i') || '';
+      inviteRef.current = invite;
       if (!invite) throw new Error('missing invite (?i=…)');
       const resp = await fetch('../api/rooms/join', {
         method: 'POST',
@@ -137,7 +192,7 @@ function SpikeApp() {
       room.on(RoomEvent.DataReceived, (payload) => {
         try {
           const m = JSON.parse(new TextDecoder().decode(payload));
-          if (m?.type === 'transcript' && m.final) setCaption(`${m.name}: ${m.text}`);
+          if (m?.type === 'transcript' && m.text) setCaption({ name: m.name || 'Someone', text: m.text, final: !!m.final });
         } catch {}
       });
       await room.connect(j.wsUrl, j.token);
@@ -187,15 +242,41 @@ function SpikeApp() {
         <OrbitControls target={[0, 1.8, -7]} maxPolarAngle={Math.PI / 2.05} />
       </Canvas>
 
+      {/* dressing-room mirror: your own camera, top-right */}
+      <video
+        ref={selfviewRef}
+        autoPlay muted playsInline
+        style={{
+          position: 'absolute', top: 14, right: 14, width: 200, borderRadius: 12,
+          border: '1px solid #2a2d3a', background: '#000', zIndex: 1000,
+          display: camOn ? 'block' : 'none',
+        }}
+      />
+
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, padding: '18px 20px 26px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, zIndex: 1000,
         color: '#e7e7ee', font: '15px/1.4 -apple-system, sans-serif', pointerEvents: 'none',
       }}>
         {caption && (
-          <div style={{ background: 'rgba(14,15,19,.82)', border: '1px solid #2a2d3a', borderRadius: 10, padding: '8px 14px', maxWidth: 680 }}>
-            {caption}
+          <div style={{
+            background: 'rgba(14,15,19,.82)', border: '1px solid #2a2d3a', borderRadius: 10,
+            padding: '8px 14px', maxWidth: 680,
+            opacity: caption.final ? 1 : 0.75, fontStyle: caption.final ? 'normal' : 'italic',
+          }}>
+            <span style={{ color: '#c8a24a', fontWeight: 600, marginRight: 6 }}>{caption.name}</span>
+            {caption.text}
           </div>
+        )}
+        {status === 'live' && (
+          <button
+            onClick={toggleCam}
+            style={{
+              pointerEvents: 'auto', background: 'transparent', color: '#e7e7ee',
+              border: '1px solid #2a2d3a', borderRadius: 9, padding: '8px 16px', fontSize: 13, cursor: 'pointer',
+            }}>
+            {camOn ? '● Recording — turn camera off' : 'Turn on camera (records you)'}
+          </button>
         )}
         {status !== 'live' && (
           <button
