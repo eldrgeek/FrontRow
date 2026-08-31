@@ -10,7 +10,7 @@ export default defineConfig({
   build: {
     outDir: 'dist-spike',
     rollupOptions: {
-      input: { somaspike: resolve(__dirname, 'somaspike.html') },
+      input: { somaspike: resolve(__dirname, 'somaspike.html'), director3d: resolve(__dirname, 'director3d.html') },
     },
   },
 });
