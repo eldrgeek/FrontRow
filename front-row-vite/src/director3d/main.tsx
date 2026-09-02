@@ -87,6 +87,7 @@ function ManagerAvatar({ levelRef }: { levelRef: React.MutableRefObject<number> 
 type SessionEvent = { room: string; talent: { name: string; theaterPath: string; stagePath: string }[]; hostPath: string; staged?: string[] };
 
 function DirectorVenue() {
+  // Land and go straight backstage (Mike, 2026-09-01) — no button gate.
   const [status, setStatus] = useState<'idle' | 'joining' | 'live' | 'error'>('idle');
   const [note, setNote] = useState('');
   // Rolling caption log (Mike, 2026-08-31: single-slot captions "popping up
@@ -99,12 +100,26 @@ function DirectorVenue() {
   const [savedFlash, setSavedFlash] = useState('');
   const levelRef = useRef(0);
   const roomRef = useRef<Room | null>(null);
+  const autoJoined = useRef(false);
+  React.useEffect(() => {
+    if (!autoJoined.current) { autoJoined.current = true; enter(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function enter() {
     setStatus('joining');
     try {
-      const invite = new URL(location.href).searchParams.get('i') || '';
-      if (!invite) throw new Error('missing invite (?i=…)');
+      let invite = new URL(location.href).searchParams.get('i') || '';
+      // Short opaque links (Mike, 2026-09-01): /rooms/go/<code> carries no
+      // token — resolve the code server-side.
+      if (!invite) {
+        const m = location.pathname.match(/\/go\/([A-Za-z0-9_-]+)/);
+        if (m) {
+          const r = await fetch('../api/rooms/resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: m[1] }) });
+          if (r.ok) invite = (await r.json()).invite;
+        }
+      }
+      if (!invite) throw new Error('missing or expired link — ask for a fresh one');
       const resp = await fetch('../api/rooms/join', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ invite }),
@@ -206,11 +221,10 @@ function DirectorVenue() {
               <div style={{ color: '#9a9aab', fontSize: 12, marginBottom: 6 }}>room {s.room}{s.staged?.length ? ` · staged: ${s.staged.join(', ')}` : ''}</div>
               {s.talent?.map((t) => (
                 <div key={t.name} style={{ margin: '4px 0' }}>
-                  {t.name}: <a style={{ color: '#c8a24a' }} href={origin + t.theaterPath} target="_blank" rel="noreferrer">theater seat</a>
-                  {' · '}<a style={{ color: '#c8a24a' }} href={origin + t.stagePath} target="_blank" rel="noreferrer">plain stage</a>
+                  {t.name}: <a style={{ color: '#c8a24a' }} href={origin + ((t as any).goPath || t.theaterPath)} target="_blank" rel="noreferrer">{location.origin + '/rooms' + ((t as any).goPath || '')}</a>
                 </div>
               ))}
-              <div style={{ margin: '4px 0' }}>Director seat: <a style={{ color: '#c8a24a' }} href={origin + s.hostPath} target="_blank" rel="noreferrer">join</a></div>
+              <div style={{ margin: '4px 0' }}>You (director): <a style={{ color: '#c8a24a' }} href={origin + ((s as any).hostGoPath || s.hostPath)} target="_blank" rel="noreferrer">take your seat</a></div>
             </div>
           ))}
         </div>
@@ -248,10 +262,10 @@ function DirectorVenue() {
           <button onClick={enter} disabled={status === 'joining'} style={{
             pointerEvents: 'auto', background: '#c8a24a', color: '#17140a', border: 'none',
             borderRadius: 9, padding: '12px 22px', fontSize: 16, fontWeight: 600, cursor: 'pointer',
-          }}>{status === 'joining' ? 'Going backstage…' : 'Go backstage'}</button>
+          }}>{status === 'joining' ? 'Going backstage…' : 'Retry'}</button>
         )}
         {note && <div style={{ color: status === 'error' ? '#ef4444' : '#f59e0b', pointerEvents: 'auto' }}>{note}</div>}
-        <div style={{ opacity: 0.55, fontSize: 12 }}>{status === 'live' ? 'Your mic is live — just talk to her. · ' : ''}SOMA Rooms × Front Row — director's venue</div>
+        <div style={{ opacity: 0.55, fontSize: 12 }}>{status === 'live' && !note ? 'Your mic is live — just talk to her. · ' : ''}SOMA Rooms × Front Row — director's venue</div>
       </div>
     </div>
   );

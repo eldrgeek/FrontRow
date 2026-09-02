@@ -154,9 +154,16 @@ function SpikeApp() {
   async function takeSeat() {
     setStatus('joining');
     try {
-      const invite = new URL(location.href).searchParams.get('i') || '';
+      let invite = new URL(location.href).searchParams.get('i') || '';
+      if (!invite) {
+        const m = location.pathname.match(/\/go\/([A-Za-z0-9_-]+)/);
+        if (m) {
+          const r = await fetch('../api/rooms/resolve', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: m[1] }) });
+          if (r.ok) invite = (await r.json()).invite;
+        }
+      }
       inviteRef.current = invite;
-      if (!invite) throw new Error('missing invite (?i=…)');
+      if (!invite) throw new Error('missing or expired link — ask for a fresh one');
       const resp = await fetch('../api/rooms/join', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -303,7 +310,7 @@ function SpikeApp() {
         )}
         {note && <div style={{ color: status === 'error' ? '#ef4444' : '#f59e0b', pointerEvents: 'auto' }}>{note}</div>}
         <div style={{ opacity: 0.55, fontSize: 12 }}>
-          {status === 'live' ? 'Your mic is live — just talk to her. · ' : ''}SOMA Rooms × Front Row Theater — live avatar spike
+          {status === 'live' && !note ? 'Your mic is live — just talk to her. · ' : ''}SOMA Rooms × Front Row Theater — live avatar spike
         </div>
       </div>
     </div>
