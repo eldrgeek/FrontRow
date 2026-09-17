@@ -22,3 +22,5 @@ server/.env
 
 # Claude Code worktree checkouts — never commit as gitlinks (breaks Netlify/CI checkout)
 .claude/worktrees/
+
+front-row-vite/dist-spike/
