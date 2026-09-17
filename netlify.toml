@@ -1,6 +1,8 @@
 [build]
   publish = "front-row-vite/dist"
-  command = "cd netlify/functions && npm install && cd ../../front-row-vite && npm install && npm run build"
+  # WQ-296: esbuild strips types without checking them; typecheck the 16
+  # function files first so a type error fails the deploy instead of shipping.
+  command = "cd netlify/functions && npm install && npm run typecheck && cd ../../front-row-vite && npm install && npm run build"
 
 [functions]
   directory = "netlify/functions"
