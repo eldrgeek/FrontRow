@@ -131,7 +131,7 @@ function SpikeApp() {
       await room.localParticipant.publishTrack(vTrack, { name: 'camera' });
       if (selfviewRef.current) selfviewRef.current.srcObject = new MediaStream([vTrack]);
       const recTracks: MediaStreamTrack[] = [vTrack];
-      for (const pub of room.localParticipant.trackPublications.values()) {
+      for (const pub of Array.from(room.localParticipant.trackPublications.values())) {
         const t = (pub as any).track?.mediaStreamTrack;
         if (t && t.kind === 'audio') recTracks.push(t);
       }
