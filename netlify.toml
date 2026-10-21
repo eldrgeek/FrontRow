@@ -2,7 +2,10 @@
   publish = "front-row-vite/dist"
   # WQ-296: esbuild strips types without checking them; typecheck the 16
   # function files first so a type error fails the deploy instead of shipping.
-  command = "cd netlify/functions && npm install && npm run typecheck && cd ../../front-row-vite && npm install && npm run build"
+  # --include=dev: NODE_ENV=production (context below) makes npm skip
+  # devDependencies, so @types/node and typescript were missing and every
+  # build failed with exit 2 from 2026-10-21 (bead pm-09nn).
+  command = "cd netlify/functions && npm install --include=dev && npm run typecheck && cd ../../front-row-vite && npm install && npm run build"
 
 [functions]
   directory = "netlify/functions"
