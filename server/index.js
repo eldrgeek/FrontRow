@@ -81,11 +81,19 @@ const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), select
 
 // --- API Routes ---
 
+// LiveKit keys are not scoped to rooms, so a token minted here could join any
+// room on the server. FrontRow only uses frontrow-* rooms.
+const LIVEKIT_ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,60}$/;
+
 // LiveKit token endpoint (mirrors Netlify function for local dev)
 app.get('/api/livekit-token', async (req, res) => {
   const identity = (req.query.identity || 'Guest').toString().slice(0, 40);
   const role = (req.query.role || 'audience').toString();
   const room = (req.query.room || 'frontrow-main').toString();
+
+  if (!LIVEKIT_ROOM_PATTERN.test(room)) {
+    return res.status(403).json({ error: 'Room not allowed' });
+  }
 
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
@@ -99,7 +107,7 @@ app.get('/api/livekit-token', async (req, res) => {
     const at = new AccessToken(apiKey, apiSecret, {
       identity,
       name: identity,
-      ttl: '8h',
+      ttl: '2h',
     });
     at.addGrant({
       roomJoin: true,
