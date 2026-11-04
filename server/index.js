@@ -17,7 +17,10 @@ const getAllowedOrigins = () => {
     // Always allow localhost for testing during development
     const origins = [
       ...envOrigins,
-      'http://localhost:5173',
+      // This site's Netlify deploy previews (deploy-preview-<PR>--frontrowtheater),
+      // so a PR can be tried with real seats before it merges. Anchored: no
+      // other Netlify site matches.
+      /^https:\/\/deploy-preview-\d+--frontrowtheater\.netlify\.app$/,
       'http://localhost:3000',
       'https://localhost:5173'
     ].filter(Boolean);
