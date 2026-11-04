@@ -31,6 +31,8 @@ interface StageProps {
   reactionLevel?: number;
   /** Phase 2: spotlight */
   spotlightActive?: boolean;
+  /** Ticketed shows: the fallback video waits behind the curtain until Live */
+  holdFallbackUntilLive?: boolean;
 }
 
 // Semicircle stage platform component
@@ -70,6 +72,7 @@ function CurvedScreen({
   showState,
   isPerformer = false,
   hidden = false,
+  holdUntilLive = false,
 }: {
   videoTexture: THREE.VideoTexture | null;
   fallbackVideoId?: string;
@@ -77,6 +80,7 @@ function CurvedScreen({
   showState: 'idle' | 'pre-show' | 'live' | 'post-show';
   isPerformer?: boolean;
   hidden?: boolean;
+  holdUntilLive?: boolean;
 }): JSX.Element | null {
   if (hidden) return null;
 
@@ -115,7 +119,7 @@ function CurvedScreen({
       >
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
       </Plane>
-      {!hasLiveStream && (
+      {!hasLiveStream && (!holdUntilLive || showState === 'live') && (
         <YouTubeScreen
           videoId={fallbackVideoId}
           position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2] + 0.5]}
@@ -182,6 +186,7 @@ function Stage({
   curtainStyle = 'velvet-red',
   reactionLevel = 0,
   spotlightActive = false,
+  holdFallbackUntilLive = false,
 }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
   const videoTexture = useVideoTexture(performerStream || null);
@@ -211,6 +216,7 @@ function Stage({
         showState={showState}
         isPerformer={isPerformer}
         hidden={performerOnStage}
+        holdUntilLive={holdFallbackUntilLive}
       />
 
       {/* Phase 2: Performer mesh on stage floor */}

@@ -5,6 +5,7 @@ import { OrbitControls, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 import Stage from './components/Stage';
 import HouseRoom from './components/HouseRoom';
+import HouseLights from './components/HouseLights';
 import SeatSelection from './components/SeatSelection';
 import UserInputForm from './components/UserInputForm';
 import CanvasErrorBoundary from './components/CanvasErrorBoundary';
@@ -167,6 +168,21 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   });
 
   const isArtistRef = useRef(isArtist);
+
+  // Applause for the audience only: when the curtain goes up and when the
+  // set ends. The artist never hears it (CLAUDE.md, audio system).
+  const prevShowState = useRef<ShowState>('idle');
+  useEffect(() => {
+    const was = prevShowState.current;
+    prevShowState.current = showState;
+    if (!entry || isArtistRef.current || was === showState) return;
+    if (showState === 'live' || (showState === 'post-show' && was === 'live')) {
+      const a = new Audio('/audio/applause.mp3');
+      a.volume = 0.8;
+      a.play().catch(() => undefined);
+    }
+  }, [showState, entry]);
+
   useEffect(() => { isArtistRef.current = isArtist; }, [isArtist]);
 
   // Expose state globally for Playwright E2E tests
@@ -1028,12 +1044,8 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               setWebglSupported(false);
             }}
           >
-            {/* Warm house light, all local: the old drei "city" preset fetched
-                an HDR from a CDN, and the theater failed to load without it. */}
-            <hemisphereLight args={['#ffe2b8', '#2a0812', 0.7]} />
-            <ambientLight intensity={0.35} />
-            <pointLight position={[10, 10, 10]} intensity={0.6} color="#ffd9a0" />
-            <directionalLight position={[0, 12, 8]} intensity={0.5} color="#fff1d6" />
+            {/* House lights down for the set, up before and after it. */}
+            <HouseLights level={showState === 'live' ? 0.18 : 1} />
 
             <HouseRoom />
 
@@ -1059,10 +1071,11 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               performerStageZ={performerStageZ}
               performerStageX={performerStageX}
               performerOpacity={performerOpacity}
-              curtainOpen={curtainOpen}
+              curtainOpen={curtainOpen || (!!entryShow && showState === 'live')}
               curtainStyle={curtainStyle}
               reactionLevel={reactionLevel}
-              spotlightActive={spotlightActive}
+              spotlightActive={spotlightActive || (!!entryShow && showState === 'live')}
+              holdFallbackUntilLive={!!entryShow}
             />
             <SeatSelection
               selectedSeat={selectedSeat}
