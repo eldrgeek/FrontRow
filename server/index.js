@@ -51,6 +51,10 @@ app.use('/api/v1', apiRouter);
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
 const scheduledShows = []; // { id, artistId, title, dateTime, status: 'scheduled' | 'live' | 'ended' }
+// Seats in the house: seat-0 … seat-11 (front-row-vite/src/lib/seatLayout.ts).
+const MAX_SEATS = Number(process.env.MAX_SEATS) || 12;
+const SEAT_ID = /^seat-\d{1,2}$/;
+
 let activeShow = {
   artistId: null,
   startTime: null,
@@ -1036,7 +1040,11 @@ io.on('connection', (socket) => {
       });
       return;
     }
-    if (Object.keys(activeShow.audienceSeats).length >= 9) { // Cap at 9 front-row seats
+    if (!SEAT_ID.test(String(seatId || '')) || Number(String(seatId).slice(5)) >= MAX_SEATS) {
+      socket.emit('seat-selected', { success: false, message: 'There is no such seat' });
+      return;
+    }
+    if (Object.keys(activeShow.audienceSeats).length >= MAX_SEATS) { // a dozen seats, close to the stage
       socket.emit('seat-selected', { success: false, message: 'Front row is full!' });
       logTestEvent('seat-select-failed', { 
         socketId: socket.id, 

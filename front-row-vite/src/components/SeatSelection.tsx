@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { Text, Box } from '@react-three/drei';
+import { Text, Box, Billboard } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import PhotoCube from './PhotoCube';
+import { seatLabel, seatLayout } from '../lib/seatLayout';
 
 interface AudienceSeat {
   name: string;
@@ -34,22 +35,7 @@ interface SeatSelectionProps {
 }
 
 function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto, audienceStreams }: SeatSelectionProps): JSX.Element {
-  const seatsData: SeatData[] = [];
-  const frontRowRadius = 10; // Increased radius for better spacing
-  const stageZOffset = -8; // Stage position in Z
-
-  // Generate 9 seat positions in a 180-degree arc around the semicircle 
-  // Rotated 90 degrees clockwise so they face the back screen
-  const startAngle = 0; // Start from front (0 degrees)
-  const endAngle = Math.PI; // End at back (180 degrees) 
-  const totalSeats = 9;
-
-  for (let i = 0; i < totalSeats; i++) {
-    const angle = startAngle + (i / (totalSeats - 1)) * (endAngle - startAngle);
-    const x = frontRowRadius * Math.cos(angle);
-    const z = frontRowRadius * Math.sin(angle) + stageZOffset; // Align with stage
-    seatsData.push({ id: `seat-${i}`, position: [x, 0, z] });
-  }
+  const seatsData: SeatData[] = seatLayout(0);
 
   return (
     <group>
@@ -114,15 +100,13 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
     handleClick();
   };
 
-  // Color logic: occupied=darkred, selected=gold, available=blue
+  // Velvet seats, brass for yours: free = velvet red, taken = deep oxblood.
   const occupiedByMe = isOccupied && occupantSocketId === mySocketId;
-  const color = occupiedByMe
-    ? 'gold'
+  const color = occupiedByMe || isSelected
+    ? '#d4af37'
     : isOccupied
-      ? 'darkred'
-      : isSelected
-        ? 'gold'
-        : 'blue'; // Keep all unoccupied seats blue
+      ? '#4a0812'
+      : '#9b1529';
 
   // Mobile-friendly seat size - larger for easier touch
   const seatSize = window.innerWidth < 768 ? 1.3 : 1; // Larger seats on mobile
@@ -169,10 +153,10 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
             args={[seatSize * 1.1, seatSize * 1.1, seatSize * 1.1]}
             position={[0, 0, 0]}
           >
-            <meshBasicMaterial 
-              color="blue"
+            <meshBasicMaterial
+              color="#ffd66b"
               transparent={true}
-              opacity={0.2}
+              opacity={0.15}
             />
           </Box>
         )}
@@ -191,31 +175,33 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
         />
       )}
 
-      {/* Text elements outside clickable group to prevent click interference */}
-      {isOccupied && !(occupiedByMe && hideMyPhoto) && (
-        <>
+      {/* The guest's name, always facing the viewer, above their seat */}
+      {isOccupied && !(occupiedByMe && hideMyPhoto) && occupantName && (
+        <Billboard position={[0, seatSize * 3.05, 0]}>
           <Text
-            position={[0, -0.3, 0.8]}
-            fontSize={nameTextSize}
-            color="white"
+            fontSize={nameTextSize * 2.6}
+            color="#f6e3a1"
+            outlineWidth={0.02}
+            outlineColor="#140508"
             anchorX="center"
             anchorY="middle"
+            maxWidth={3}
           >
             {occupantName}
           </Text>
-        </>
+        </Billboard>
       )}
-      
-      {/* Add seat number for easier identification on mobile */}
+
+      {/* Seat number painted on the floor in front of the seat */}
       <Text
-        position={[0, -0.7, 0]}
-        fontSize={0.2}
-        color="rgba(255, 255, 255, 0.7)"
+        position={[0, 0.02, 0.9]}
+        fontSize={0.32}
+        color="#d4af37"
         anchorX="center"
         anchorY="middle"
         rotation-x={-Math.PI / 2}
       >
-        {seat.id.replace('seat-', 'Seat ')}
+        {seatLabel(seat.id)}
       </Text>
     </group>
   );

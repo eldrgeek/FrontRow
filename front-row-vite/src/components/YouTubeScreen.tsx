@@ -34,6 +34,7 @@ function YouTubeScreen({ videoId, position = [0, 3, -8], isLive = false, isPerfo
       position={position}
       transform
       occlude="blending"
+      zIndexRange={[50, 0]} // stay under the page overlays (HUD, controls), which sit at 10000
       style={{
         width: '800px',
         height: '450px',

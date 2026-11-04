@@ -43,7 +43,7 @@ function SemicircleStage(): JSX.Element {
         position={[0, 0.1, -8]}
         rotation-x={0}
       >
-        <meshStandardMaterial color="#444444" />
+        <meshStandardMaterial color="#6b4426" roughness={0.7} />
       </Cylinder>
 
       {/* Stage edge for visual definition */}
@@ -52,11 +52,11 @@ function SemicircleStage(): JSX.Element {
         position={[0, 0.05, -8]}
         rotation-x={0}
       >
-        <meshStandardMaterial color="#333333" />
+        <meshStandardMaterial color="#a9791f" metalness={0.4} roughness={0.4} />
       </Cylinder>
       {/* Apron rectangle between stage flat edge and screen */}
       <Plane args={[16.0, 4]} rotation-x={-Math.PI / 2} position={[0, 0.11, -10]}>
-        <meshStandardMaterial color="#444444" side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#5a3820" roughness={0.75} side={THREE.DoubleSide} />
       </Plane>
     </group>
   );
@@ -248,8 +248,9 @@ function Stage({
       <Text
         position={[0, 0.02, -1]}
         rotation-x={-Math.PI / 2}
-        fontSize={0.8}
-        color="white"
+        fontSize={1.1}
+        color="#d9b77a"
+        letterSpacing={0.04}
         anchorX="center"
         anchorY="middle"
       >

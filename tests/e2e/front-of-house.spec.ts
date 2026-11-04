@@ -34,6 +34,10 @@ test.describe('Front of house', () => {
     await page.getByTestId('fr-door-live').click();
     await expect(page).toHaveURL(/\/show\/jess-wayne\/house$/);
     await expect(page.getByTestId('fr-curtain-entry')).toBeAttached();
+    // The house knows the ticket: no name form, a playbill with 12 seats.
+    await expect(page.getByTestId('fr-hud')).toContainText('of 12 seated', { timeout: 20000 });
+    await expect(page.getByTestId('fr-hud')).toContainText('Noel b');
+    await expect(page.locator('.user-input-form')).toHaveCount(0);
   });
 
   test('the ticket survives a reload, and the house needs one', async ({ page }) => {

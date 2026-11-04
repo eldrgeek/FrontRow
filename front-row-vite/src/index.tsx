@@ -15,6 +15,7 @@ import { installSomaFeedbackIdentityHook } from './lib/somaFeedbackIdentity';
 import { installSomaFeedbackAuthHook } from './lib/somaFeedbackAuth';
 import { installGlobalErrorHandlers } from './lib/errorReport';
 import App from './App';
+import { configureTextBuilder } from 'troika-three-text';
 import HouseManagerApp from './HouseManagerApp';
 import BackstageRoom from './BackstageRoom';
 import { InvitePage, TicketPage } from './theater/FrontOfHouse';
@@ -32,6 +33,11 @@ import { HousePage } from './theater/House';
 installSomaFeedbackIdentityHook();
 installSomaFeedbackAuthHook();
 installGlobalErrorHandlers();
+
+// 3D text (seat names, the stage stencil) uses a font shipped with the site.
+// Without this, troika fetches font data from cdn.jsdelivr.net at runtime and
+// the whole theater stays on its loading spinner wherever that CDN is blocked.
+configureTextBuilder({ defaultFontURL: '/fonts/playfair-display-latin-700-normal.woff' });
 
 // Router wrapper that requires auth setup
 function AppRoutes() {

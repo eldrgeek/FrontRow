@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Text } from '@react-three/drei';
+import { OrbitControls, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 import Stage from './components/Stage';
+import HouseRoom from './components/HouseRoom';
 import SeatSelection from './components/SeatSelection';
 import UserInputForm from './components/UserInputForm';
 import CanvasErrorBoundary from './components/CanvasErrorBoundary';
@@ -23,6 +24,9 @@ import { useLiveKit } from './hooks/useLiveKit';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
+import { getShow } from './theater/show';
+import { initialsFace } from './theater/faces';
+import { HouseHud } from './theater/HouseHud';
 
 // Phase 2 types
 interface VenueConfig {
@@ -58,6 +62,8 @@ export interface AppEntry {
 }
 
 function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
+  const entryShow = entry ? getShow(entry.showSlug) : null;
+  const [ownFace, setOwnFace] = useState<boolean>(() => !!sessionStorage.getItem('frontrow_user_image'));
   // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
     return sessionStorage.getItem('frontrow_user_name') || '';
@@ -117,7 +123,10 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
     'eye-in-the-sky': { position: [number, number, number]; target: [number, number, number] };
     'user': { position: [number, number, number]; target: [number, number, number] };
   }>({
-    'eye-in-the-sky': { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
+    // A ticket holder arrives at the back of a small room, close enough to read names.
+    'eye-in-the-sky': entry
+      ? { position: [0, 8.5, 13.5], target: [0, 1.5, -6] }
+      : { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
     'user': { position: [0, 1.7, 0], target: [0, 3, -10] },
   });
 
@@ -285,6 +294,10 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
     sessionStorage.setItem('frontrow_capture_mode', 'photo');
     setUserName(entry.name);
     setUserCaptureMode('photo');
+    if (!sessionStorage.getItem('frontrow_user_image')) {
+      const face = initialsFace(entry.name);
+      if (face) setUserImage(face);
+    }
     setIsLoggedIn(true);
   }, [entry?.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -676,6 +689,26 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
     socketRef.current.on('seat-selected', handleSeatSelectedResponse);
   };
 
+  // A ticket holder chose a face for their seat (a photo), or went back to
+  // just their name (the initials card). Re-seat them so neighbours see it.
+  const handleFace = (photo: string | null) => {
+    const face = photo || initialsFace(userName);
+    setUserImage(face);
+    setOwnFace(!!photo);
+    if (photo) sessionStorage.setItem('frontrow_user_image', photo);
+    else sessionStorage.removeItem('frontrow_user_image');
+    if (selectedSeat && socketRef.current) {
+      socketRef.current.emit('release-seat', { seatId: selectedSeat });
+      socketRef.current.emit('select-seat', {
+        seatId: selectedSeat,
+        userName,
+        userImage: face,
+        captureMode: 'photo',
+        hasVideoStream: false,
+      });
+    }
+  };
+
   const handleViewChange = (view) => {
     setCurrentView(view);
   };
@@ -970,7 +1003,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         <Suspense fallback={<LoadingScreen />}>
           <CanvasErrorBoundary>
           <Canvas
-            camera={{ position: [-0.57, 6.69, 20.30], fov: 50 }}
+            camera={{ position: entry ? [0, 8.5, 13.5] : [-0.57, 6.69, 20.30], fov: 50 }}
             style={{ width: '100%', height: '100%' }}
             resize={{ offsetSize: true }}
             onCreated={({ gl }) => {
@@ -981,11 +1014,16 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               setWebglSupported(false);
             }}
           >
-            <Environment preset="city" />
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
+            {/* Warm house light, all local: the old drei "city" preset fetched
+                an HDR from a CDN, and the theater failed to load without it. */}
+            <hemisphereLight args={['#ffe2b8', '#2a0812', 0.7]} />
+            <ambientLight intensity={0.35} />
+            <pointLight position={[10, 10, 10]} intensity={0.6} color="#ffd9a0" />
+            <directionalLight position={[0, 12, 8]} intensity={0.5} color="#fff1d6" />
 
-            <OrbitControls makeDefault enablePan={true} enableZoom={true} enableRotate={true} />
+            <HouseRoom />
+
+            <OrbitControls makeDefault target={entry ? [0, 1.5, -6] : undefined} enablePan={true} enableZoom={true} enableRotate={true} />
 
             <CameraController
               currentView={currentView}
@@ -995,9 +1033,9 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
             />
 
             <Stage
-              config={config}
+              config={entryShow ? { ...config, artistName: entryShow.stageName } : config}
               showState={showState}
-              fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g"
+              fallbackVideoUrl={entryShow?.fallbackVideoUrl || 'https://youtu.be/K6ZeroIZd5g'}
               performerStream={performerStream}
               countdownTime={countdownTime}
               isCountdownActive={isCountdownActive}
@@ -1205,6 +1243,16 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
                   socketRef.current?.emit('performer:position', { x: stageXRef.current, z });
                 }
               }}
+            />
+          )}
+          {entryShow && isLoggedIn && !isPerformer() && (
+            <HouseHud
+              show={entryShow}
+              name={userName}
+              seatId={selectedSeat}
+              seatedCount={Object.keys(audienceSeats).length}
+              hasPhoto={ownFace}
+              onFace={handleFace}
             />
           )}
           {/* Phase 2: Reaction buttons — audience only in user ViewState */}
