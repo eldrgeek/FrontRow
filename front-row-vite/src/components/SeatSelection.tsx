@@ -49,7 +49,7 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
           occupantImage={audienceSeats[seat.id]?.imageUrl}
           occupantSocketId={audienceSeats[seat.id]?.socketId}
           occupantCaptureMode={audienceSeats[seat.id]?.captureMode}
-          occupantVideoStream={audienceStreams?.get(audienceSeats[seat.id]?.name || '')}
+          occupantVideoStream={audienceStreams?.get(`a-${audienceSeats[seat.id]?.socketId}`) || audienceStreams?.get(audienceSeats[seat.id]?.name || '')}
           mySocketId={mySocketId}
           myVideoStream={myVideoStream}
           myCaptureMode={myCaptureMode}

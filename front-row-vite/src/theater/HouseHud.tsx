@@ -18,9 +18,13 @@ interface Props {
   ended?: boolean;
   /** Seats come from frontrow-server; without the socket none can be taken. */
   connected?: boolean;
+  /** Live in my seat: the guest's camera on their seat cube, seen by the house. */
+  live?: boolean;
+  onLive?: (on: boolean) => void;
+  liveError?: string;
 }
 
-export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, ended, connected = true }: Props): JSX.Element {
+export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, ended, connected = true, live = false, onLive, liveError }: Props): JSX.Element {
   const [capturing, setCapturing] = useState(false);
   return (
     <div className="fr-hud" data-testid="fr-hud">
@@ -33,11 +37,19 @@ export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, en
         </div>
       </div>
       {!ended && <div className="face">
-        {hasPhoto ? (
+        {seatId && onLive && (
+          live ? (
+            <button type="button" className="fr-hud-btn on" onClick={() => onLive(false)} data-testid="fr-live-off">Turn my camera off</button>
+          ) : (
+            <button type="button" className="fr-hud-btn" onClick={() => onLive(true)} data-testid="fr-live-on">Be live in my seat</button>
+          )
+        )}
+        {live ? null : hasPhoto ? (
           <button type="button" className="fr-hud-btn" onClick={() => onFace(null)} data-testid="fr-face-off">Just my name</button>
         ) : (
           <button type="button" className="fr-hud-btn" onClick={() => setCapturing(true)} data-testid="fr-face-on">Put my face on my seat</button>
         )}
+        {liveError && <div className="err" role="alert">{liveError}</div>}
       </div>}
       {capturing && (
         <div className="fr-hud-modal" role="dialog" aria-label="Take a photo for your seat">

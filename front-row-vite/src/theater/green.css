@@ -49,3 +49,5 @@
 .fr-green figcaption { font-size: 11px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fr-green figcaption small { display: block; color: #7f9585; }
 @media (prefers-reduced-motion: reduce) { .fr-green .cd.places { animation: none; } }
+.fr-green .note.phone { margin-top: 14px; line-height: 1.45; color: #c7d4ca; }
+.fr-green .note.phone b { color: #fff4d2; overflow-wrap: anywhere; }

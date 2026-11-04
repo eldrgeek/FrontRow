@@ -372,7 +372,9 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       if (data.status === 'live') {
         console.log('🔴 SHOW IS NOW LIVE!');
 
-        if (!isArtistRef.current) {
+        if (!isArtistRef.current && houseMediaRef.current) {
+          // Ticketed house: already in the media room since the guest sat down.
+        } else if (!isArtistRef.current) {
           // Connect audience to LiveKit
           const name = sessionStorage.getItem('frontrow_user_name') || 'audience';
           try {
@@ -707,7 +709,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
 
         // Connect to LiveKit if show is already live
         const currentShowState = sessionStorage.getItem('frontrow_show_state') || showState;
-        if (currentShowState === 'live') {
+        if (currentShowState === 'live' && !houseMediaRef.current) {
           const name = sessionStorage.getItem('frontrow_user_name') || userName || 'audience';
           liveKit.connectAsAudience(
             config.livekitUrl,
@@ -746,6 +748,68 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       });
     }
   };
+
+  // Ticketed house: every guest joins the show's media room when they sit, so
+  // they see the performer and anyone who chose to be live in their seat.
+  // Identity is the socket id, so two guests with the same name don't collide.
+  const houseMediaRef = useRef(false);
+  const joinHouseMedia = useCallback(async (cam: MediaStream | null) => {
+    const id = socketRef.current?.id;
+    if (!id) return;
+    houseMediaRef.current = true;
+    try {
+      await liveKit.connectAsAudience(
+        config.livekitUrl,
+        config.tokenUrl,
+        `a-${id}`,
+        (stream) => setPerformerStream(stream),
+        cam || undefined,
+        handleAudienceStream
+      );
+    } catch (err) {
+      houseMediaRef.current = false;
+      console.error('Could not join the house media room:', err);
+    }
+  }, [liveKit, handleAudienceStream]);
+
+  const [liveSeatError, setLiveSeatError] = useState('');
+  const handleLiveSeat = async (on: boolean) => {
+    setLiveSeatError('');
+    let cam: MediaStream | null = null;
+    if (on) {
+      try {
+        // Camera only: a dozen open mics would drown the set.
+        cam = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' }, audio: false });
+      } catch {
+        setLiveSeatError("Your camera didn't open. Check the browser's camera permission.");
+        return;
+      }
+    } else {
+      userVideoStreamRef.current?.getTracks().forEach((t) => t.stop());
+    }
+    setUserVideoStream(cam);
+    userVideoStreamRef.current = cam;
+    const mode = cam ? 'video' : 'photo';
+    setUserCaptureMode(mode);
+    sessionStorage.setItem('frontrow_capture_mode', mode);
+    if (selectedSeat && socketRef.current) {
+      socketRef.current.emit('release-seat', { seatId: selectedSeat });
+      socketRef.current.emit('select-seat', {
+        seatId: selectedSeat,
+        userName,
+        userImage,
+        captureMode: mode,
+        hasVideoStream: !!cam,
+      });
+    }
+    await joinHouseMedia(cam);
+  };
+
+  useEffect(() => {
+    if (entry && socketConnected && selectedSeat && isLoggedIn && !isArtistRef.current && !houseMediaRef.current) {
+      joinHouseMedia(userVideoStreamRef.current);
+    }
+  }, [entry, socketConnected, selectedSeat, isLoggedIn, joinHouseMedia]);
 
   const handleViewChange = (view) => {
     setCurrentView(view);
@@ -902,7 +966,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
     setIsCameraPreview(false);
   };
 
-  const startPerformerStream = async () => {
+  const startPerformerStream = async (onStage = false) => {
     try {
       console.log('🎭 Starting performer stream via LiveKit...');
       const stream = await liveKit.connectAsPerformer(
@@ -915,7 +979,9 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         localStreamRef.current = stream;
         setPerformerStream(stream);
       }
-      socketRef.current?.emit('artist-go-live');
+      // On the big screen ('artist-go-live'), or standing on the stage itself
+      // ('performer:goLive': the video becomes a figure that walks downstage).
+      socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
       console.log('🎭 LiveKit: Performer stream started');
     } catch (err) {
       console.error('Error starting performer stream:', err);
@@ -1250,7 +1316,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
           {isLoggedIn && isPerformer() && (
             <ArtistControls
               performerStream={performerStream}
-              onStartStream={startPerformerStream}
+              onStartStream={() => startPerformerStream()}
               onStopStream={stopPerformerStream}
               onResetArtistStatus={resetArtistStatus}
               userName={userName}
@@ -1290,9 +1356,9 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               onStartCountdown={startCountdown}
               onStopCountdown={stopCountdown}
               onStartCamera={startCameraPreview}
-              onGoLive={() => {
-                if (localStreamRef.current) socketRef.current?.emit('artist-go-live');
-                else startPerformerStream();
+              onGoLive={(onStage) => {
+                if (localStreamRef.current) socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
+                else startPerformerStream(onStage);
               }}
             />
           )}
@@ -1306,6 +1372,9 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               onFace={handleFace}
               ended={afterShow}
               connected={socketConnected}
+              live={!!userVideoStream}
+              onLive={handleLiveSeat}
+              liveError={liveSeatError}
             />
           )}
           {entryShow && afterShow && (

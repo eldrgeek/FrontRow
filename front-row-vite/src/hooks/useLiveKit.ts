@@ -8,7 +8,8 @@ import {
 
 export interface LiveKitHook {
   connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<MediaStream | null>;
-  connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void, localStream?: MediaStream) => Promise<void>;
+  /** onAudienceStream: other guests' seat cameras (the house sees each other). */
+  connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void, localStream?: MediaStream, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<void>;
   disconnect: () => Promise<void>;
   getLocalStream: () => MediaStream | null;
 }
@@ -103,7 +104,8 @@ export function useLiveKit(): LiveKitHook {
     tokenUrl: string,
     identity: string,
     onPerformerStream: (stream: MediaStream | null) => void,
-    localStream?: MediaStream
+    localStream?: MediaStream,
+    onAudienceStream?: (identity: string, stream: MediaStream | null) => void
   ): Promise<void> => {
     try {
       if (roomRef.current) {
@@ -129,6 +131,8 @@ export function useLiveKit(): LiveKitHook {
           }
           console.log('🎬 LiveKit: Setting performer stream from LiveKit track');
           onPerformerStream(stream);
+        } else if (onAudienceStream && track.kind === Track.Kind.Video && track.source === Track.Source.Camera) {
+          onAudienceStream(participant.identity, new MediaStream([track.mediaStreamTrack]));
         }
       });
 
@@ -136,6 +140,8 @@ export function useLiveKit(): LiveKitHook {
         console.log(`🎬 LiveKit: Track unsubscribed from ${participant.identity}`);
         if (track.kind === Track.Kind.Video && participant.identity === 'performer') {
           onPerformerStream(null);
+        } else if (onAudienceStream && track.kind === Track.Kind.Video) {
+          onAudienceStream(participant.identity, null);
         }
       });
 
@@ -174,6 +180,9 @@ export function useLiveKit(): LiveKitHook {
             }
             console.log('🎬 LiveKit: Found existing performer stream on connect');
             onPerformerStream(stream);
+          } else if (onAudienceStream && publication.track && publication.kind === Track.Kind.Video &&
+              publication.source === Track.Source.Camera) {
+            onAudienceStream(participant.identity, new MediaStream([publication.track.mediaStreamTrack]));
           }
         });
       });

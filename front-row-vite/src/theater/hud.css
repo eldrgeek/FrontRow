@@ -14,7 +14,9 @@
 .fr-hud .t { font: 700 22px/1.2 'Playfair Display', Georgia, serif; margin-top: 4px; }
 .fr-hud .s { font-size: 13px; color: #c9b48a; margin-top: 2px; }
 .fr-hud .s b { color: #f6e3a1; }
-.fr-hud .face { position: absolute; top: 14px; right: 14px; }
+.fr-hud .face { position: absolute; top: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 60%; }
+.fr-hud .face .err { flex-basis: 100%; text-align: right; font-size: 13px; color: #ffb4a8; }
+.fr-hud-btn.on { background: #5a1010; border-color: #e04a4a; }
 .fr-hud-btn {
   pointer-events: auto;
   appearance: none;

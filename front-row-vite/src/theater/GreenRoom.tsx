@@ -17,7 +17,8 @@ interface Props {
   audienceSeats: Record<string, Seated | null | undefined>;
   onStartCountdown: (seconds: number) => void;
   onStopCountdown: () => void;
-  onGoLive: () => void;
+  /** onStage: stand on the stage as a figure instead of filling the big screen. */
+  onGoLive: (onStage: boolean) => void;
   onStartCamera: () => void;
 }
 
@@ -111,6 +112,10 @@ export function GreenRoom(p: Props): JSX.Element {
           )}
           <div className="meter" aria-label="Microphone level"><div style={{ width: `${Math.round(level * 100)}%` }} /></div>
           <div className="note">{p.stream ? 'Mic and camera ready' : 'Not checked yet'} · House is {seated.length ? 'filling' : 'empty so far'}</div>
+          <div className="note phone">
+            Performing from your phone? Open <b>{location.host}{location.pathname}</b> on it, sign in, and prop it up where you'll stand.
+            &ldquo;Step onto the stage&rdquo; puts you on the boards as a figure; &ldquo;big screen&rdquo; fills the screen behind the stage.
+          </div>
         </section>
         <section className="live">
           <div className="sub">{p.isCountdownActive ? "You're live in" : 'Countdown'}</div>
@@ -129,7 +134,8 @@ export function GreenRoom(p: Props): JSX.Element {
             ) : (
               <button type="button" className="fr-g-btn" onClick={p.onStopCountdown}>Hold the countdown</button>
             )}
-            <button type="button" className="fr-g-btn go" onClick={p.onGoLive} data-testid="fr-green-golive">Go on now</button>
+            <button type="button" className="fr-g-btn go" onClick={() => p.onGoLive(true)} data-testid="fr-green-onstage">Step onto the stage</button>
+            <button type="button" className="fr-g-btn go" onClick={() => p.onGoLive(false)} data-testid="fr-green-golive">Go on, big screen</button>
           </div>
           <div className="grid" aria-label="Who is in the house">
             {seated.map(([seatId, u]) => (
