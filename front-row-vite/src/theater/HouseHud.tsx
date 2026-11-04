@@ -16,9 +16,11 @@ interface Props {
   onFace: (photoDataUrl: string | null) => void;
   /** After the set the server empties the house, so the count would read 0. */
   ended?: boolean;
+  /** Seats come from frontrow-server; without the socket none can be taken. */
+  connected?: boolean;
 }
 
-export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, ended }: Props): JSX.Element {
+export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, ended, connected = true }: Props): JSX.Element {
   const [capturing, setCapturing] = useState(false);
   return (
     <div className="fr-hud" data-testid="fr-hud">
@@ -26,7 +28,7 @@ export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, en
         <div className="k">Front Row Theater · Live tonight</div>
         <div className="t">{show.artist}</div>
         <div className="s">
-          {seatId ? <>Seat <b data-testid="fr-hud-seat">{seatLabel(seatId)}</b> · {name}</> : <>{name}, pick any red seat</>}
+          {seatId ? <>Seat <b data-testid="fr-hud-seat">{seatLabel(seatId)}</b> · {name}</> : connected ? <>{name}, pick any red seat</> : <span data-testid="fr-hud-offline">{name}, the box office isn&apos;t answering yet, so seats can&apos;t be taken</span>}
           {' · '}{ended ? 'the show has ended' : `${seatedCount} of ${show.seats} seated`}
         </div>
       </div>

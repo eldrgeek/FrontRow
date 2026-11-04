@@ -1305,6 +1305,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               hasPhoto={ownFace}
               onFace={handleFace}
               ended={afterShow}
+              connected={socketConnected}
             />
           )}
           {entryShow && afterShow && (
