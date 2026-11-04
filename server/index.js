@@ -1059,6 +1059,15 @@ io.on('connection', (socket) => {
       socket.emit('seat-selected', { success: false, message: 'There is no such seat' });
       return;
     }
+    // One seat per guest: picking another seat moves you. The page does not
+    // always say which seat it is leaving, so the server frees it here.
+    for (const [heldId, held] of Object.entries(activeShow.audienceSeats)) {
+      if (held && held.socketId === socket.id && heldId !== seatId) {
+        delete activeShow.audienceSeats[heldId];
+        io.emit('seat-update', { seatId: heldId, user: null });
+        console.log(`User ${socket.id} moved out of seat ${heldId}`);
+      }
+    }
     if (Object.keys(activeShow.audienceSeats).length >= MAX_SEATS) { // a dozen seats, close to the stage
       socket.emit('seat-selected', { success: false, message: 'Front row is full!' });
       logTestEvent('seat-select-failed', { 
