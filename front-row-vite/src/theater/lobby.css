@@ -1,0 +1,210 @@
+/* The lobby: a velvet back wall with three doors, marquees with chasing bulbs,
+   a patterned carpet in perspective, sconces and a few silhouettes. All CSS, so
+   it loads instantly and works on a phone. */
+
+.fr-lobby { background: var(--house-black); overflow: hidden; }
+
+.fr-lobby .wall {
+  position: absolute;
+  inset: 0 0 34% 0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 214, 107, 0.18), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 90px),
+    linear-gradient(180deg, #1c0609, var(--velvet) 60%, #3a0d17);
+}
+.fr-lobby .floor {
+  position: absolute;
+  left: -40%;
+  right: -40%;
+  bottom: -10%;
+  height: 52%;
+  transform-origin: 50% 0;
+  transform: perspective(500px) rotateX(58deg);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.55) 0 3px, transparent 4px) 0 0 / 46px 46px,
+    linear-gradient(45deg, transparent 46%, rgba(212, 175, 55, 0.35) 47% 53%, transparent 54%) 0 0 / 46px 46px,
+    linear-gradient(-45deg, transparent 46%, rgba(212, 175, 55, 0.35) 47% 53%, transparent 54%) 0 0 / 46px 46px,
+    #6e0f1d;
+  box-shadow: inset 0 60px 80px rgba(0, 0, 0, 0.8);
+}
+
+.fr-lobby .sconces { position: absolute; top: 18%; left: 0; right: 0; display: flex; justify-content: space-around; pointer-events: none; }
+.fr-lobby .sconces span {
+  width: 12px;
+  height: 22px;
+  border-radius: 6px 6px 2px 2px;
+  background: var(--marquee);
+  box-shadow: 0 0 30px 14px rgba(255, 214, 107, 0.35), 0 0 6px 2px var(--marquee-glow);
+}
+
+.fr-lobby .posters { position: absolute; top: 30%; left: 0; right: 0; pointer-events: none; }
+.fr-lobby .poster {
+  position: absolute;
+  width: 92px;
+  padding: 14px 8px;
+  background: var(--playbill);
+  color: var(--ink);
+  font: 700 12px/1.3 var(--serif);
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+}
+.fr-lobby .poster small { font: 10px var(--sans); text-transform: none; }
+.fr-lobby .poster.left { left: 3%; transform: rotate(-2deg); }
+.fr-lobby .poster.right { right: 3%; transform: rotate(2deg); }
+
+.fr-lobby-head {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.fr-sound {
+  appearance: none;
+  border: 1px solid var(--brass);
+  background: rgba(20, 5, 8, 0.75);
+  color: var(--brass-hi);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font: 14px var(--sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fr-lobby .doors {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 34%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: clamp(10px, 5vw, 70px);
+  padding: 0 12px;
+}
+
+.fr-door {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: inherit;
+  width: clamp(96px, 22vw, 200px);
+  transition: transform 0.25s;
+}
+.fr-door.center { width: clamp(120px, 28vw, 250px); }
+.fr-door:hover { transform: translateY(-4px); }
+
+.fr-door .marquee {
+  width: 112%;
+  padding: 2px 6px;
+  margin-bottom: 10px;
+  text-align: center;
+  background: #12050a;
+  border: 2px solid var(--brass);
+  box-shadow: 0 0 22px rgba(255, 214, 107, 0.25);
+  font: 400 clamp(9px, 1.6vw, 13px)/1.25 var(--display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--marquee);
+  text-shadow: 0 0 8px var(--marquee-glow);
+}
+.fr-door .marquee .big { font-size: 1.35em; }
+.fr-door .bulbs { display: flex; justify-content: space-around; padding: 3px 0; }
+.fr-door .bulbs span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--marquee);
+  box-shadow: 0 0 6px 2px var(--marquee-glow);
+  animation: fr-chase 1.3s linear infinite;
+}
+
+.fr-door .leaves {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 0.82;
+  padding: 7px 7px 0;
+  gap: 3px;
+  background: linear-gradient(135deg, var(--brass-lo), var(--brass-hi) 50%, var(--brass-lo));
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+.fr-door .leaf {
+  flex: 1;
+  position: relative;
+  background: linear-gradient(180deg, #8d1426, #5c0a17);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.5);
+  transition: transform 0.4s;
+  transform-origin: left center;
+}
+.fr-door .leaf:last-child { transform-origin: right center; }
+.fr-door:hover .leaf:first-child, .fr-door:focus-visible .leaf:first-child { transform: perspective(400px) rotateY(-14deg); }
+.fr-door:hover .leaf:last-child, .fr-door:focus-visible .leaf:last-child { transform: perspective(400px) rotateY(14deg); }
+/* porthole windows, lit from the room behind */
+.fr-door .leaf i {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  width: 46%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--marquee), #e8c77a 60%, #8a6a2a);
+  box-shadow: 0 0 14px rgba(255, 214, 107, 0.6);
+}
+.fr-door.center .leaf i { animation: fr-glow 3s ease-in-out infinite; }
+@keyframes fr-glow { 50% { box-shadow: 0 0 26px rgba(255, 214, 107, 0.9); } }
+
+.fr-lobby .crowd { position: absolute; z-index: 2; left: 0; right: 0; bottom: 8%; height: 30%; pointer-events: none; }
+.fr-lobby .crowd span {
+  position: absolute;
+  bottom: 0;
+  width: clamp(22px, 3.4vw, 40px);
+  height: clamp(70px, 12vw, 130px);
+  border-radius: 999px 999px 8px 8px;
+  background: linear-gradient(180deg, #3b2418, #1a0d08);
+  transform-origin: bottom center;
+  animation: fr-sway 6s ease-in-out infinite;
+}
+.fr-lobby .crowd span::before {
+  content: '';
+  position: absolute;
+  top: -38%;
+  left: 50%;
+  width: 70%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #3b2418;
+}
+@keyframes fr-sway { 50% { translate: 3px 0; } }
+
+.fr-lobby .placard {
+  position: absolute;
+  z-index: 4;
+  left: 16px;
+  bottom: 16px;
+  width: min(360px, calc(100% - 32px));
+  padding: 16px 18px;
+  background: rgba(20, 5, 8, 0.9);
+  border: 1px solid var(--brass);
+  border-radius: 6px;
+}
+.fr-lobby .placard h2 { margin: 8px 0 4px; font: 700 22px var(--serif); color: var(--playbill); }
+.fr-lobby .placard p { margin: 0 0 12px; font-size: 14px; color: var(--playbill-dim); }
+.fr-lobby .placard .fr-btn { padding: 10px 22px; font-size: 15px; }
+
+@media (max-width: 560px) {
+  .fr-lobby .posters { display: none; }
+  .fr-lobby .doors { bottom: 40%; }
+}

@@ -232,7 +232,7 @@ export function FeedbackQueue() {
           <p className="fq-subtitle">
             This page reviews and dispatches feedback for FrontRow. Ask an existing admin to add you.
           </p>
-          <Link to="/" className="fq-back" style={{ display: 'inline-block', marginTop: 24 }}>
+          <Link to="/venues" className="fq-back" style={{ display: 'inline-block', marginTop: 24 }}>
             Back to Lobby
           </Link>
         </div>

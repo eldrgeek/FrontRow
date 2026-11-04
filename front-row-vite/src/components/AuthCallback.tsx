@@ -11,7 +11,7 @@ export function AuthCallback() {
     if (!loading) {
       if (session?.user) {
         // Signed in, redirect to lobby
-        navigate('/', { replace: true });
+        navigate('/venues', { replace: true });
       } else {
         // Not signed in, go back to login
         navigate('/login', { replace: true });

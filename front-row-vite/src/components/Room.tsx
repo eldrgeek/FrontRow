@@ -76,7 +76,7 @@ export function Room() {
   return (
     <div className="room-container">
       <header className="room-header">
-        <button onClick={() => navigate('/')} className="btn-back">
+        <button onClick={() => navigate('/venues')} className="btn-back">
           ← Back to Lobby
         </button>
         <h1>{venue?.name || 'Loading...'}</h1>

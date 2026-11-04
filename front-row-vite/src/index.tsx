@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { AuthCallback } from './components/AuthCallback';
@@ -17,6 +17,10 @@ import { installGlobalErrorHandlers } from './lib/errorReport';
 import App from './App';
 import HouseManagerApp from './HouseManagerApp';
 import BackstageRoom from './BackstageRoom';
+import { InvitePage, TicketPage } from './theater/FrontOfHouse';
+import { LobbyPage } from './theater/Lobby';
+import { ShelfPage } from './theater/Shelf';
+import { HousePage } from './theater/House';
 
 // SOMA feedback stack — boot wiring (must run before render):
 //  - identity/auth hooks let the soma-feedback widget autofill the signed-in
@@ -32,8 +36,11 @@ installGlobalErrorHandlers();
 // Router wrapper that requires auth setup
 function AppRoutes() {
   const { loading } = useAuth();
+  const { pathname } = useLocation();
+  // The front of house needs no account, so it never waits on the auth check.
+  const isFrontOfHouse = pathname === '/' || pathname === '/show' || pathname.startsWith('/show/');
 
-  if (loading) {
+  if (loading && !isFrontOfHouse) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>;
   }
 
@@ -47,9 +54,18 @@ function AppRoutes() {
       <Route path="/housemanager" element={<HouseManagerApp />} />
       <Route path="/backstage" element={<BackstageRoom />} />
 
+      {/* Front of house: invitation, ticket, lobby, house. No account. */}
+      <Route path="/" element={<InvitePage />} />
+      <Route path="/show/:slug" element={<InvitePage />} />
+      <Route path="/show/:slug/ticket" element={<TicketPage />} />
+      <Route path="/show/:slug/lobby" element={<LobbyPage />} />
+      <Route path="/show/:slug/revolution" element={<ShelfPage which="revolution" />} />
+      <Route path="/show/:slug/library" element={<ShelfPage which="library" />} />
+      <Route path="/show/:slug/house" element={<HousePage />} />
+
       {/* Protected routes */}
       <Route
-        path="/"
+        path="/venues"
         element={
           <ProtectedRoute>
             <Lobby />

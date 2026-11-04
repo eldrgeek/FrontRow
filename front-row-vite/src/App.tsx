@@ -51,7 +51,13 @@ interface AudienceSeats {
 type ShowState = 'idle' | 'pre-show' | 'live' | 'post-show';
 type ViewState = 'eye-in-the-sky' | 'performer' | 'user';
 
-function App(): JSX.Element {
+export interface AppEntry {
+  /** The guest's name from their Front Row ticket (src/theater/ticket.ts). */
+  name: string;
+  showSlug: string;
+}
+
+function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
     return sessionStorage.getItem('frontrow_user_name') || '';
@@ -269,6 +275,18 @@ function App(): JSX.Element {
       setQuickMode('watch');
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Arriving from the front of house with a ticket: the name is known, so skip
+  // the old name-and-photo form and seat the guest as audience. A face is
+  // offered at the seat instead (stage 3 of the rebuild plan).
+  useEffect(() => {
+    if (!entry || isArtistRef.current) return;
+    sessionStorage.setItem('frontrow_user_name', entry.name);
+    sessionStorage.setItem('frontrow_capture_mode', 'photo');
+    setUserName(entry.name);
+    setUserCaptureMode('photo');
+    setIsLoggedIn(true);
+  }, [entry?.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Socket.IO Setup ---
   useEffect(() => {

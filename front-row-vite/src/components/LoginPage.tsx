@@ -19,7 +19,7 @@ export function LoginPage() {
   // Once authenticated (password sign-in, or landing here already signed in),
   // leave the login page. Magic-link/OAuth returns route through /auth/callback.
   useEffect(() => {
-    if (session) navigate('/', { replace: true });
+    if (session) navigate('/venues', { replace: true });
   }, [session, navigate]);
 
   const [mode, setMode] = useState<Mode>('signin');

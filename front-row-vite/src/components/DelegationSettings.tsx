@@ -30,7 +30,7 @@ export function DelegationSettings() {
   return (
     <div className="delegation-container">
       <header className="delegation-header">
-        <button onClick={() => navigate('/')} className="btn-back">
+        <button onClick={() => navigate('/venues')} className="btn-back">
           ← Back to Lobby
         </button>
         <h1>Delegation Settings</h1>

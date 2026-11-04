@@ -26,7 +26,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!session?.user || !isSuperAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/venues" replace />;
   }
 
   return <>{children}</>;
