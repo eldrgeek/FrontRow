@@ -14,9 +14,11 @@ interface Props {
   seatedCount: number;
   hasPhoto: boolean;
   onFace: (photoDataUrl: string | null) => void;
+  /** After the set the server empties the house, so the count would read 0. */
+  ended?: boolean;
 }
 
-export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace }: Props): JSX.Element {
+export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, ended }: Props): JSX.Element {
   const [capturing, setCapturing] = useState(false);
   return (
     <div className="fr-hud" data-testid="fr-hud">
@@ -25,16 +27,16 @@ export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace }: 
         <div className="t">{show.artist}</div>
         <div className="s">
           {seatId ? <>Seat <b data-testid="fr-hud-seat">{seatLabel(seatId)}</b> · {name}</> : <>{name}, pick any red seat</>}
-          {' · '}{seatedCount} of {show.seats} seated
+          {' · '}{ended ? 'the show has ended' : `${seatedCount} of ${show.seats} seated`}
         </div>
       </div>
-      <div className="face">
+      {!ended && <div className="face">
         {hasPhoto ? (
           <button type="button" className="fr-hud-btn" onClick={() => onFace(null)} data-testid="fr-face-off">Just my name</button>
         ) : (
           <button type="button" className="fr-hud-btn" onClick={() => setCapturing(true)} data-testid="fr-face-on">Put my face on my seat</button>
         )}
-      </div>
+      </div>}
       {capturing && (
         <div className="fr-hud-modal" role="dialog" aria-label="Take a photo for your seat">
           <CameraCapture

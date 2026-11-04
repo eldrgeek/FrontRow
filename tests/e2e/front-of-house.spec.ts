@@ -64,3 +64,31 @@ test.describe('Front of house', () => {
     await expect(page.getByText("That show isn't on the bill")).toBeVisible();
   });
 });
+
+// Needs a frontrow-server you may drive (its /api/artist-simulate-* routes):
+// FRONTROW_API=http://localhost:3011 with a build pointed at it.
+test.describe('The show', () => {
+  const api = process.env.FRONTROW_API;
+  test.skip(!api, 'set FRONTROW_API to a test frontrow-server');
+
+  test('curtain up at Live, then the lights come up and the house can talk', async ({ page, request }) => {
+    await request.post(`${api}/api/debug-reset-show`);
+    await page.goto('/');
+    await page.getByTestId('fr-take-seat').click();
+    await page.getByTestId('fr-name').fill('Ruth');
+    await page.getByTestId('fr-get-ticket').click();
+    await page.getByTestId('fr-enter-lobby').click();
+    await page.getByTestId('fr-door-live').click();
+    await expect(page.getByTestId('fr-hud')).toContainText('of 12 seated', { timeout: 20000 });
+
+    await request.post(`${api}/api/artist-simulate-live`);
+    await expect(page.locator('iframe[title="YouTube Performance"]')).toHaveCount(1);
+    await request.post(`${api}/api/artist-simulate-end`);
+
+    await expect(page.getByTestId('fr-postshow')).toBeVisible();
+    await page.getByTestId('fr-chat-input').fill('What a night <3');
+    await page.getByTestId('fr-chat-send').click();
+    await expect(page.getByTestId('fr-chat-lines')).toContainText('Ruth');
+    await expect(page.getByTestId('fr-chat-lines')).toContainText('What a night <3');
+  });
+});

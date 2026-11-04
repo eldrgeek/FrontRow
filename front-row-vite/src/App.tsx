@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, useRef, Suspense, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
@@ -29,6 +29,8 @@ import { getShow } from './theater/show';
 import { initialsFace } from './theater/faces';
 import { HouseHud } from './theater/HouseHud';
 import { GreenRoom } from './theater/GreenRoom';
+import { PostShow } from './theater/PostShow';
+import { socketChat } from './theater/postShowChat';
 
 // Phase 2 types
 interface VenueConfig {
@@ -172,9 +174,15 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   // Applause for the audience only: when the curtain goes up and when the
   // set ends. The artist never hears it (CLAUDE.md, audio system).
   const prevShowState = useRef<ShowState>('idle');
+  // The post-show panel stays open after the server resets the house to idle.
+  const [afterShow, setAfterShow] = useState(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the socket is a ref; re-read it each time the panel opens
+  const postShowChannel = useMemo(() => socketChat(socketRef.current), [afterShow]);
   useEffect(() => {
     const was = prevShowState.current;
     prevShowState.current = showState;
+    if (showState === 'post-show') setAfterShow(true);
+    if (showState === 'live') setAfterShow(false);
     if (!entry || isArtistRef.current || was === showState) return;
     if (showState === 'live' || (showState === 'post-show' && was === 'live')) {
       const a = new Audio('/audio/applause.mp3');
@@ -1296,10 +1304,19 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               seatedCount={Object.keys(audienceSeats).length}
               hasPhoto={ownFace}
               onFace={handleFace}
+              ended={afterShow}
+            />
+          )}
+          {entryShow && afterShow && (
+            <PostShow
+              show={entryShow}
+              name={isPerformer() ? entryShow.artist : userName}
+              channel={postShowChannel}
+              onClose={() => setAfterShow(false)}
             />
           )}
           {/* Phase 2: Reaction buttons — audience only in user ViewState */}
-          {isLoggedIn && !isPerformer() && currentView === 'user' && selectedSeat && (
+          {isLoggedIn && !isPerformer() && currentView === 'user' && selectedSeat && !(entryShow && afterShow) && (
             <div
               data-testid="reaction-buttons"
               style={{
