@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './AuthCallback.css';
+import { takeAfterLogin } from '../lib/afterLogin';
 
 export function AuthCallback() {
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ export function AuthCallback() {
     if (!loading) {
       if (session?.user) {
         // Signed in, redirect to lobby
-        navigate('/venues', { replace: true });
+        navigate(takeAfterLogin() || '/venues', { replace: true });
       } else {
         // Not signed in, go back to login
         navigate('/login', { replace: true });

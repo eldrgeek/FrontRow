@@ -22,6 +22,7 @@ import { InvitePage, TicketPage } from './theater/FrontOfHouse';
 import { LobbyPage } from './theater/Lobby';
 import { ShelfPage } from './theater/Shelf';
 import { HousePage } from './theater/House';
+import { GreenRoomPage } from './theater/GreenRoomPage';
 
 // SOMA feedback stack — boot wiring (must run before render):
 //  - identity/auth hooks let the soma-feedback widget autofill the signed-in
@@ -68,6 +69,7 @@ function AppRoutes() {
       <Route path="/show/:slug/revolution" element={<ShelfPage which="revolution" />} />
       <Route path="/show/:slug/library" element={<ShelfPage which="library" />} />
       <Route path="/show/:slug/house" element={<HousePage />} />
+      <Route path="/show/:slug/green-room" element={<GreenRoomPage />} />
 
       {/* Protected routes */}
       <Route

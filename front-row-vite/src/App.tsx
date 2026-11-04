@@ -27,6 +27,7 @@ import { createPortal } from 'react-dom';
 import { getShow } from './theater/show';
 import { initialsFace } from './theater/faces';
 import { HouseHud } from './theater/HouseHud';
+import { GreenRoom } from './theater/GreenRoom';
 
 // Phase 2 types
 interface VenueConfig {
@@ -59,6 +60,8 @@ export interface AppEntry {
   /** The guest's name from their Front Row ticket (src/theater/ticket.ts). */
   name: string;
   showSlug: string;
+  /** 'performer' comes from the green room (src/theater/GreenRoomPage.tsx). */
+  role?: 'audience' | 'performer';
 }
 
 function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
@@ -157,6 +160,9 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
+    // From the front of house, the role comes from the door used, never from a
+    // flag left in this tab by an earlier visit.
+    if (entry) return entry.role === 'performer';
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
 
@@ -289,7 +295,15 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   // the old name-and-photo form and seat the guest as audience. A face is
   // offered at the seat instead (stage 3 of the rebuild plan).
   useEffect(() => {
-    if (!entry || isArtistRef.current) return;
+    if (!entry) return;
+    if (entry.role === 'performer') {
+      sessionStorage.setItem('frontrow_user_name', entry.name);
+      sessionStorage.setItem('frontrow_is_artist', 'true');
+      setUserName(entry.name);
+      setIsLoggedIn(true);
+      return;
+    }
+    sessionStorage.removeItem('frontrow_is_artist');
     sessionStorage.setItem('frontrow_user_name', entry.name);
     sessionStorage.setItem('frontrow_capture_mode', 'photo');
     setUserName(entry.name);
@@ -1242,6 +1256,22 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
                   posThrottleRef.current = now;
                   socketRef.current?.emit('performer:position', { x: stageXRef.current, z });
                 }
+              }}
+            />
+          )}
+          {entryShow && entry?.role === 'performer' && isPerformer() && showState !== 'live' && (
+            <GreenRoom
+              show={entryShow}
+              stream={performerStream}
+              countdownTime={countdownTime}
+              isCountdownActive={isCountdownActive}
+              audienceSeats={audienceSeats}
+              onStartCountdown={startCountdown}
+              onStopCountdown={stopCountdown}
+              onStartCamera={startCameraPreview}
+              onGoLive={() => {
+                if (localStreamRef.current) socketRef.current?.emit('artist-go-live');
+                else startPerformerStream();
               }}
             />
           )}

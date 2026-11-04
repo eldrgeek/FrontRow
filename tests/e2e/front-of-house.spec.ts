@@ -54,6 +54,11 @@ test.describe('Front of house', () => {
     await expect(page.getByTestId('fr-take-seat')).toHaveText('Welcome back, Harold');
   });
 
+  test('the green room sends a guest with no sign-in to the sign-in page, and back', async ({ page }) => {
+    await page.goto('/show/jess-wayne/green-room');
+    await expect(page).toHaveURL(/\/login\?next=%2Fshow%2Fjess-wayne%2Fgreen-room$/);
+  });
+
   test('an unknown show says so', async ({ page }) => {
     await page.goto('/show/no-such-show');
     await expect(page.getByText("That show isn't on the bill")).toBeVisible();
