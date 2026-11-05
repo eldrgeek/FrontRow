@@ -99,12 +99,40 @@ function clampSeats(n, fallback) {
  * opts.pinnedSeats   { 'front-row--live': 12 } houses whose count a guest cannot change
  * opts.maxRooms      how many houses may exist at once (200), so a stream of
  *                    made-up slugs cannot grow the server without bound
+ * opts.onStatus      (house, from, to) after a house's show.status changes,
+ *                    including a reset to idle. Errors in it are logged, never thrown.
  */
 function createRegistry(opts = {}) {
   const defaultSeats = clampSeats(opts.defaultSeats, 12);
   const pinnedSeats = opts.pinnedSeats || {};
   const maxRooms = Number(opts.maxRooms) > 0 ? Number(opts.maxRooms) : 200;
+  const onStatus = typeof opts.onStatus === 'function' ? opts.onStatus : null;
   const rooms = new Map();
+
+  // show.status is an accessor so every assignment in index.js reports the move.
+  function watchedShow(r) {
+    const show = newShowState();
+    let status = show.status;
+    Object.defineProperty(show, 'status', {
+      enumerable: true,
+      get: () => status,
+      set: (to) => {
+        const from = status;
+        status = to;
+        if (from !== to) emitStatus(r, from, to);
+      },
+    });
+    return show;
+  }
+  function emitStatus(r, from, to) {
+    if (!onStatus) return;
+    try {
+      const p = onStatus(r, from, to);
+      if (p && typeof p.catch === 'function') p.catch((e) => console.error('onStatus failed:', e && e.message));
+    } catch (e) {
+      console.error('onStatus failed:', e && e.message);
+    }
+  }
 
   function get(scope) {
     return rooms.get(scopeKey(scope)) || null;
@@ -125,12 +153,13 @@ function createRegistry(opts = {}) {
       backstageChannel: `house:${key}:backstage`,
       livekitRoom: livekitRoomFor(scope.venue, scope.room),
       maxSeats: pinned ? clampSeats(pinned, defaultSeats) : clampSeats(requestedSeats, defaultSeats),
-      show: newShowState(),
+      show: null,
       profiles: {}, // { socketId: { name, imageUrl, selectedSeat, ... } }
       chat: [], // post-show chat, last 50 lines
       members: new Set(), // socket ids
       createdAt: Date.now(),
     };
+    r.show = watchedShow(r);
     rooms.set(key, r);
     return r;
   }
@@ -139,7 +168,9 @@ function createRegistry(opts = {}) {
   function resetShow(r) {
     const iv = r.show && r.show.countdown && r.show.countdown.interval;
     if (iv) clearInterval(iv);
-    r.show = newShowState();
+    const from = r.show ? r.show.status : 'idle';
+    r.show = watchedShow(r);
+    if (from !== 'idle') emitStatus(r, from, 'idle');
     return r.show;
   }
 

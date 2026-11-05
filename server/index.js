@@ -63,10 +63,34 @@ const houses = require('./rooms');
 // Other houses take the count their first guest names, at most houses.SEAT_CAP (99).
 const MAX_SEATS = Number(process.env.MAX_SEATS) || 12;
 const SEAT_ID = /^seat-\d{1,2}$/;
+// When FRONTROW_PERFORMANCES=1 and a service key is set, a house's status moves
+// (doors, curtain, lights up) are filed on its current performance record by
+// server/performances.mjs followRoom (migration 006). Deploy it beside index.js.
+let performancesPromise = null;
+function performances() {
+  if (!performancesPromise) {
+    performancesPromise = import('./performances.mjs').then((m) => {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const url = process.env.SUPABASE_URL || 'https://omfwcodoimjmbrhssvfl.supabase.co';
+      const rpc = serviceKey && typeof m.makeRpc === 'function' ? m.makeRpc({ url, serviceKey }) : null;
+      return rpc && typeof m.followRoom === 'function' ? { m, rpc } : null;
+    }).catch((e) => {
+      console.error('performances.mjs not loaded:', e && e.message);
+      return null;
+    });
+  }
+  return performancesPromise;
+}
+async function followPerformance(house, from, to) {
+  if (process.env.FRONTROW_PERFORMANCES !== '1') return;
+  const p = await performances();
+  if (p) await p.m.followRoom(p.rpc, house, from, to);
+}
 const registry = houses.createRegistry({
   defaultSeats: MAX_SEATS,
   pinnedSeats: { 'front-row--live': MAX_SEATS },
   maxRooms: Number(process.env.MAX_HOUSES) || 200,
+  onStatus: followPerformance,
 });
 function withSockets(R) {
   if (!R.sockets) R.sockets = () => [...R.members].map((id) => io.sockets.sockets.get(id)).filter(Boolean);

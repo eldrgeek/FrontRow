@@ -72,6 +72,20 @@ console.log('registry');
   ok(old.countdown.interval._destroyed === true, 'reset stops the old countdown');
 }
 
+{
+  const moves = [];
+  const reg = rooms.createRegistry({ onStatus: (h, from, to) => { moves.push(`${h.key}:${from}>${to}`); if (to === 'live') throw new Error('hook blew up'); } });
+  const h = reg.ensure({ venue: 'kit', room: 'one' });
+  h.show.status = 'pre-show';
+  h.show.status = 'pre-show';
+  h.show.status = 'live';
+  ok(h.show.status === 'live', 'a throwing onStatus does not stop the move');
+  reg.resetShow(h);
+  h.show.status = 'live';
+  ok(moves.join(',') === 'kit--one:idle>pre-show,kit--one:pre-show>live,kit--one:live>idle,kit--one:idle>live', `onStatus sees every move once, resets too (${moves.join(',')})`);
+  ok(JSON.parse(JSON.stringify(h.show)).status === 'live', 'status still serializes');
+}
+
 // ── 3. Live server ──────────────────────────────────────────────────────────
 console.log('server');
 const PORT = 38000 + Math.floor(Math.random() * 1000);
