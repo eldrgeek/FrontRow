@@ -13,7 +13,9 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is 26.04, and the repo's Playwright 1.59 cannot install Chromium's
+    # system packages there ("Playwright does not support chromium on ubuntu26.04-x64").
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
