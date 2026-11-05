@@ -5,6 +5,7 @@ import {
   Track,
   LocalVideoTrack,
 } from 'livekit-client';
+import { getTicketCode, tokenRequestHeaders } from '../lib/ticketPass';
 
 export interface LiveKitHook {
   connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<MediaStream | null>;
@@ -17,9 +18,17 @@ export function useLiveKit(): LiveKitHook {
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
+  // A ticket, if the guest has one, sets the role; the performer needs a
+  // performer ticket or a FrontRow admin sign-in (server/tickets.mjs).
   const getToken = async (tokenUrl: string, identity: string, role: 'performer' | 'audience'): Promise<string> => {
     const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=frontrow-main`;
-    const response = await fetch(url);
+    let response = await fetch(url, { headers: await tokenRequestHeaders() });
+    if (response.status === 403 && role === 'audience' && getTicketCode()) {
+      // A ticket that no longer opens the door (closed, revoked, used up)
+      // should not cost the guest the house they could see without one.
+      console.warn('LiveKit: ticket refused, joining the house without it');
+      response = await fetch(url, { headers: await tokenRequestHeaders(false) });
+    }
     if (!response.ok) {
       throw new Error(`Token fetch failed: ${response.statusText}`);
     }
