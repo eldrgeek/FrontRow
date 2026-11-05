@@ -124,6 +124,15 @@ if (process.env.TICKETS_DEF_SQL || fs.existsSync(DEF)) {
 const M004 = fs.readFileSync(path.join(ROOT, 'migrations/004_frontrow_tickets.sql'), 'utf8');
 psql(M004);
 psql(M004); // idempotent: a second run must not fail
+// Migrations that build on 004 (005 theater roles + status), when present.
+const AFTER = (process.env.TICKETS_AFTER_SQL || '').split(',').filter(Boolean);
+for (const f of fs.readdirSync(path.join(ROOT, 'migrations')).sort()) {
+  if (/^00[5-9]_/.test(f)) AFTER.push(path.join(ROOT, 'migrations', f));
+}
+for (const f of AFTER) {
+  psql(fs.readFileSync(f, 'utf8'));
+  console.log(`applied ${path.basename(f)} after 004`);
+}
 psql(`
   UPDATE public.venues SET slug = 'front-row' WHERE id = 'a0000000-0000-4000-8000-000000000001';
   INSERT INTO public.venues (name, room_template_id, theater_manager_id, active, created_by, slug)
