@@ -248,6 +248,10 @@ export async function handleIssue(req, deps) {
   if (!auth) return res(401, { error: 'Sign in, or bring a manager ticket' });
   const ok = await mayManage(auth, parsed.scope, deps, { role: parsed.specs[0].role, validUntil: parsed.validUntil });
   if (!ok) return res(403, { error: 'You do not manage that venue, room or performance' });
+  const where = await deps.rpc('frontrow_ticket_scope_ok', { venue_id: parsed.scope.venue, room_id: parsed.scope.room });
+  if (!where || !where.ok) {
+    return res(400, { error: where && where.reason === 'no-screen' ? 'That theater has no such room' : 'No such theater' });
+  }
 
   const codes = parsed.specs.map(() => newCode());
   const r = await deps.rpc('frontrow_ticket_issue', {

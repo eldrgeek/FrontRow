@@ -257,6 +257,32 @@ AS $$
                          AND v.theater_manager_id = (p->>'user_id')::uuid))
 $$;
 
+-- frontrow_ticket_scope_ok(p): p = {venue_id, room_id?}. Does the scope name
+-- a real theater (a parent venues row with that slug) and, when room_id is
+-- given, one of its screens (a child row with that screen_key, from 003)? So
+-- no ticket is issued for a theater or screen that does not exist.
+CREATE OR REPLACE FUNCTION public.frontrow_ticket_scope_ok(p jsonb)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  theater uuid;
+  found boolean;
+BEGIN
+  SELECT id INTO theater FROM public.venues
+    WHERE slug = p->>'venue_id' AND super_venue_id IS NULL;
+  IF theater IS NULL THEN RETURN jsonb_build_object('ok', false, 'reason', 'no-theater'); END IF;
+  IF p->>'room_id' IS NULL THEN RETURN jsonb_build_object('ok', true); END IF;
+  -- screen_key comes with 003; without it there are no screens to check.
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public' AND table_name = 'venues' AND column_name = 'screen_key') THEN
+    RETURN jsonb_build_object('ok', true);
+  END IF;
+  EXECUTE 'SELECT EXISTS (SELECT 1 FROM public.venues WHERE super_venue_id = $1 AND screen_key = $2)'
+    INTO found USING theater, p->>'room_id';
+  IF NOT found THEN RETURN jsonb_build_object('ok', false, 'reason', 'no-screen'); END IF;
+  RETURN jsonb_build_object('ok', true);
+END $$;
+
 -- frontrow_room_mode(p): p = {venue_id, room_id}. 'open' lets a ticketless
 -- guest into the house as audience; 'ticketed' requires a ticket. Every room is
 -- open here; the theater-status migration (005) replaces this body to read the
@@ -271,7 +297,7 @@ DECLARE f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY['frontrow_ticket_redeem', 'frontrow_ticket_issue', 'frontrow_ticket_list',
                            'frontrow_ticket_get', 'frontrow_ticket_revoke', 'frontrow_ticket_can_manage',
-                           'frontrow_room_mode'] LOOP
+                           'frontrow_room_mode', 'frontrow_ticket_scope_ok'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION public.%I(jsonb) FROM PUBLIC, anon, authenticated', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION public.%I(jsonb) TO service_role', f);
   END LOOP;

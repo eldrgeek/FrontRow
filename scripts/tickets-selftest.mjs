@@ -227,7 +227,12 @@ check('  ...the database holds only its sha256',
   psql(`SELECT count(*) FROM public.tickets WHERE code_hash = '${T.sha256 ? T.sha256(A.code) : ''}'`) === '1'
   && psql(`SELECT count(*) FROM public.tickets t WHERE row_to_json(t)::text LIKE '%${A.code}%'`) === '0');
 check('the theater manager issues for their own venue',
-  (await issue({ ...base, venue: 'mgr-house', room: 'main' }, { authorization: 'Bearer mgr-token' })).status === 200);
+  (await issue({ ...base, venue: 'mgr-house', room: null }, { authorization: 'Bearer mgr-token' })).status === 200);
+check('no ticket for a theater that does not exist', (await issue({ ...base, venue: 'no-such-house' }, { authorization: ADMIN })).status === 400);
+if (psql(`SELECT count(*) FROM information_schema.columns WHERE table_name = 'venues' AND column_name = 'screen_key'`) === '1') {
+  check('no ticket for a screen the theater does not have', (await issue({ ...base, room: 'no-such-screen' }, { authorization: ADMIN })).status === 400);
+  check('  ...while a real screen is fine', (await issue({ ...base, room: 'library' }, { authorization: ADMIN })).status === 200);
+}
 check('the theater manager cannot issue for another venue',
   (await issue(base, { authorization: 'Bearer mgr-token' })).status === 403);
 check('bad slug is a 400', (await issue({ ...base, venue: 'Front Row' }, { authorization: ADMIN })).status === 400);
