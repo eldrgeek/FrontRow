@@ -119,7 +119,8 @@ psql(`UPDATE public.venues SET theater_manager_id = '${MGR}' WHERE id = 'a000000
       INSERT INTO public.frontrow_admins (user_id, email) VALUES ('${MIKE}', 'mw@mike-wolf.com') ON CONFLICT DO NOTHING;`);
 psql(mig('003'));
 psql(mig('004'));
-const has005 = fs.readdirSync(path.join(ROOT, 'migrations')).some((f) => f.startsWith('005'));
+// PERF_SKIP_005=1 runs 006 on 003 + 004 alone, to check its fallbacks.
+const has005 = !process.env.PERF_SKIP_005 && fs.readdirSync(path.join(ROOT, 'migrations')).some((f) => f.startsWith('005'));
 if (has005) { psql(mig('005')); console.log('applied 005 first'); }
 const M006 = mig('006');
 psql(M006);
@@ -146,6 +147,17 @@ const night = { theater: 'front-row', slug: 'noel-friday', screen: 'live', title
   starts_at: '2026-11-13T01:00:00Z', doors_at: '2026-11-13T00:45:00Z' };
 check('signed out: refused', save('', night).reason === 'not-allowed');
 check('another theater\'s manager: refused', save(JOE, night).reason === 'not-allowed');
+if (has005) {
+  const BEA = '33333333-3333-4333-8333-333333333333';
+  psql(`INSERT INTO auth.users VALUES ('${BEA}', 'bea@example.com') ON CONFLICT DO NOTHING;`);
+  check('005: no role, no schedule', save(BEA, { ...night, slug: 'bea-night' }).reason === 'not-allowed');
+  psql(`INSERT INTO public.theater_roles (venue_id, user_id, role) SELECT id, '${BEA}', 'performance_manager' FROM public.venues
+        WHERE super_venue_id = 'a0000000-0000-4000-8000-000000000001' AND screen_key = 'live';`);
+  check('005: performance manager of the live screen may schedule there', save(BEA, { ...night, slug: 'bea-night' }).ok);
+  check('005: ...but not on another screen', save(BEA, { theater: 'front-row', slug: 'bea-night', screen: 'library' }).reason === 'not-allowed');
+  psql(`UPDATE public.theater_roles SET revoked_at = now() WHERE user_id = '${BEA}'`);
+  check('005: a revoked role stops at once', save(BEA, { theater: 'front-row', slug: 'bea-night', seats: 5 }).reason === 'not-allowed');
+}
 let r = save(MGR, night);
 check('theater manager: scheduled', r.ok && r.created && r.performance.status === 'scheduled', r);
 check('admin: may edit it', save(MIKE, { theater: 'front-row', slug: 'noel-friday', seats: 20 }).performance.seats === 20);
@@ -285,6 +297,11 @@ svc('frontrow_performance_save', { theater: 'joe-house', slug: 'jam', screen: 'm
 check('followRoom: idle moves nothing', (await P.followRoom(rpc, { venue: 'joe-house', room: 'main' }, 'post-show', 'idle')) === null);
 r = await P.followRoom(rpc, { venue: 'joe-house', room: 'main' }, 'idle', 'pre-show');
 check('followRoom: pre-show -> doors', r?.performance?.status === 'doors', r);
+if (has005) {
+  r = await P.followRoom(rpc, { venue: 'joe-house', room: 'main' }, 'pre-show', 'live');
+  check('005: no curtain in a screen that is not open', r?.reason === 'screen-not-open', r);
+  psql(`UPDATE public.venues SET status = 'open' WHERE screen_key = 'main'`);
+}
 r = await P.followRoom(rpc, { venue: 'joe-house', room: 'main' }, 'pre-show', 'live');
 check('followRoom: live -> curtain', r?.performance?.status === 'curtain', r);
 check('followRoom: a repeat moves nothing', (await P.followRoom(rpc, { venue: 'joe-house', room: 'main' }, 'live', 'live')) === null);
