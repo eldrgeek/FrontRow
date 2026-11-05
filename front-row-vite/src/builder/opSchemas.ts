@@ -8,15 +8,17 @@ import {
   TEMPLATES, TICKET_CHANNELS, TICKET_ROLES, TICKET_SCOPES,
 } from './ops';
 
-// approve: 'anyone' lets any person in the room claim a proposal as far as the
-// room is concerned. Who may really change the theater is decided by the
-// builder grant on the page and by the save RPC, not by who created the room.
+// approve: 'app' (soma-rooms APP-OPS.md) means FrontRow decides with its own
+// theater roles: the room records a decision only from FrontRow's own sites,
+// and the builder page lets only a person whose builder grant may approve
+// (frontrow_builder_access can_approve) claim one. The save RPC checks again.
+// The room's creator gets no say from being the creator.
 
 export interface AppOpDecl {
   name: OpName;
   description: string;
   args: Record<string, unknown>;
-  approve: 'host' | 'anyone';
+  approve: 'host' | 'anyone' | 'app';
 }
 
 const str = (maxLength: number) => ({ type: 'string', maxLength });
@@ -30,7 +32,7 @@ export const APP_OPS: AppOpDecl[] = [
       `Set the lobby's screens (doors), left to right, 1 to ${MAX_SCREENS}. List every screen to keep; a screen left out is removed. ` +
       'Existing ids keep any field you leave out. Exactly one screen must be kind "live" (the house with seats; only one for now); the rest are "shelf" screens of videos. ' +
       'Ids are lowercase letters, digits and dashes.',
-    approve: 'anyone',
+    approve: 'app',
     args: {
       type: 'object',
       additionalProperties: false,
@@ -60,7 +62,7 @@ export const APP_OPS: AppOpDecl[] = [
   {
     name: 'setTheme',
     description: `Redecorate: colors as #rrggbb (${PALETTE_KEYS.join(', ')}; the first five set the look, the rest are derived when left out) and the curtain.`,
-    approve: 'anyone',
+    approve: 'app',
     args: {
       type: 'object',
       additionalProperties: false,
@@ -79,7 +81,7 @@ export const APP_OPS: AppOpDecl[] = [
     description:
       `Change one screen: its room template, its seats (live screen only, 1 to ${MAX_SEATS}) and seating arrangement, ` +
       'or the words on its door (title, marquee lines, blurb, signage).',
-    approve: 'anyone',
+    approve: 'app',
     args: {
       type: 'object',
       additionalProperties: false,
@@ -102,7 +104,7 @@ export const APP_OPS: AppOpDecl[] = [
       'Issue tickets: for the whole theater (venue), one screen, or one performance on a screen. A role (audience, performer, crew, manager), ' +
       `how they go out (sent, door, comp), a window (validFrom and validUntil, ISO times, both required), uses per ticket (devices it admits, default 1), ` +
       `an optional reserved seat (seat-N, one ticket only) and optional holder names or emails. At most ${MAX_TICKETS} at a time. Nothing is emailed without a person confirming.`,
-    approve: 'anyone',
+    approve: 'app',
     args: {
       type: 'object',
       additionalProperties: false,

@@ -43,7 +43,7 @@ const apply = (edit, def = frontRowTheater) => {
 test('the op schemas declared to the room name exactly the four ops', () => {
   assert.deepEqual(APP_OPS.map((o) => o.name), ['setScreens', 'setTheme', 'setRoom', 'issueTickets']);
   // Who may decide is the builder grant, checked by the page and the save RPC, not room creator status.
-  for (const o of APP_OPS) assert.equal(o.approve, 'anyone');
+  for (const o of APP_OPS) assert.equal(o.approve, 'app');
   const tix = APP_OPS.find((o) => o.name === 'issueTickets');
   assert.ok(tix.args.required.includes('validFrom') && tix.args.required.includes('validUntil'));
   assert.ok(JSON.stringify(APP_OPS).length < 16 * 1024, 'room limit is 16 KB');
