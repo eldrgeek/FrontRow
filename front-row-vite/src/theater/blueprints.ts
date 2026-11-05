@@ -127,15 +127,20 @@ export function useCurrentTheater(): TheaterDefinition {
   return record && canOpenTheater(record as { status?: string | null }, isBuilder()) ? record.definition : frontRowTheater;
 }
 
+export type TheaterStatus = 'draft' | 'preview' | 'open' | 'dark' | 'archived';
+
 /**
- * Who may open a stored theater by URL. A theater whose status is not
- * published (the status column arrives with the records thread's migration
- * 005) opens only for its builders; everyone else gets the built-in Front Row.
- * Records without a status are treated as published, as Front Row is today.
+ * Who may open a stored theater by URL, by its status (migration 005):
+ * open and dark (the "no performance tonight" lobby) for everyone, draft and
+ * preview for builders only, archived for nobody. A record with no status is
+ * treated as open, as Front Row is today; an unknown status opens for nobody
+ * but builders.
  */
 export function canOpenTheater(record: { status?: string | null }, builder: boolean): boolean {
-  const status = record.status ?? 'published';
-  return status === 'published' || builder;
+  const status = record.status ?? 'open';
+  if (status === 'archived') return false;
+  if (status === 'open' || status === 'dark') return true;
+  return builder;
 }
 
 /** Stub until builder roles exist: nobody is a builder, so previews stay closed. */
