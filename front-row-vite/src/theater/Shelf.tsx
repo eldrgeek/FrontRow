@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { fill, screensInOrder, ShelfVideo, TheaterDefinition } from './definition';
-import { useTheater } from './theaterStore';
+import { useCurrentTheater } from './blueprints';
+import { HouseProvider } from './houseContext';
 import { WithTicket } from './FrontOfHouse';
 import { showPath } from './routes';
 import './shelf.css';
@@ -48,14 +49,16 @@ export function ShelfPage({ which }: { which?: string }): JSX.Element {
   const navigate = useNavigate();
   const { slug, screenId } = useParams();
   const id = which ?? screenId ?? '';
-  const { record } = useTheater();
+  // The stored theater, or a sample on previews (?theater=, blueprints.ts).
+  const theater = useCurrentTheater();
   const [playing, setPlaying] = useState<string | null>(null);
   useEffect(() => setPlaying(null), [id, slug]);
 
   return (
+    <HouseProvider definition={theater}>
     <WithTicket>
       {(show) => {
-        const def = record?.definition;
+        const def = theater;
         const screen = def?.screens.find((s) => s.id === id && s.kind === 'shelf');
         if (!def || !screen) return <Navigate to={showPath(show, 'lobby')} replace />;
         const door = { title: fill(screen.title, show, screen), blurb: fill(screen.blurb, show, screen) };
@@ -88,5 +91,6 @@ export function ShelfPage({ which }: { which?: string }): JSX.Element {
         );
       }}
     </WithTicket>
+    </HouseProvider>
   );
 }

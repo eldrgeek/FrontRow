@@ -31,6 +31,9 @@ import { HouseHud } from './theater/HouseHud';
 import { GreenRoom } from './theater/GreenRoom';
 import { PostShow } from './theater/PostShow';
 import { socketChat } from './theater/postShowChat';
+import { HouseProvider } from './theater/houseContext';
+import { useHouse } from './theater/useHouse';
+import { useCurrentTheater } from './theater/blueprints';
 
 // Phase 2 types
 interface VenueConfig {
@@ -67,8 +70,9 @@ export interface AppEntry {
   role?: 'audience' | 'performer';
 }
 
-function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
+function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const entryShow = entry ? getShow(entry.showSlug) : null;
+  const house = useHouse();
   const [ownFace, setOwnFace] = useState<boolean>(() => !!sessionStorage.getItem('frontrow_user_image'));
   // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
@@ -1146,7 +1150,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               performerStageX={performerStageX}
               performerOpacity={performerOpacity}
               curtainOpen={curtainOpen || (!!entryShow && showState === 'live')}
-              curtainStyle={curtainStyle}
+              curtainStyle={entry ? house.palette.curtain : curtainStyle}
               reactionLevel={reactionLevel}
               spotlightActive={spotlightActive || (!!entryShow && showState === 'live')}
               holdFallbackUntilLive={!!entryShow}
@@ -1517,6 +1521,20 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The ticketed house reads its seats and colors from the theater definition
+ * (src/theater/house.tsx); master's own routes (no entry) keep Front Row's.
+ */
+function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
+  const theater = useCurrentTheater();
+  if (!entry) return <TheaterApp />;
+  return (
+    <HouseProvider definition={theater}>
+      <TheaterApp entry={entry} />
+    </HouseProvider>
   );
 }
 

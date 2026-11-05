@@ -10,7 +10,7 @@
   background:
     radial-gradient(ellipse at 50% 0%, rgba(255, 214, 107, 0.18), transparent 55%),
     repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 90px),
-    linear-gradient(180deg, #1c0609, var(--velvet) 60%, #3a0d17);
+    linear-gradient(180deg, color-mix(in srgb, var(--velvet) 55%, #000), var(--velvet) 60%, color-mix(in srgb, var(--velvet) 75%, var(--velvet-hi)));
 }
 .fr-lobby .floor {
   position: absolute;
@@ -24,7 +24,7 @@
     radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.55) 0 3px, transparent 4px) 0 0 / 46px 46px,
     linear-gradient(45deg, transparent 46%, rgba(212, 175, 55, 0.35) 47% 53%, transparent 54%) 0 0 / 46px 46px,
     linear-gradient(-45deg, transparent 46%, rgba(212, 175, 55, 0.35) 47% 53%, transparent 54%) 0 0 / 46px 46px,
-    #6e0f1d;
+    var(--carpet);
   box-shadow: inset 0 60px 80px rgba(0, 0, 0, 0.8);
 }
 
@@ -66,7 +66,7 @@
 .fr-sound {
   appearance: none;
   border: 1px solid var(--brass);
-  background: rgba(20, 5, 8, 0.75);
+  background: color-mix(in srgb, var(--house-black) 75%, transparent);
   color: var(--brass-hi);
   padding: 8px 16px;
   border-radius: 999px;
@@ -99,17 +99,18 @@
   align-items: center;
   color: inherit;
   width: clamp(96px, 22vw, 200px);
+  transform: var(--door-tf, translateY(0));
   transition: transform 0.25s;
 }
 .fr-door.center { width: clamp(120px, 28vw, 250px); }
-.fr-door:hover { transform: translateY(-4px); }
+.fr-door:hover { transform: var(--door-tf, translateY(0)) translateY(-4px); }
 
 .fr-door .marquee {
   width: 112%;
   padding: 2px 6px;
   margin-bottom: 10px;
   text-align: center;
-  background: #12050a;
+  background: var(--marquee-box);
   border: 2px solid var(--brass);
   box-shadow: 0 0 22px rgba(255, 214, 107, 0.25);
   font: 400 clamp(9px, 1.6vw, 13px)/1.25 var(--display);
@@ -142,7 +143,7 @@
 .fr-door .leaf {
   flex: 1;
   position: relative;
-  background: linear-gradient(180deg, #8d1426, #5c0a17);
+  background: linear-gradient(180deg, var(--door), color-mix(in srgb, var(--door) 60%, #000));
   box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.5);
   transition: transform 0.4s;
   transform-origin: left center;
@@ -159,7 +160,7 @@
   aspect-ratio: 1;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: radial-gradient(circle, var(--marquee), #e8c77a 60%, #8a6a2a);
+  background: radial-gradient(circle, var(--marquee), color-mix(in srgb, var(--brass-hi) 70%, var(--brass)) 60%, var(--brass-lo));
   box-shadow: 0 0 14px rgba(255, 214, 107, 0.6);
 }
 .fr-door.center .leaf i { animation: fr-glow 3s ease-in-out infinite; }
@@ -189,22 +190,73 @@
 }
 @keyframes fr-sway { 50% { translate: 3px 0; } }
 
-.fr-lobby .placard {
+.fr-lobby .placard, .fr-hallway .placard {
   position: absolute;
   z-index: 4;
   left: 16px;
   bottom: 16px;
   width: min(360px, calc(100% - 32px));
   padding: 16px 18px;
-  background: rgba(20, 5, 8, 0.9);
+  background: color-mix(in srgb, var(--house-black) 90%, transparent);
   border: 1px solid var(--brass);
   border-radius: 6px;
 }
-.fr-lobby .placard h2 { margin: 8px 0 4px; font: 700 22px var(--serif); color: var(--playbill); }
-.fr-lobby .placard p { margin: 0 0 12px; font-size: 14px; color: var(--playbill-dim); }
-.fr-lobby .placard .fr-btn { padding: 10px 22px; font-size: 15px; }
+.fr-lobby .placard h2, .fr-hallway .placard h2 { margin: 8px 0 4px; font: 700 22px var(--serif); color: var(--playbill); }
+.fr-lobby .placard p, .fr-hallway .placard p { margin: 0 0 12px; font-size: 14px; color: var(--playbill-dim); }
+.fr-lobby .placard .fr-btn, .fr-hallway .placard .fr-btn { padding: 10px 22px; font-size: 15px; }
 
 @media (max-width: 560px) {
   .fr-lobby .posters { display: none; }
   .fr-lobby .doors { bottom: 40%; }
 }
+
+/* Four or five doors: an arc. Each door is turned toward the guest (an inline
+   --door-tf from doorLayout.ts); widths share the wall so five fit a phone. */
+.fr-lobby.mode-arc .doors,
+.fr-lobby.mode-hallway .doors { gap: clamp(4px, 2vw, 34px); }
+.fr-lobby.mode-arc .fr-door,
+.fr-lobby.mode-hallway .fr-door { width: clamp(56px, calc((100vw - 48px) / var(--n, 5) - 10px), 170px); }
+.fr-lobby.mode-arc .fr-door.center,
+.fr-lobby.mode-hallway .fr-door.center { width: clamp(68px, calc((100vw - 48px) / var(--n, 5) + 6px), 210px); }
+.fr-lobby.mode-arc .fr-door .marquee,
+.fr-lobby.mode-hallway .fr-door .marquee { font-size: clamp(7px, 1.2vw, 12px); }
+
+/* Noel's signage: a small card under a door saying what plays there. */
+.fr-door .signage {
+  margin-top: 6px;
+  padding: 3px 8px;
+  max-width: 100%;
+  background: var(--playbill);
+  color: var(--ink);
+  font: 600 clamp(9px, 1.2vw, 12px)/1.25 var(--sans);
+  border-radius: 2px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* More than five screens: a sign at the side of the lobby leads down the hallway. */
+.fr-hallway-sign {
+  position: absolute;
+  z-index: 3;
+  right: 16px;
+  top: 64px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+  max-width: 220px;
+  padding: 10px 14px;
+  appearance: none;
+  cursor: pointer;
+  text-align: left;
+  background: var(--marquee-box);
+  color: var(--marquee);
+  border: 2px solid var(--brass);
+  border-radius: 4px;
+  box-shadow: 0 0 18px rgba(0, 0, 0, 0.5);
+  font: 400 13px/1.3 var(--display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.fr-hallway-sign .arrow { grid-row: span 2; font-size: 26px; color: var(--marquee-glow); }
+.fr-hallway-sign small { font: 12px var(--sans); text-transform: none; color: var(--playbill-dim); }
+.fr-hallway-sign:hover { border-color: var(--brass-hi); }

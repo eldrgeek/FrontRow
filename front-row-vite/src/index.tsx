@@ -20,6 +20,7 @@ import HouseManagerApp from './HouseManagerApp';
 import BackstageRoom from './BackstageRoom';
 import { InvitePage, TicketPage } from './theater/FrontOfHouse';
 import { LobbyPage } from './theater/Lobby';
+import { HallwayPage } from './theater/Hallway';
 import { ShelfPage } from './theater/Shelf';
 import { HousePage } from './theater/House';
 import { GreenRoomPage } from './theater/GreenRoomPage';
@@ -66,6 +67,7 @@ function AppRoutes() {
       <Route path="/show/:slug" element={<InvitePage />} />
       <Route path="/show/:slug/ticket" element={<TicketPage />} />
       <Route path="/show/:slug/lobby" element={<LobbyPage />} />
+      <Route path="/show/:slug/hallway" element={<HallwayPage />} />
       <Route path="/show/:slug/revolution" element={<ShelfPage which="revolution" />} />
       <Route path="/show/:slug/library" element={<ShelfPage which="library" />} />
       <Route path="/show/:slug/shelf/:screenId" element={<ShelfPage />} />

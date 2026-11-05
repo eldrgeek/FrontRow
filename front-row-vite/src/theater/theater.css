@@ -4,18 +4,22 @@
    screen, Playfair for titles, the system sans for everything you read. */
 
 .fr {
-  --house-black: #140508;
-  --velvet: #2a0812;
-  --velvet-2: #3d0f1c;
-  --velvet-hi: #5a1626;
-  --brass-lo: #a9791f;
-  --brass: #d4af37;
-  --brass-hi: #f6e3a1;
-  --marquee: #fff4d2;
-  --marquee-glow: #ffd66b;
-  --playbill: #f4ead3;
-  --playbill-dim: #c9b48a;
-  --ink: #2a0812;
+  /* Theme tokens: theme.ts sets --t-* on <html> from the theater definition.
+     The fallbacks are Front Row's own colors. */
+  --house-black: var(--t-house-black, #140508);
+  --velvet: var(--t-wall, #2a0812);
+  --velvet-hi: var(--t-wall-hi, #5a1626);
+  --brass-lo: var(--t-accent-lo, #a9791f);
+  --brass: var(--t-accent, #d4af37);
+  --brass-hi: var(--t-accent-hi, #f6e3a1);
+  --marquee: var(--t-marquee-text, #fff4d2);
+  --marquee-glow: var(--t-marquee-glow, #ffd66b);
+  --marquee-box: var(--t-marquee, #12050a);
+  --carpet: var(--t-carpet, #6e0f1d);
+  --door: var(--t-door, #8d1426);
+  --playbill: var(--t-playbill, #f4ead3);
+  --playbill-dim: var(--t-playbill-dim, #c9b48a);
+  --ink: var(--t-wall, #2a0812);
   --ok: #5fbf6a;
   --serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --display: 'Limelight', 'Playfair Display', Georgia, serif;
@@ -25,7 +29,7 @@
   inset: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  background: radial-gradient(ellipse at 50% 40%, #3a1410 0%, #120405 62%, #000 100%);
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--velvet) 60%, #5a2a0a) 0%, var(--house-black) 62%, #000 100%);
   color: var(--playbill);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -60,7 +64,7 @@
   gap: 8px;
   padding: 14px 32px;
   border-radius: 999px;
-  background: #7a1022;
+  background: color-mix(in srgb, var(--door) 87%, #000);
   color: var(--marquee);
   font: 600 17px/1 var(--sans);
   letter-spacing: 0.04em;
@@ -68,7 +72,7 @@
   transition: background 0.15s, transform 0.15s;
   text-decoration: none;
 }
-.fr-btn:hover { background: #a8142f; }
+.fr-btn:hover { background: var(--door); }
 .fr-btn:active { transform: translateY(1px); }
 .fr-btn:focus-visible, .fr-link:focus-visible, .fr-door:focus-visible { outline: 3px solid var(--marquee-glow); outline-offset: 3px; }
 .fr-btn[disabled] { opacity: 0.5; cursor: default; }
@@ -164,7 +168,7 @@
   border: 1px solid var(--brass);
   border-radius: 999px;
   color: var(--brass-hi);
-  background: rgba(20, 5, 8, 0.7);
+  background: color-mix(in srgb, var(--house-black) 70%, transparent);
   font-size: 15px;
 }
 .fr-chip s { color: var(--brass-lo); }

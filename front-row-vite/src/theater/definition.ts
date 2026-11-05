@@ -15,7 +15,7 @@ export const DEFINITION_SCHEMA = 1;
 
 export type ScreenKind = 'live' | 'shelf';
 export type ScreenTemplate = 'proscenium' | 'cabaret' | 'black-box' | 'roundtable' | 'custom';
-export type SeatArrangement = 'semicircle' | 'rows' | 'tables' | 'round';
+export type SeatArrangement = 'semicircle' | 'rows' | 'tables' | 'round' | 'horseshoe';
 
 export interface ShelfVideo {
   title: string;
@@ -26,7 +26,8 @@ export interface ShelfVideo {
 
 export interface SeatLayout {
   count: number;
-  arrangement: SeatArrangement;
+  /** Left out: the screen's template picks one (lib/seatLayout.ts arrangementFor). */
+  arrangement?: SeatArrangement;
 }
 
 export interface ScreenDefinition {
@@ -50,15 +51,39 @@ export interface ScreenDefinition {
   signage?: string;
 }
 
+/**
+ * The house's colors. The first five are required; every other key is
+ * optional and, when left out, is derived from those five (theater/theme.ts
+ * resolvePalette), so a record saved with only five colors still loads.
+ * theme.ts turns the result into CSS custom properties (--t-*) for the front
+ * of house and into three.js material colors for the house.
+ */
+export interface ThemePalette {
+  /** The lobby's back wall and the house's velvet. */
+  wall: string;
+  /** The box behind the marquee lettering. */
+  marquee: string;
+  /** Marquee lettering and bulbs. */
+  marqueeText: string;
+  /** Brass: door frames, trim, your own seat. */
+  accent: string;
+  /** A free seat. */
+  seat: string;
+  houseBlack?: string;
+  wallHi?: string;
+  carpet?: string;
+  door?: string;
+  accentLo?: string;
+  accentHi?: string;
+  marqueeGlow?: string;
+  playbill?: string;
+  playbillDim?: string;
+  seatTaken?: string;
+  stageWood?: string;
+}
+
 export interface ThemeTokens {
-  /** CSS colors, applied as --fr-* custom properties. */
-  palette: {
-    wall: string;
-    marquee: string;
-    marqueeText: string;
-    accent: string;
-    seat: string;
-  };
+  palette: ThemePalette;
   curtain: 'velvet-red' | 'velvet-blue' | 'none';
 }
 
@@ -110,12 +135,25 @@ export const frontRowTheater: TheaterDefinition = {
   name: 'Front Row Theater',
   hostedBy: 'Noel Paul Stookey',
   theme: {
+    // Exactly the colors theater.css, lobby.css and the 3D house used before
+    // they read the theme, so Front Row looks the same.
     palette: {
       wall: '#2a0812',
       marquee: '#12050a',
       marqueeText: '#fff4d2',
       accent: '#d4af37',
       seat: '#9b1529',
+      houseBlack: '#140508',
+      wallHi: '#5a1626',
+      carpet: '#6e0f1d',
+      door: '#8d1426',
+      accentLo: '#a9791f',
+      accentHi: '#f6e3a1',
+      marqueeGlow: '#ffd66b',
+      playbill: '#f4ead3',
+      playbillDim: '#c9b48a',
+      seatTaken: '#4a0812',
+      stageWood: '#6b4426',
     },
     curtain: 'velvet-red',
   },

@@ -7,6 +7,8 @@ import YouTubeScreen from './YouTubeScreen';
 import useVideoTexture from '../hooks/useVideoTexture';
 import PerformerMesh from './PerformerMesh';
 import ReactionBar from './ReactionBar';
+import { useHouse } from '../theater/useHouse';
+import { mix } from '../theater/theme';
 
 interface StageProps {
   config: {
@@ -37,6 +39,8 @@ interface StageProps {
 
 // Semicircle stage platform component
 function SemicircleStage(): JSX.Element {
+  // Boards and brass edge from the theater's palette (Front Row: oak and brass).
+  const { palette } = useHouse();
   return (
     <group>
       {/* Main semicircle stage platform - rotated 90 degrees clockwise */}
@@ -45,7 +49,7 @@ function SemicircleStage(): JSX.Element {
         position={[0, 0.1, -8]}
         rotation-x={0}
       >
-        <meshStandardMaterial color="#6b4426" roughness={0.7} />
+        <meshStandardMaterial color={palette.stageWood} roughness={0.7} />
       </Cylinder>
 
       {/* Stage edge for visual definition */}
@@ -54,11 +58,11 @@ function SemicircleStage(): JSX.Element {
         position={[0, 0.05, -8]}
         rotation-x={0}
       >
-        <meshStandardMaterial color="#a9791f" metalness={0.4} roughness={0.4} />
+        <meshStandardMaterial color={palette.accentLo} metalness={0.4} roughness={0.4} />
       </Cylinder>
       {/* Apron rectangle between stage flat edge and screen */}
       <Plane args={[16.0, 4]} rotation-x={-Math.PI / 2} position={[0, 0.11, -10]}>
-        <meshStandardMaterial color="#5a3820" roughness={0.75} side={THREE.DoubleSide} />
+        <meshStandardMaterial color={mix(palette.stageWood, '#000000', 0.16)} roughness={0.75} side={THREE.DoubleSide} />
       </Plane>
     </group>
   );
