@@ -1,6 +1,7 @@
 -- FrontRow 005: who may build and run a theater, and what state it is in.
 -- Target: shared project omfwcodoimjmbrhssvfl. NOT YET APPLIED: needs Mike's yes.
--- Runs after 003 (theater definitions) and 004 (tickets). Additive and idempotent.
+-- Runs after 003 (theater definitions) and 004 (tickets); it replaces 004's two
+-- hook functions (frontrow_ticket_can_manage, frontrow_room_mode). Additive and idempotent.
 --
 -- Adds:
 --   1. create_theater(slug, blueprint, manager): admin-only; stores a new theater.
@@ -553,6 +554,43 @@ BEGIN
                            'set_builder_room(text, text)', 'set_venue_status(text, text, text)', 'frontrow_builder_access(text)'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION public.%s FROM PUBLIC, anon', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION public.%s TO authenticated, service_role', f);
+  END LOOP;
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- Ticket hooks from 004, now reading roles and status. Same signatures and
+-- return shapes; service_role only, as in 004.
+-- ---------------------------------------------------------------------------
+-- {user_id, venue_id: theater slug} -> {ok, admin, manager}. manager covers
+-- theater_manager_id and an active venue_manager role (frontrow_can_manage).
+CREATE OR REPLACE FUNCTION public.frontrow_ticket_can_manage(p jsonb)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT jsonb_build_object('ok', true,
+    'admin', public.is_frontrow_admin((p->>'user_id')::uuid),
+    'manager', public.frontrow_can_manage((p->>'user_id')::uuid, p->>'venue_id'))
+$$;
+
+-- {venue_id: theater slug, room_id: screen slug} -> {mode}. A ticketless guest
+-- gets in only when both the theater and the screen are open, which is how
+-- Front Row works today. Dark, setup, preview, draft, retired, archived or an
+-- unknown room all need a ticket.
+CREATE OR REPLACE FUNCTION public.frontrow_room_mode(p jsonb)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT jsonb_build_object('mode', CASE WHEN EXISTS (
+    SELECT 1 FROM public.venues t JOIN public.venues s ON s.super_venue_id = t.id
+     WHERE t.slug = p->>'venue_id' AND t.super_venue_id IS NULL AND t.active AND t.status = 'open'
+       AND s.screen_key = p->>'room_id' AND s.active AND s.status = 'open'
+  ) THEN 'open' ELSE 'ticketed' END)
+$$;
+
+DO $$
+DECLARE f text;
+BEGIN
+  FOREACH f IN ARRAY ARRAY['frontrow_ticket_can_manage', 'frontrow_room_mode'] LOOP
+    EXECUTE format('REVOKE ALL ON FUNCTION public.%I(jsonb) FROM PUBLIC, anon, authenticated', f);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION public.%I(jsonb) TO service_role', f);
   END LOOP;
 END $$;
 
