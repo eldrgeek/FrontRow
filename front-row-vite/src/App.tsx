@@ -22,6 +22,7 @@ import SceneTestExposer from './components/SceneTestExposer';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import AudienceMonitor from './components/AudienceMonitor';
 import { useLiveKit } from './hooks/useLiveKit';
+import { livekitRoomFor, resolveScope, socketQueryFor } from './lib/roomScope';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
@@ -65,10 +66,18 @@ export interface AppEntry {
   showSlug: string;
   /** 'performer' comes from the green room (src/theater/GreenRoomPage.tsx). */
   role?: 'audience' | 'performer';
+  /** The theater and screen this house is (src/lib/roomScope.ts). Missing
+   *  means ?theater=&screen= on the URL, else Front Row's live screen. */
+  venue?: string;
+  room?: string;
 }
 
 function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const entryShow = entry ? getShow(entry.showSlug) : null;
+  // Which house this is: its own seats and show on frontrow-server, its own LiveKit room.
+  const scope = useMemo(() => resolveScope({ venue: entry?.venue, room: entry?.room }), [entry?.venue, entry?.room]);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   const [ownFace, setOwnFace] = useState<boolean>(() => !!sessionStorage.getItem('frontrow_user_image'));
   // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
@@ -233,7 +242,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   };
 
   // LiveKit hook
-  const liveKit = useLiveKit();
+  const liveKit = useLiveKit(livekitRoomFor(scope));
 
   const handleAudienceStream = useCallback((identity: string, stream: MediaStream | null) => {
     setAudienceStreams(prev => {
@@ -342,7 +351,10 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   // --- Socket.IO Setup ---
   useEffect(() => {
     console.log('Connecting to backend:', config.socketUrl);
-    socketRef.current = io(config.socketUrl);
+    socketRef.current = io(config.socketUrl, { query: socketQueryFor(scopeRef.current, entryShow?.seats) });
+    socketRef.current.on('house:refused', (data: { reason?: string }) => {
+      console.warn('frontrow-server refused this house:', data?.reason, scopeRef.current);
+    });
     socketRef.current.on('connect', () => {
       console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');

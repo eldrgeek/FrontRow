@@ -54,12 +54,47 @@ app.use('/api/v1', apiRouter);
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
 const scheduledShows = []; // { id, artistId, title, dateTime, status: 'scheduled' | 'live' | 'ended' }
-// Seats in the house: seat-0 … seat-11 (front-row-vite/src/lib/seatLayout.ts).
+// Each screen of each theater is its own house (server/rooms.js): its own
+// seats, show state and post-show chat, in its own Socket.io room. A client
+// names its house in the handshake query ({ venue, room }); none means Front
+// Row's live screen, so pages that predate the kit keep working.
+const houses = require('./rooms');
+// Seats in Front Row's live house: seat-0 … seat-11 (front-row-vite/src/lib/seatLayout.ts).
+// Other houses take the count their first guest names, at most houses.SEAT_CAP (99).
 const MAX_SEATS = Number(process.env.MAX_SEATS) || 12;
 const SEAT_ID = /^seat-\d{1,2}$/;
+const registry = houses.createRegistry({
+  defaultSeats: MAX_SEATS,
+  pinnedSeats: { 'front-row--live': MAX_SEATS },
+  maxRooms: Number(process.env.MAX_HOUSES) || 200,
+});
+function withSockets(R) {
+  if (!R.sockets) R.sockets = () => [...R.members].map((id) => io.sockets.sockets.get(id)).filter(Boolean);
+  return R;
+}
+const ensureHouse = (scope, seats) => {
+  const R = registry.ensure(scope, seats);
+  return R && withSockets(R);
+};
+/** The house a request names (query or JSON body), made if needed. Sends 400 and returns null if it cannot be. */
+function houseFor(req, res) {
+  const scope = houses.parseScope({ ...(req.body && typeof req.body === 'object' ? req.body : {}), ...req.query });
+  const R = scope && ensureHouse(scope);
+  if (!R) res.status(scope ? 503 : 400).json({ error: scope ? 'Too many houses open' : 'Unknown theater or screen' });
+  return R;
+}
+/** Like houseFor, but a read never makes a house: an unknown one reads as empty. */
+function houseView(req, res) {
+  const scope = houses.parseScope(req.query);
+  if (!scope) { res.status(400).json({ error: 'Unknown theater or screen' }); return null; }
+  const R = registry.get(scope);
+  if (R) return withSockets(R);
+  return { ...scope, show: houses.newShowState(), profiles: {}, members: new Set(), chat: [], maxSeats: MAX_SEATS, sockets: () => [] };
+}
+/** A countdown without its timer handle (a Timeout does not serialize). */
+const countdownView = (c) => (c ? { isActive: !!c.isActive, timeRemaining: c.timeRemaining || 0, totalTime: c.totalTime || 0 } : null);
 
-// Post-show chat state (see the 'postshow:chat' handler).
-const postShowChat = [];
+// Post-show chat rate limit, per socket (see the 'postshow:chat' handler).
 const chatLastSent = new Map();
 function cleanChat(v, max) {
   if (typeof v !== 'string') return '';
@@ -68,40 +103,12 @@ function cleanChat(v, max) {
     .join('').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-
-let activeShow = {
-  artistId: null,
-  startTime: null,
-  status: 'idle', // 'idle', 'pre-show', 'live', 'post-show'
-  audienceSeats: {}, // { seatId: { name, imageUrl (base64 string), socketId } }
-  countdown: {
-    isActive: false,
-    timeRemaining: 0,
-    totalTime: 0,
-    interval: null
-  },
-  venueConfig: {
-    seatCount: 20,
-    arrangement: 'semicircle', // 'orchestra' | 'semicircle' | 'cabaret' | 'classroom'
-    curtainStyle: 'velvet-red', // 'velvet-red' | 'none' | CSS color string
-    showTitle: '',
-    scheduledStart: null, // ISO 8601 or null
-    curtainOpen: false,
-    configLocked: false,
-  },
-  backstageClients: {}, // { socketId: { role: 'performer' | 'hm' } }
-  reactions: [], // { type, timestamp } rolling window
-  performerOnStage: false,
-  performerPosition: { x: 0, z: -8 },
-  spotlightActive: false,
-};
-const userProfiles = {}; // { socketId: { name, imageUrl (base64 string), selectedSeat } } // Temporary store for connected users
-
 // --- API Routes ---
 
 // LiveKit keys are not scoped to rooms, so a token minted here could join any
 // room on the server. FrontRow only uses frontrow-* rooms.
-const LIVEKIT_ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,60}$/;
+// Kit rooms are frontrow-<venue>--<room> (server/rooms.js), up to 91 characters.
+const LIVEKIT_ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,100}$/;
 
 // LiveKit token endpoint (mirrors Netlify function for local dev)
 app.get('/api/livekit-token', async (req, res) => {
@@ -144,6 +151,7 @@ app.get('/api/livekit-token', async (req, res) => {
 
 // Health check endpoint for monitoring
 app.get('/health', (req, res) => {
+  const R = houseView(req, res); if (!R) return;
   res.status(200).json({ 
     status: 'healthy', 
     version: '1.2.0',
@@ -151,32 +159,33 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
     activeConnections: io.engine.clientsCount || 0,
-    showStatus: activeShow.status,
-    artistId: activeShow.artistId,
-    audienceCount: Object.keys(activeShow.audienceSeats).length,
-    countdown: activeShow.countdown
+    showStatus: R.show.status,
+    artistId: R.show.artistId,
+    audienceCount: Object.keys(R.show.audienceSeats).length,
+    countdown: countdownView(R.show.countdown)
   });
 });
 
 // Diagnostics endpoint
 app.get('/api/diagnostics', (req, res) => {
+  const R = houseView(req, res); if (!R) return;
   const connectedSockets = [];
-  io.sockets.sockets.forEach((socket) => {
+  R.sockets().forEach((socket) => {
     connectedSockets.push({
       id: socket.id,
-      isArtist: socket.id === activeShow.artistId,
-      hasSeat: Object.entries(activeShow.audienceSeats).find(([,u]) => u.socketId === socket.id)?.[0] || null
+      isArtist: socket.id === R.show.artistId,
+      hasSeat: Object.entries(R.show.audienceSeats).find(([,u]) => u.socketId === socket.id)?.[0] || null
     });
   });
 
   res.json({
     show: {
-      status: activeShow.status,
-      artistId: activeShow.artistId,
-      startTime: activeShow.startTime,
-      countdown: activeShow.countdown,
+      status: R.show.status,
+      artistId: R.show.artistId,
+      startTime: R.show.startTime,
+      countdown: countdownView(R.show.countdown),
     },
-    seats: Object.entries(activeShow.audienceSeats).map(([seatId, user]) => ({
+    seats: Object.entries(R.show.audienceSeats).map(([seatId, user]) => ({
       seatId,
       name: user.name,
       socketId: user.socketId,
@@ -439,81 +448,63 @@ app.post('/api/shows', (req, res) => {
 
 // Placeholder for artist to signal going live or ending show via API (for testing)
 app.post('/api/artist-simulate-live', (req, res) => {
+  const R = houseFor(req, res); if (!R) return;
     // In a real scenario, this would come from an authenticated artist client
-    if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') { // Allow from pre-show for testing
+    if (R.show.status !== 'idle' && R.show.status !== 'pre-show') { // Allow from pre-show for testing
       return res.status(400).json({ error: 'Show already active or in invalid state.' });
     }
-    activeShow.status = 'live';
-    postShowChat.length = 0;
-    activeShow.artistId = 'simulated-artist'; // Placeholder ID
-    activeShow.startTime = Date.now();
-    io.emit('show-status-update', { status: 'live', artistId: activeShow.artistId });
+    R.show.status = 'live';
+    R.chat.length = 0;
+    R.show.artistId = 'simulated-artist'; // Placeholder ID
+    R.show.startTime = Date.now();
+    io.to(R.channel).emit('show-status-update', { status: 'live', artistId: R.show.artistId });
     console.log('Simulated artist going LIVE!');
     res.status(200).json({ status: 'live' });
 });
 
 app.post('/api/artist-simulate-end', (req, res) => {
-    if (activeShow.status !== 'live') {
+  const R = houseFor(req, res); if (!R) return;
+    if (R.show.status !== 'live') {
       return res.status(400).json({ error: 'No active show to end.' });
     }
-    activeShow.status = 'post-show';
-    io.emit('show-status-update', { status: 'post-show' });
+    R.show.status = 'post-show';
+    io.to(R.channel).emit('show-status-update', { status: 'post-show' });
     console.log('Simulated artist ending show.');
     res.status(200).json({ status: 'post-show' });
     // Reset after a short delay
     setTimeout(() => {
         // Clear audience seats
-        for (const seatId in activeShow.audienceSeats) {
-            delete activeShow.audienceSeats[seatId];
+        for (const seatId in R.show.audienceSeats) {
+            delete R.show.audienceSeats[seatId];
         }
         // Clear user profiles
-        for (const socketId in userProfiles) {
-            delete userProfiles[socketId];
+        for (const socketId in R.profiles) {
+            delete R.profiles[socketId];
         }
-        io.emit('all-seats-empty');
-        activeShow.status = 'idle';
+        io.to(R.channel).emit('all-seats-empty');
+        R.show.status = 'idle';
+        registry.maybeDrop(R);
         console.log('Show cycle reset to idle after post-show.');
     }, 5000); // 5 seconds post-show display
 });
 
 // Debug API endpoint to reset show state
 app.post('/api/debug-reset-show', (req, res) => {
+  const R = houseFor(req, res); if (!R) return;
   console.log('🔧 Debug: Resetting show state to idle');
-  if (activeShow.countdown && activeShow.countdown.interval) {
-    clearInterval(activeShow.countdown.interval);
-  }
-  activeShow = {
-    artistId: null,
-    startTime: null,
-    status: 'idle',
-    audienceSeats: {},
-    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
-    venueConfig: {
-      seatCount: 20,
-      arrangement: 'semicircle',
-      curtainStyle: 'velvet-red',
-      showTitle: '',
-      scheduledStart: null,
-      curtainOpen: false,
-      configLocked: false,
-    },
-    backstageClients: {},
-    reactions: [],
-    performerOnStage: false,
-    performerPosition: { x: 0, z: -8 },
-    spotlightActive: false,
-  };
-  io.emit('show-state-change', { status: 'idle' });
+  registry.resetShow(R);
+  io.to(R.channel).emit('show-state-change', { status: 'idle' });
   res.json({ message: 'Show status reset to idle' });
 });
 
 // API endpoint to end show
 app.post('/api/end-show', (req, res) => {
+  const R = houseFor(req, res); if (!R) return;
   console.log('🎬 API: Ending show');
-  if (activeShow.status === 'live') {
-    activeShow.status = 'post-show';
-    activeShow.endTime = new Date();
-    io.emit('show-state-change', { status: 'post-show' });
+  if (R.show.status === 'live') {
+    R.show.status = 'post-show';
+    R.show.endTime = new Date();
+    io.to(R.channel).emit('show-state-change', { status: 'post-show' });
     res.json({ message: 'Show ended successfully' });
   } else {
     res.json({ message: 'Show was not live' });
@@ -535,15 +526,16 @@ app.get('/api/test/state', (req, res) => {
   if (!testEndpointsEnabled) {
     return res.status(404).json({ error: 'Test endpoints not available in this environment' });
   }
+  const R = houseView(req, res); if (!R) return;
   const connectedUsers = {};
-  io.sockets.sockets.forEach((socket) => {
-    const userProfile = userProfiles[socket.id];
+  R.sockets().forEach((socket) => {
+    const userProfile = R.profiles[socket.id];
     connectedUsers[socket.id] = {
       socketId: socket.id,
       name: userProfile?.name || 'Anonymous',
       seat: userProfile?.selectedSeat || null,
       captureMode: userProfile?.captureMode || 'photo',
-      isPerformer: socket.id === activeShow.artistId,
+      isPerformer: socket.id === R.show.artistId,
       connectionTime: new Date().toISOString() // Note: actual connection time would need tracking
     };
   });
@@ -556,17 +548,17 @@ app.get('/api/test/state', (req, res) => {
       memoryUsage: process.memoryUsage()
     },
     show: {
-      status: activeShow.status,
-      artistId: activeShow.artistId,
-      startTime: activeShow.startTime,
-      countdown: activeShow.countdown
+      status: R.show.status,
+      artistId: R.show.artistId,
+      startTime: R.show.startTime,
+      countdown: countdownView(R.show.countdown)
     },
     users: connectedUsers,
     seats: {
-      occupied: activeShow.audienceSeats,
-      occupiedCount: Object.keys(activeShow.audienceSeats).length,
-      totalSeats: 9,
-      availableSeats: 9 - Object.keys(activeShow.audienceSeats).length
+      occupied: R.show.audienceSeats,
+      occupiedCount: Object.keys(R.show.audienceSeats).length,
+      totalSeats: R.maxSeats,
+      availableSeats: R.maxSeats - Object.keys(R.show.audienceSeats).length
     },
     timestamp: new Date().toISOString()
   };
@@ -574,53 +566,34 @@ app.get('/api/test/state', (req, res) => {
   res.json(testState);
 });
 
+// The houses in use (counts only), for tests. Test endpoints only, because a
+// private theater's slug should not be listed to anyone who asks.
+app.get('/api/test/houses', (req, res) => {
+  if (!testEndpointsEnabled) {
+    return res.status(404).json({ error: 'Test endpoints not available in this environment' });
+  }
+  res.json({ houses: registry.list(), seatCap: houses.SEAT_CAP });
+});
+
 // Reset server to clean state for testing
 app.post('/api/test/reset', (req, res) => {
   if (!testEndpointsEnabled) {
     return res.status(404).json({ error: 'Test endpoints not available in this environment' });
   }
+  const R = houseFor(req, res); if (!R) return;
   console.log('🧪 TEST: Resetting server to clean state');
   
   // Clear countdown interval
-  if (activeShow.countdown.interval) {
-    clearInterval(activeShow.countdown.interval);
-  }
-  
-  // Reset show state — must mirror the full activeShow schema (see initial
-  // definition near the top of this file). A partial object here dropped
-  // `reactions`, which crashed the 500ms reaction aggregator
-  // (activeShow.reactions.filter) and sent the process into a restart loop
-  // after every test reset.
-  activeShow = {
-    artistId: null,
-    startTime: null,
-    status: 'idle',
-    audienceSeats: {},
-    countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null },
-    venueConfig: {
-      seatCount: 20,
-      arrangement: 'semicircle',
-      curtainStyle: 'velvet-red',
-      showTitle: '',
-      scheduledStart: null,
-      curtainOpen: false,
-      configLocked: false,
-    },
-    backstageClients: {},
-    reactions: [],
-    performerOnStage: false,
-    performerPosition: { x: 0, z: -8 },
-    spotlightActive: false,
-  };
+  registry.resetShow(R);
 
   // Clear user profiles
-  for (const socketId in userProfiles) {
-    delete userProfiles[socketId];
+  for (const socketId in R.profiles) {
+    delete R.profiles[socketId];
   }
   
   // Notify all clients
-  io.emit('show-state-change', { status: 'idle' });
-  io.emit('all-seats-empty');
+  io.to(R.channel).emit('show-state-change', { status: 'idle' });
+  io.to(R.channel).emit('all-seats-empty');
   
   console.log('🧪 TEST: Server state reset complete');
   res.json({ 
@@ -635,6 +608,7 @@ app.post('/api/test/seats/:seatId/assign', (req, res) => {
   if (!testEndpointsEnabled) {
     return res.status(404).json({ error: 'Test endpoints not available in this environment' });
   }
+  const R = houseFor(req, res); if (!R) return;
   const { seatId } = req.params;
   const { socketId, userName, userImage, captureMode } = req.body;
   
@@ -657,11 +631,11 @@ app.post('/api/test/seats/:seatId/assign', (req, res) => {
     hasVideoStream: false
   };
   
-  activeShow.audienceSeats[seatId] = userData;
-  userProfiles[socketId] = { ...userData, selectedSeat: seatId };
+  R.show.audienceSeats[seatId] = userData;
+  R.profiles[socketId] = { ...userData, selectedSeat: seatId };
   
   // Notify all clients
-  io.emit('seat-update', { seatId, user: userData });
+  io.to(R.channel).emit('seat-update', { seatId, user: userData });
   io.to(socketId).emit('seat-selected', { success: true, seatId });
   
   res.json({ 
@@ -676,6 +650,7 @@ app.post('/api/test/show/state', (req, res) => {
   if (!testEndpointsEnabled) {
     return res.status(404).json({ error: 'Test endpoints not available in this environment' });
   }
+  const R = houseFor(req, res); if (!R) return;
   const { status, artistId } = req.body;
   
   if (!['idle', 'pre-show', 'live', 'post-show'].includes(status)) {
@@ -684,20 +659,20 @@ app.post('/api/test/show/state', (req, res) => {
   
   console.log(`🧪 TEST: Force changing show status to ${status}${artistId ? ` with artist ${artistId}` : ''}`);
   
-  activeShow.status = status;
+  R.show.status = status;
   if (artistId) {
-    activeShow.artistId = artistId;
+    R.show.artistId = artistId;
   }
   if (status === 'live') {
-    activeShow.startTime = Date.now();
+    R.show.startTime = Date.now();
   }
   
-  io.emit('show-status-update', { status, artistId: activeShow.artistId });
+  io.to(R.channel).emit('show-status-update', { status, artistId: R.show.artistId });
   
   res.json({ 
     success: true, 
     message: `Show status changed to ${status}`,
-    show: { status: activeShow.status, artistId: activeShow.artistId }
+    show: { status: R.show.status, artistId: R.show.artistId }
   });
 });
 
@@ -839,15 +814,16 @@ app.get('/api/question/responses', (req, res) => {
 
 // Get server state including question responses
 app.get('/api/debug/state', (req, res) => {
+  const R = houseView(req, res); if (!R) return;
   const connectedUsers = {};
-  io.sockets.sockets.forEach((socket) => {
-    const userProfile = userProfiles[socket.id];
+  R.sockets().forEach((socket) => {
+    const userProfile = R.profiles[socket.id];
     connectedUsers[socket.id] = {
       socketId: socket.id,
       name: userProfile?.name || 'Anonymous',
       seat: userProfile?.selectedSeat || null,
       captureMode: userProfile?.captureMode || 'photo',
-      isPerformer: socket.id === activeShow.artistId,
+      isPerformer: socket.id === R.show.artistId,
       connectionTime: new Date().toISOString()
     };
   });
@@ -874,17 +850,17 @@ app.get('/api/debug/state', (req, res) => {
       memoryUsage: process.memoryUsage()
     },
     show: {
-      status: activeShow.status,
-      artistId: activeShow.artistId,
-      startTime: activeShow.startTime,
-      countdown: activeShow.countdown
+      status: R.show.status,
+      artistId: R.show.artistId,
+      startTime: R.show.startTime,
+      countdown: countdownView(R.show.countdown)
     },
     users: connectedUsers,
     seats: {
-      occupied: activeShow.audienceSeats,
-      occupiedCount: Object.keys(activeShow.audienceSeats).length,
-      totalSeats: 9,
-      availableSeats: 9 - Object.keys(activeShow.audienceSeats).length
+      occupied: R.show.audienceSeats,
+      occupiedCount: Object.keys(R.show.audienceSeats).length,
+      totalSeats: R.maxSeats,
+      availableSeats: R.maxSeats - Object.keys(R.show.audienceSeats).length
     },
     questionResponses: {
       data: questionResponses,
@@ -962,14 +938,28 @@ function sendModalNotification(data) {
 
 // --- Socket.IO for WebRTC Signaling and Real-time Updates ---
 io.on('connection', (socket) => {
-  console.log('a user connected:', socket.id);
-  logTestEvent('user-connected', { socketId: socket.id });
+  // Which house this socket is in, fixed for the life of the connection: a
+  // guest who walks to another screen opens a new connection (App remounts).
+  const query = (socket.handshake && socket.handshake.query) || {};
+  const scope = houses.parseScope(query);
+  const R = scope && ensureHouse(scope, query.seats);
+  if (!R) {
+    socket.emit('house:refused', { reason: scope ? 'busy' : 'unknown-room' });
+    socket.disconnect(true);
+    return;
+  }
+  socket.join(R.channel);
+  R.members.add(socket.id);
+  socket.data.house = R.key;
+  console.log('a user connected:', socket.id, 'house', R.key);
+  logTestEvent('user-connected', { socketId: socket.id, house: R.key });
+  socket.emit('house:joined', { venue: R.venue, room: R.room, livekitRoom: R.livekitRoom, maxSeats: R.maxSeats });
   
   // Send current seat state to new connection
-  if (Object.keys(activeShow.audienceSeats).length > 0) {
+  if (Object.keys(R.show.audienceSeats).length > 0) {
     console.log(`📡 Sending current seat state to new user ${socket.id}`);
-    console.log(`📊 Current audienceSeats: ${Object.keys(activeShow.audienceSeats).length} seats occupied`);
-    for (const [seatId, userData] of Object.entries(activeShow.audienceSeats)) {
+    console.log(`📊 Current audienceSeats: ${Object.keys(R.show.audienceSeats).length} seats occupied`);
+    for (const [seatId, userData] of Object.entries(R.show.audienceSeats)) {
       const userToSend = { 
         name: userData.name, 
         imageUrl: userData.imageUrl, 
@@ -986,25 +976,25 @@ io.on('connection', (socket) => {
   
   // If an artist is already live, immediately notify them about this new connection
   // This ensures WebRTC works even if audience doesn't select seats
-  if (activeShow.status === 'live' && activeShow.artistId && socket.id !== activeShow.artistId) {
-      console.log(`Auto-notifying artist ${activeShow.artistId} about new connection ${socket.id}`);
-      io.to(activeShow.artistId).emit('new-audience-member', socket.id);
+  if (R.show.status === 'live' && R.show.artistId && socket.id !== R.show.artistId) {
+      console.log(`Auto-notifying artist ${R.show.artistId} about new connection ${socket.id}`);
+      io.to(R.show.artistId).emit('new-audience-member', socket.id);
   }
 
   // Always send current show state (including venueConfig) to newly connected client
   socket.emit('show-status-update', {
-    status: activeShow.status,
-    artistId: activeShow.artistId,
-    venueConfig: activeShow.venueConfig,
-    performerOnStage: activeShow.performerOnStage,
-    performerPosition: activeShow.performerPosition,
-    spotlightActive: activeShow.spotlightActive,
+    status: R.show.status,
+    artistId: R.show.artistId,
+    venueConfig: R.show.venueConfig,
+    performerOnStage: R.show.performerOnStage,
+    performerPosition: R.show.performerPosition,
+    spotlightActive: R.show.spotlightActive,
   });
 
   // WebRTC Signaling: Relays messages between peers
   socket.on('offer', (data) => {
     // Data: { sdp, targetSocketId } (offerer is socket.id)
-    if (data.targetSocketId && io.sockets.sockets.has(data.targetSocketId)) {
+    if (data.targetSocketId && R.members.has(data.targetSocketId)) {
         console.log(`[WebRTC] Relaying OFFER from ${socket.id} to ${data.targetSocketId}`);
         io.to(data.targetSocketId).emit('offer', { sdp: data.sdp, offererSocketId: socket.id });
     } else {
@@ -1014,7 +1004,7 @@ io.on('connection', (socket) => {
 
   socket.on('answer', (data) => {
     // Data: { sdp, targetSocketId } (answerer is socket.id)
-    if (data.targetSocketId && io.sockets.sockets.has(data.targetSocketId)) {
+    if (data.targetSocketId && R.members.has(data.targetSocketId)) {
         console.log(`[WebRTC] Relaying ANSWER from ${socket.id} to ${data.targetSocketId}`);
         io.to(data.targetSocketId).emit('answer', { sdp: data.sdp, answererSocketId: socket.id });
     } else {
@@ -1024,7 +1014,7 @@ io.on('connection', (socket) => {
 
   socket.on('ice-candidate', (data) => {
     // Data: { candidate, targetSocketId } (sender is socket.id)
-    if (data.targetSocketId && io.sockets.sockets.has(data.targetSocketId)) {
+    if (data.targetSocketId && R.members.has(data.targetSocketId)) {
         console.log(`[WebRTC] Relaying ICE candidate from ${socket.id} to ${data.targetSocketId}`);
         io.to(data.targetSocketId).emit('ice-candidate', { candidate: data.candidate, senderSocketId: socket.id });
     } else {
@@ -1044,31 +1034,31 @@ io.on('connection', (socket) => {
       captureMode: captureMode || 'photo' 
     });
     
-    if (activeShow.audienceSeats[seatId]) {
-      console.log(`❌ Seat ${seatId} already taken by:`, activeShow.audienceSeats[seatId]);
+    if (R.show.audienceSeats[seatId]) {
+      console.log(`❌ Seat ${seatId} already taken by:`, R.show.audienceSeats[seatId]);
       socket.emit('seat-selected', { success: false, message: 'Seat already taken' });
       logTestEvent('seat-select-failed', { 
         socketId: socket.id, 
         seatId, 
         reason: 'seat-taken',
-        occupiedBy: activeShow.audienceSeats[seatId].name
+        occupiedBy: R.show.audienceSeats[seatId].name
       });
       return;
     }
-    if (!SEAT_ID.test(String(seatId || '')) || Number(String(seatId).slice(5)) >= MAX_SEATS) {
+    if (!SEAT_ID.test(String(seatId || '')) || Number(String(seatId).slice(5)) >= R.maxSeats) {
       socket.emit('seat-selected', { success: false, message: 'There is no such seat' });
       return;
     }
     // One seat per guest: picking another seat moves you. The page does not
     // always say which seat it is leaving, so the server frees it here.
-    for (const [heldId, held] of Object.entries(activeShow.audienceSeats)) {
+    for (const [heldId, held] of Object.entries(R.show.audienceSeats)) {
       if (held && held.socketId === socket.id && heldId !== seatId) {
-        delete activeShow.audienceSeats[heldId];
-        io.emit('seat-update', { seatId: heldId, user: null });
+        delete R.show.audienceSeats[heldId];
+        io.to(R.channel).emit('seat-update', { seatId: heldId, user: null });
         console.log(`User ${socket.id} moved out of seat ${heldId}`);
       }
     }
-    if (Object.keys(activeShow.audienceSeats).length >= MAX_SEATS) { // a dozen seats, close to the stage
+    if (Object.keys(R.show.audienceSeats).length >= R.maxSeats) { // a dozen seats, close to the stage
       socket.emit('seat-selected', { success: false, message: 'Front row is full!' });
       logTestEvent('seat-select-failed', { 
         socketId: socket.id, 
@@ -1086,11 +1076,11 @@ io.on('connection', (socket) => {
       captureMode: captureMode || 'photo',
       hasVideoStream: hasVideoStream || false
     };
-    activeShow.audienceSeats[seatId] = userData;
-    userProfiles[socket.id] = { ...userData, selectedSeat: seatId };
+    R.show.audienceSeats[seatId] = userData;
+    R.profiles[socket.id] = { ...userData, selectedSeat: seatId };
 
     console.log(`✅ User ${userName} (${socket.id}) assigned to seat ${seatId}`);
-    console.log(`📊 Updated audienceSeats: ${Object.keys(activeShow.audienceSeats).length} total seats occupied`);
+    console.log(`📊 Updated audienceSeats: ${Object.keys(R.show.audienceSeats).length} total seats occupied`);
     console.log(`📤 Broadcasting seat-update: ${seatId} → ${userData.name} (${userData.captureMode})`);
     
     logTestEvent('seat-select-success', { 
@@ -1098,35 +1088,35 @@ io.on('connection', (socket) => {
       seatId, 
       userName,
       captureMode: captureMode || 'photo',
-      totalOccupiedSeats: Object.keys(activeShow.audienceSeats).length
+      totalOccupiedSeats: Object.keys(R.show.audienceSeats).length
     });
     
-    io.emit('seat-update', { seatId, user: userData }); // Notify all clients of new occupant
+    io.to(R.channel).emit('seat-update', { seatId, user: userData }); // Notify all clients of new occupant
     socket.emit('seat-selected', { success: true, seatId });
     console.log(`✨ User ${userName} selected seat ${seatId} with ${captureMode} mode`);
 
     // If an artist is already live, immediately send them an offer to this new audience member
-    if (activeShow.status === 'live' && activeShow.artistId) {
-        // Signal the artist (activeShow.artistId) that a new audience member has joined
-        io.to(activeShow.artistId).emit('new-audience-member', socket.id);
-        console.log(`Signaling artist ${activeShow.artistId} about new audience ${socket.id}`);
+    if (R.show.status === 'live' && R.show.artistId) {
+        // Signal the artist (R.show.artistId) that a new audience member has joined
+        io.to(R.show.artistId).emit('new-audience-member', socket.id);
+        console.log(`Signaling artist ${R.show.artistId} about new audience ${socket.id}`);
     }
   });
 
   socket.on('release-seat', (data) => {
     const { seatId } = data;
-    if (activeShow.audienceSeats[seatId] && activeShow.audienceSeats[seatId].socketId === socket.id) {
-      delete activeShow.audienceSeats[seatId];
-      io.emit('seat-update', { seatId, user: null }); // Null user means seat is empty
+    if (R.show.audienceSeats[seatId] && R.show.audienceSeats[seatId].socketId === socket.id) {
+      delete R.show.audienceSeats[seatId];
+      io.to(R.channel).emit('seat-update', { seatId, user: null }); // Null user means seat is empty
       console.log(`User ${socket.id} released seat ${seatId}`);
     }
   });
 
   socket.on('leave-seat', () => {
-    const userData = userProfiles[socket.id];
+    const userData = R.profiles[socket.id];
     if (userData && userData.selectedSeat) {
-      delete activeShow.audienceSeats[userData.selectedSeat];
-      io.emit('seat-update', { seatId: userData.selectedSeat, user: null }); // Null user means seat is empty
+      delete R.show.audienceSeats[userData.selectedSeat];
+      io.to(R.channel).emit('seat-update', { seatId: userData.selectedSeat, user: null }); // Null user means seat is empty
       delete userData.selectedSeat;
       console.log(`User ${userData.name} left seat ${userData.selectedSeat}`);
     }
@@ -1137,21 +1127,21 @@ io.on('connection', (socket) => {
   // and handle WebRTC peer connection creation for each audience member.
   // The backend primarily orchestrates the signaling and broadcast of status.
   socket.on('artist-go-live', () => {
-    console.log(`🎭 Artist ${socket.id} attempting to go live. Current show status: ${activeShow.status}`);
+    console.log(`🎭 Artist ${socket.id} attempting to go live. Current show status: ${R.show.status}`);
     
     // If already live and same artist, just proceed with WebRTC setup
-    if (activeShow.status === 'live' && activeShow.artistId === socket.id) {
+    if (R.show.status === 'live' && R.show.artistId === socket.id) {
       console.log('🎭 Artist already live - proceeding with WebRTC setup');
       
       // Notify the ARTIST about all currently seated audience members
-      Object.values(activeShow.audienceSeats).forEach(audience => {
+      Object.values(R.show.audienceSeats).forEach(audience => {
           io.to(socket.id).emit('new-audience-member', audience.socketId);
           console.log(`[WEBRTC] Notifying artist about seated audience: ${audience.socketId}`);
       });
       
       // Also notify about any other connected clients (for non-seated audience members)
       let connectedAudience = 0;
-      io.sockets.sockets.forEach((clientSocket) => {
+      R.sockets().forEach((clientSocket) => {
           if (clientSocket.id !== socket.id) { // Don't send to artist themselves
               io.to(socket.id).emit('new-audience-member', clientSocket.id);
               connectedAudience++;
@@ -1163,37 +1153,31 @@ io.on('connection', (socket) => {
       return; // Exit early since show is already live
     }
     // Auto-reset show if it's not in idle state or pre-show
-    else if (activeShow.status !== 'idle' && activeShow.status !== 'pre-show') {
+    else if (R.show.status !== 'idle' && R.show.status !== 'pre-show') {
       console.log('🔧 Auto-resetting show state to idle for new artist');
-      activeShow = {
-        artistId: null,
-        startTime: null,
-        status: 'idle',
-        audienceSeats: {},
-        countdown: { isActive: false, timeRemaining: 0, totalTime: 0 }
-      };
-      io.emit('show-state-change', { status: 'idle' });
+      registry.resetShow(R);
+      io.to(R.channel).emit('show-state-change', { status: 'idle' });
     }
     
     // Now proceed with going live (if not already live)
-    if (activeShow.status !== 'live') {
-      activeShow.status = 'live';
-      postShowChat.length = 0;
-      activeShow.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
-      activeShow.startTime = Date.now();
-      io.emit('show-status-update', { status: 'live', artistId: socket.id });
+    if (R.show.status !== 'live') {
+      R.show.status = 'live';
+      R.chat.length = 0;
+      R.show.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
+      R.show.startTime = Date.now();
+      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id });
     }
     console.log(`[LIVE] Artist ${socket.id} is now LIVE! Broadcasting to ${io.engine.clientsCount} connected clients.`);
 
     // Notify the ARTIST about all currently seated audience members
-    Object.values(activeShow.audienceSeats).forEach(audience => {
+    Object.values(R.show.audienceSeats).forEach(audience => {
         io.to(socket.id).emit('new-audience-member', audience.socketId);
         console.log(`[WEBRTC] Notifying artist about seated audience: ${audience.socketId}`);
     });
     
     // Also notify about any other connected clients (for non-seated audience members)
     let connectedAudience = 0;
-    io.sockets.sockets.forEach((clientSocket) => {
+    R.sockets().forEach((clientSocket) => {
         if (clientSocket.id !== socket.id) { // Don't send to artist themselves
             io.to(socket.id).emit('new-audience-member', clientSocket.id);
             connectedAudience++;
@@ -1205,29 +1189,30 @@ io.on('connection', (socket) => {
   });
 
   socket.on('artist-end-show', () => {
-    if (activeShow.status !== 'live') {
+    if (R.show.status !== 'live') {
       console.warn('Artist tried to end show when no show is live.');
       return;
     }
-    activeShow.status = 'post-show';
-    io.emit('show-status-update', { status: 'post-show' });
+    R.show.status = 'post-show';
+    io.to(R.channel).emit('show-status-update', { status: 'post-show' });
     console.log(`Artist ${socket.id} has ended the show.`);
-    activeShow.artistId = null; // Clear artist
-    activeShow.startTime = null;
+    R.show.artistId = null; // Clear artist
+    R.show.startTime = null;
 
     // Reset after a short delay for post-show message display
     setTimeout(() => {
         // Clear audience seats
-        for (const seatId in activeShow.audienceSeats) {
-            delete activeShow.audienceSeats[seatId];
+        for (const seatId in R.show.audienceSeats) {
+            delete R.show.audienceSeats[seatId];
         }
         // Clear user profiles
-        for (const socketId in userProfiles) {
-            delete userProfiles[socketId];
+        for (const socketId in R.profiles) {
+            delete R.profiles[socketId];
         }
-        io.emit('all-seats-empty');
-        activeShow.status = 'idle';
-        activeShow.countdown = { isActive: false, timeRemaining: 0, totalTime: 0 };
+        io.to(R.channel).emit('all-seats-empty');
+        R.show.status = 'idle';
+        R.show.countdown = { isActive: false, timeRemaining: 0, totalTime: 0 };
+        registry.maybeDrop(R);
         console.log('Show cycle reset to idle after post-show.');
     }, 5000); // 5 seconds post-show display
   });
@@ -1237,18 +1222,8 @@ io.on('connection', (socket) => {
     console.log(`🎭 Artist ${socket.id} requesting show reset`);
     
     // Clear any existing countdown interval
-    if (activeShow.countdown.interval) {
-      clearInterval(activeShow.countdown.interval);
-    }
-    
-    activeShow = {
-      artistId: null,
-      startTime: null,
-      status: 'idle',
-      audienceSeats: {},
-      countdown: { isActive: false, timeRemaining: 0, totalTime: 0, interval: null }
-    };
-    io.emit('show-state-change', { status: 'idle' });
+    registry.resetShow(R);
+    io.to(R.channel).emit('show-state-change', { status: 'idle' });
     console.log('Show state reset to idle');
   });
 
@@ -1259,65 +1234,65 @@ io.on('connection', (socket) => {
     console.log(`🎬 Artist ${socket.id} requesting countdown start:`, data);
     
     // Set this socket as the artist if not already set
-    if (!activeShow.artistId) {
-      activeShow.artistId = socket.id;
+    if (!R.show.artistId) {
+      R.show.artistId = socket.id;
       console.log(`🎭 Artist ${socket.id} set as active artist`);
     }
     
     // Only allow the current artist to start countdown
-    if (activeShow.artistId !== socket.id) {
+    if (R.show.artistId !== socket.id) {
       console.warn('Non-artist tried to start countdown');
       return;
     }
     
     // Use seconds if provided, otherwise convert minutes to seconds
     const totalSeconds = seconds || (minutes * 60);
-    activeShow.countdown = {
+    R.show.countdown = {
       isActive: true,
       timeRemaining: totalSeconds,
       totalTime: totalSeconds
     };
-    activeShow.status = 'pre-show';
+    R.show.status = 'pre-show';
     
     const minutesDisplay = Math.floor(totalSeconds / 60);
     const secondsDisplay = totalSeconds % 60;
     console.log(`🎬 Countdown started: ${minutesDisplay}:${secondsDisplay.toString().padStart(2, '0')} (${totalSeconds}s) by artist ${socket.id}`);
-    io.emit('countdown-started', { 
+    io.to(R.channel).emit('countdown-started', { 
       timeRemaining: totalSeconds, 
       totalTime: totalSeconds,
       artistId: socket.id 
     });
     
     // Clear any existing countdown interval
-    if (activeShow.countdown.interval) {
-      clearInterval(activeShow.countdown.interval);
+    if (R.show.countdown.interval) {
+      clearInterval(R.show.countdown.interval);
     }
     
     // Start countdown timer
-    activeShow.countdown.interval = setInterval(() => {
-      activeShow.countdown.timeRemaining--;
+    R.show.countdown.interval = setInterval(() => {
+      R.show.countdown.timeRemaining--;
       
-      if (activeShow.countdown.timeRemaining <= 0) {
+      if (R.show.countdown.timeRemaining <= 0) {
         // Countdown finished - start the show
-        clearInterval(activeShow.countdown.interval);
-        activeShow.countdown.interval = null;
-        activeShow.countdown.isActive = false;
-        activeShow.status = 'live';
-        postShowChat.length = 0;
-        activeShow.startTime = Date.now();
+        clearInterval(R.show.countdown.interval);
+        R.show.countdown.interval = null;
+        R.show.countdown.isActive = false;
+        R.show.status = 'live';
+        R.chat.length = 0;
+        R.show.startTime = Date.now();
         
         console.log('🎭 Countdown finished - show is now LIVE!');
-        io.emit('countdown-finished', { artistId: socket.id });
-        io.emit('show-status-update', { status: 'live', artistId: socket.id });
+        io.to(R.channel).emit('countdown-finished', { artistId: socket.id });
+        io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id });
         
         // Notify artist about audience members for WebRTC
-        Object.values(activeShow.audienceSeats).forEach(audience => {
+        Object.values(R.show.audienceSeats).forEach(audience => {
           io.to(socket.id).emit('new-audience-member', audience.socketId);
         });
       } else {
         // Update countdown for all clients
-        io.emit('countdown-update', { 
-          timeRemaining: activeShow.countdown.timeRemaining,
+        io.to(R.channel).emit('countdown-update', { 
+          timeRemaining: R.show.countdown.timeRemaining,
           artistId: socket.id 
         });
       }
@@ -1325,22 +1300,22 @@ io.on('connection', (socket) => {
   });
 
   socket.on('stop-countdown', () => {
-    if (activeShow.artistId !== socket.id) {
+    if (R.show.artistId !== socket.id) {
       console.warn('Non-artist tried to stop countdown');
       return;
     }
     
     // Clear countdown interval
-    if (activeShow.countdown.interval) {
-      clearInterval(activeShow.countdown.interval);
+    if (R.show.countdown.interval) {
+      clearInterval(R.show.countdown.interval);
     }
     
-    activeShow.countdown = { isActive: false, timeRemaining: 0, totalTime: 0, interval: null };
-    activeShow.status = 'idle';
+    R.show.countdown = { isActive: false, timeRemaining: 0, totalTime: 0, interval: null };
+    R.show.status = 'idle';
     
     console.log('⏹️ Countdown stopped');
-    io.emit('countdown-stopped', { artistId: socket.id });
-    io.emit('show-status-update', { status: 'idle' });
+    io.to(R.channel).emit('countdown-stopped', { artistId: socket.id });
+    io.to(R.channel).emit('show-status-update', { status: 'idle' });
   });
 
 
@@ -1413,7 +1388,7 @@ io.on('connection', (socket) => {
     };
     const updates = {};
     if (typeof data.seatCount === 'number' && data.seatCount >= 4 && data.seatCount <= 50) {
-      if (!activeShow.venueConfig.configLocked) updates.seatCount = data.seatCount;
+      if (!R.show.venueConfig.configLocked) updates.seatCount = data.seatCount;
     }
     if (valid.arrangement.includes(data.arrangement)) updates.arrangement = data.arrangement;
     if (typeof data.curtainStyle === 'string') updates.curtainStyle = data.curtainStyle;
@@ -1423,122 +1398,122 @@ io.on('connection', (socket) => {
     }
     if (typeof data.configLocked === 'boolean') updates.configLocked = data.configLocked;
 
-    Object.assign(activeShow.venueConfig, updates);
-    io.emit('venue:configUpdated', activeShow.venueConfig);
-    console.log('🏠 venue:configUpdated broadcast', activeShow.venueConfig);
+    Object.assign(R.show.venueConfig, updates);
+    io.to(R.channel).emit('venue:configUpdated', R.show.venueConfig);
+    console.log('🏠 venue:configUpdated broadcast', R.show.venueConfig);
   });
 
   socket.on('hm:curtain', (data) => {
     const action = data.action === 'open' || data.action === 'close' ? data.action : null;
     if (!action) return;
-    activeShow.venueConfig.curtainOpen = action === 'open';
-    io.emit('venue:curtain', { action });
+    R.show.venueConfig.curtainOpen = action === 'open';
+    io.to(R.channel).emit('venue:curtain', { action });
     console.log(`🎭 Curtain: ${action}`);
   });
 
   // ── Phase 2: Backstage ─────────────────────────────────────────────────
   socket.on('backstage:join', (data) => {
     const role = data && data.role ? data.role : 'performer';
-    activeShow.backstageClients[socket.id] = { role };
-    socket.join('backstage-room');
+    R.show.backstageClients[socket.id] = { role };
+    socket.join(R.backstageChannel);
     // Notify other backstage members
-    socket.to('backstage-room').emit('backstage:peerJoined', { socketId: socket.id, role });
+    socket.to(R.backstageChannel).emit('backstage:peerJoined', { socketId: socket.id, role });
     // Send current backstage list back
-    socket.emit('backstage:state', { clients: activeShow.backstageClients });
+    socket.emit('backstage:state', { clients: R.show.backstageClients });
     console.log(`🎬 Backstage join: ${socket.id} (${role})`);
   });
 
   socket.on('backstage:leave', () => {
-    delete activeShow.backstageClients[socket.id];
-    socket.leave('backstage-room');
-    io.to('backstage-room').emit('backstage:peerLeft', { socketId: socket.id });
+    delete R.show.backstageClients[socket.id];
+    socket.leave(R.backstageChannel);
+    io.to(R.backstageChannel).emit('backstage:peerLeft', { socketId: socket.id });
     console.log(`🎬 Backstage leave: ${socket.id}`);
   });
 
   // ── Phase 2: Performer go live from backstage ──────────────────────────
   socket.on('performer:goLive', () => {
     console.log(`🎭 Performer ${socket.id} going live from backstage`);
-    activeShow.performerOnStage = true;
-    activeShow.performerPosition = { x: 0, z: -18 }; // start at back of stage
+    R.show.performerOnStage = true;
+    R.show.performerPosition = { x: 0, z: -18 }; // start at back of stage
     // Leave backstage
-    delete activeShow.backstageClients[socket.id];
-    socket.leave('backstage-room');
+    delete R.show.backstageClients[socket.id];
+    socket.leave(R.backstageChannel);
     // Broadcast to all (audience will see entrance animation)
-    io.emit('performer:onStage', { onStage: true, socketId: socket.id });
+    io.to(R.channel).emit('performer:onStage', { onStage: true, socketId: socket.id });
     // Transition show to live if not already
-    if (activeShow.status !== 'live') {
-      activeShow.status = 'live';
-      postShowChat.length = 0;
-      activeShow.artistId = socket.id;
-      activeShow.startTime = Date.now();
-      io.emit('show-status-update', {
+    if (R.show.status !== 'live') {
+      R.show.status = 'live';
+      R.chat.length = 0;
+      R.show.artistId = socket.id;
+      R.show.startTime = Date.now();
+      io.to(R.channel).emit('show-status-update', {
         status: 'live',
         artistId: socket.id,
-        venueConfig: activeShow.venueConfig,
+        venueConfig: R.show.venueConfig,
         performerOnStage: true,
-        performerPosition: activeShow.performerPosition,
+        performerPosition: R.show.performerPosition,
       });
     }
   });
 
   socket.on('performer:goOffstage', () => {
     console.log(`🎭 Performer ${socket.id} going offstage`);
-    activeShow.performerOnStage = false;
-    io.emit('performer:onStage', { onStage: false, socketId: socket.id });
-    if (activeShow.status === 'live') {
-      activeShow.status = 'post-show';
-      activeShow.artistId = null;
-      io.emit('show-status-update', { status: 'post-show', venueConfig: activeShow.venueConfig });
+    R.show.performerOnStage = false;
+    io.to(R.channel).emit('performer:onStage', { onStage: false, socketId: socket.id });
+    if (R.show.status === 'live') {
+      R.show.status = 'post-show';
+      R.show.artistId = null;
+      io.to(R.channel).emit('show-status-update', { status: 'post-show', venueConfig: R.show.venueConfig });
     }
   });
 
   // ── Phase 2: Performer position ────────────────────────────────────────
   socket.on('performer:position', (data) => {
-    if (typeof data.x === 'number') activeShow.performerPosition.x = data.x;
-    if (typeof data.z === 'number') activeShow.performerPosition.z = data.z;
+    if (typeof data.x === 'number') R.show.performerPosition.x = data.x;
+    if (typeof data.z === 'number') R.show.performerPosition.z = data.z;
     // Broadcast to audience only (not performer themselves)
-    socket.broadcast.emit('performer:position', activeShow.performerPosition);
+    socket.to(R.channel).emit('performer:position', R.show.performerPosition);
   });
 
   // ── Phase 2: Performer spotlight ──────────────────────────────────────
   socket.on('performer:spotlight', (data) => {
-    activeShow.spotlightActive = typeof data.active === 'boolean' ? data.active : false;
-    io.emit('performer:spotlight', { active: activeShow.spotlightActive });
+    R.show.spotlightActive = typeof data.active === 'boolean' ? data.active : false;
+    io.to(R.channel).emit('performer:spotlight', { active: R.show.spotlightActive });
   });
 
-  // ── Post-show chat (src/theater/postShowChat.ts) ───────────────────────
+  // ── Post-show chat (src/theater/R.chat.ts) ───────────────────────
   // Plain text only (the page renders it as text, never HTML): control
   // characters are dropped, a line is at most 280 characters, a socket may send one line a second, and
   // the last 50 lines are kept in memory until the next show goes live.
   socket.on('postshow:history', () => {
-    socket.emit('postshow:history', postShowChat);
+    socket.emit('postshow:history', R.chat);
   });
   socket.on('postshow:chat', (data) => {
     const now = Date.now();
     if (now - (chatLastSent.get(socket.id) || 0) < 1000) return;
     const text = cleanChat(data && data.text, 280);
     if (!text) return;
-    const name = cleanChat((userProfiles[socket.id] && userProfiles[socket.id].name) || (data && data.name), 40) || 'Guest';
+    const name = cleanChat((R.profiles[socket.id] && R.profiles[socket.id].name) || (data && data.name), 40) || 'Guest';
     chatLastSent.set(socket.id, now);
     const line = { name, text, at: now, from: socket.id };
-    postShowChat.push(line);
-    if (postShowChat.length > 50) postShowChat.shift();
-    io.emit('postshow:chat', line);
+    R.chat.push(line);
+    if (R.chat.length > 50) R.chat.shift();
+    io.to(R.channel).emit('postshow:chat', line);
   });
 
   // ── Phase 2: Audience reactions ────────────────────────────────────────
   socket.on('audience:reaction', (data) => {
     const type = ['clap', 'laugh', 'wow'].includes(data.type) ? data.type : 'clap';
-    activeShow.reactions.push({ type, timestamp: Date.now(), seatId: data.seatId });
+    R.show.reactions.push({ type, timestamp: Date.now(), seatId: data.seatId });
     // Prune old reactions immediately
     const cutoff = Date.now() - 5000;
-    activeShow.reactions = activeShow.reactions.filter(r => r.timestamp > cutoff);
+    R.show.reactions = R.show.reactions.filter(r => r.timestamp > cutoff);
   });
 
   socket.on('disconnect', () => {
     console.log('user disconnected:', socket.id);
     chatLastSent.delete(socket.id);
-    const userData = userProfiles[socket.id];
+    const userData = R.profiles[socket.id];
     
     logTestEvent('user-disconnected', { 
       socketId: socket.id,
@@ -1548,30 +1523,37 @@ io.on('connection', (socket) => {
     
     // Remove user's seat on disconnect
     if (userData && userData.selectedSeat) {
-      delete activeShow.audienceSeats[userData.selectedSeat];
-      io.emit('seat-update', { seatId: userData.selectedSeat, user: null });
+      delete R.show.audienceSeats[userData.selectedSeat];
+      io.to(R.channel).emit('seat-update', { seatId: userData.selectedSeat, user: null });
       logTestEvent('seat-released', { 
         socketId: socket.id, 
         seatId: userData.selectedSeat,
         reason: 'user-disconnect'
       });
     }
-    delete userProfiles[socket.id]; // Remove profile from in-memory store
+    delete R.profiles[socket.id]; // Remove profile from in-memory store
+    delete R.show.backstageClients[socket.id];
+    R.members.delete(socket.id);
+    if (R.show.artistId === socket.id && R.show.status === 'pre-show') {
+      // A performer who leaves mid-countdown takes the countdown with them.
+      registry.resetShow(R);
+      io.to(R.channel).emit('countdown-stopped', { artistId: socket.id });
+      io.to(R.channel).emit('show-status-update', { status: 'idle' });
+    }
+    registry.maybeDrop(R);
   });
 });
 
-// ── Phase 2: Rolling reaction aggregator (every 500ms) ────────────────────
+// ── Phase 2: Rolling reaction aggregator (every 500ms), per house ──────────
 setInterval(() => {
   const cutoff = Date.now() - 5000;
-  // Defensive: never let a partial activeShow (e.g. after a reset) crash the
-  // process — a thrown error here would take down the whole server on a timer.
-  if (!Array.isArray(activeShow.reactions)) activeShow.reactions = [];
-  activeShow.reactions = activeShow.reactions.filter(r => r.timestamp > cutoff);
-  const count = activeShow.reactions.length;
-  // Max expected reactions in 5s window ≈ 50 → level 0-100
-  const level = Math.min(100, Math.round(count * 2));
-  if (io.engine.clientsCount > 0) {
-    io.emit('stage:reactionLevel', { level });
+  for (const R of registry.all()) {
+    // Defensive: never let a partial show state crash the process on a timer.
+    if (!Array.isArray(R.show.reactions)) R.show.reactions = [];
+    R.show.reactions = R.show.reactions.filter(r => r.timestamp > cutoff);
+    // Max expected reactions in 5s window ≈ 50 → level 0-100
+    const level = Math.min(100, Math.round(R.show.reactions.length * 2));
+    if (R.members.size > 0) io.to(R.channel).emit('stage:reactionLevel', { level });
   }
 }, 500);
 
