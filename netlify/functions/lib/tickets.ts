@@ -7,7 +7,7 @@
 // of access logs. Responses are no-store.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 import { makeRpc, type TicketDeps, type TicketRequest, type HandlerResult } from '../../../server/tickets.mjs';
 import { requireUser } from './auth';
 import { isFrontrowAdmin } from './appAdmin';
@@ -33,6 +33,7 @@ export function deps(): TicketDeps {
     },
     isAdmin: (u) => isFrontrowAdmin(u),
     AccessToken,
+    TrackSource,
     livekitKey: process.env.LIVEKIT_API_KEY,
     livekitSecret: process.env.LIVEKIT_API_SECRET,
     mode: process.env.FRONTROW_TICKETS === 'all' ? 'all' : 'stage',

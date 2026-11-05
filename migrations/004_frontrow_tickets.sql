@@ -245,7 +245,8 @@ BEGIN
 END $$;
 
 -- frontrow_ticket_can_manage(p): p = {user_id, venue_id}. A FrontRow admin, or
--- the theater manager of the venue whose slug is venue_id.
+-- the theater manager of the venue whose slug is venue_id. 005 replaces this
+-- body to also read theater_roles, with the same signature and return shape.
 CREATE OR REPLACE FUNCTION public.frontrow_ticket_can_manage(p jsonb)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
 AS $$
@@ -256,11 +257,21 @@ AS $$
                          AND v.theater_manager_id = (p->>'user_id')::uuid))
 $$;
 
+-- frontrow_room_mode(p): p = {venue_id, room_id}. 'open' lets a ticketless
+-- guest into the house as audience; 'ticketed' requires a ticket. Every room is
+-- open here; the theater-status migration (005) replaces this body to read the
+-- theater's and the performance's status, keeping the same signature and
+-- return shape {mode: 'open' | 'ticketed'}.
+CREATE OR REPLACE FUNCTION public.frontrow_room_mode(p jsonb)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$ SELECT jsonb_build_object('mode', 'open') $$;
+
 DO $$
 DECLARE f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY['frontrow_ticket_redeem', 'frontrow_ticket_issue', 'frontrow_ticket_list',
-                           'frontrow_ticket_get', 'frontrow_ticket_revoke', 'frontrow_ticket_can_manage'] LOOP
+                           'frontrow_ticket_get', 'frontrow_ticket_revoke', 'frontrow_ticket_can_manage',
+                           'frontrow_room_mode'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION public.%I(jsonb) FROM PUBLIC, anon, authenticated', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION public.%I(jsonb) TO service_role', f);
   END LOOP;

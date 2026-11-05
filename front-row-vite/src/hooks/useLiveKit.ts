@@ -5,7 +5,7 @@ import {
   Track,
   LocalVideoTrack,
 } from 'livekit-client';
-import { getTicketCode, tokenRequestHeaders } from '../lib/ticketPass';
+import { getTicketCode, tokenRequestHeaders, reportTicketRefusal, TICKET_FALLBACK_REASONS, isPerformerIdentity } from '../lib/ticketPass';
 
 export interface LiveKitHook {
   connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<MediaStream | null>;
@@ -18,16 +18,22 @@ export function useLiveKit(): LiveKitHook {
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
 
-  // A ticket, if the guest has one, sets the role; the performer needs a
+  // A ticket, if the guest has one, sets the role; a performer needs a
   // performer ticket or a FrontRow admin sign-in (server/tickets.mjs).
   const getToken = async (tokenUrl: string, identity: string, role: 'performer' | 'audience'): Promise<string> => {
     const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=frontrow-main`;
+    const hadTicket = !!getTicketCode();
     let response = await fetch(url, { headers: await tokenRequestHeaders() });
-    if (response.status === 403 && role === 'audience' && getTicketCode()) {
-      // A ticket that no longer opens the door (closed, revoked, used up)
-      // should not cost the guest the house they could see without one.
-      console.warn('LiveKit: ticket refused, joining the house without it');
-      response = await fetch(url, { headers: await tokenRequestHeaders(false) });
+    if (response.status === 403 && hadTicket) {
+      const refusal = await response.clone().json().catch(() => ({}));
+      // The guest is always told why their ticket did not open the door.
+      reportTicketRefusal(refusal.reason || 'unknown', refusal.validFrom);
+      // A ticket that has lapsed (closed, used up, not open yet, another room)
+      // still leaves the house open to them if the theater is open. A revoked
+      // ticket does not fall back: whoever revoked it meant it.
+      if (role === 'audience' && TICKET_FALLBACK_REASONS.includes(refusal.reason)) {
+        response = await fetch(url, { headers: await tokenRequestHeaders(false) });
+      }
     }
     if (!response.ok) {
       throw new Error(`Token fetch failed: ${response.statusText}`);
@@ -130,7 +136,7 @@ export function useLiveKit(): LiveKitHook {
       room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
         console.log(`🎬 LiveKit: Track subscribed from ${participant.identity}: ${track.kind}`);
         if (track.kind === Track.Kind.Video && track.source === Track.Source.Camera &&
-            participant.identity === 'performer') {
+            isPerformerIdentity(participant.identity)) {
           const stream = new MediaStream([track.mediaStreamTrack]);
           const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
           if (audioPublication?.track?.mediaStreamTrack) {
@@ -143,7 +149,7 @@ export function useLiveKit(): LiveKitHook {
 
       room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
         console.log(`🎬 LiveKit: Track unsubscribed from ${participant.identity}`);
-        if (track.kind === Track.Kind.Video && participant.identity === 'performer') {
+        if (track.kind === Track.Kind.Video && isPerformerIdentity(participant.identity)) {
           onPerformerStream(null);
         }
       });
@@ -175,7 +181,7 @@ export function useLiveKit(): LiveKitHook {
           // Use track if already available
           if (publication.track && publication.kind === Track.Kind.Video &&
               publication.source === Track.Source.Camera &&
-              participant.identity === 'performer') {
+              isPerformerIdentity(participant.identity)) {
             const stream = new MediaStream([publication.track.mediaStreamTrack]);
             const audioPublication = participant.getTrackPublication(Track.Source.Microphone);
             if (audioPublication?.track?.mediaStreamTrack) {

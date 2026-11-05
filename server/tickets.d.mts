@@ -15,6 +15,7 @@ export interface TicketDeps {
   isAdmin: (user: TicketUser) => Promise<boolean>;
   now?: () => number;
   AccessToken?: any;
+  TrackSource?: any;
   livekitKey?: string;
   livekitSecret?: string;
   mode?: 'stage' | 'all';
@@ -35,3 +36,12 @@ export function handleList(req: TicketRequest, deps: TicketDeps): Promise<Handle
 export function handleRevoke(req: TicketRequest, deps: TicketDeps): Promise<HandlerResult>;
 export function handleCheck(req: TicketRequest, deps: TicketDeps): Promise<HandlerResult>;
 export function handleToken(req: TicketRequest, deps: TicketDeps): Promise<HandlerResult>;
+export interface Authority { who: string; any?: boolean; user?: TicketUser; managerCheck?: boolean; scope?: { venue: string; room: string | null; performance: string | null }; until?: number }
+export function callerAuthority(req: TicketRequest, deps: TicketDeps): Promise<Authority | null>;
+export function mayManage(auth: Authority | null, scope: { venue: string; room?: string | null; performance?: string | null }, deps: TicketDeps, issue?: { role: string; validUntil: number }): Promise<boolean>;
+export const PUBLISH_SOURCES: Record<string, string[]>;
+export function parseIssue(body: any, now?: number): any;
+export function sha256(s: string): string;
+export function newCode(): string;
+export function isSlug(s: unknown, max?: number): boolean;
+export function isReservedIdentity(s: unknown): boolean;

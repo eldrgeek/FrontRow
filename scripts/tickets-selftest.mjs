@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(path.join(ROOT, 'netlify/functions/package.json'));
-const { AccessToken, TokenVerifier } = require('livekit-server-sdk');
+const { AccessToken, TokenVerifier, TrackSource } = require('livekit-server-sdk');
 const T = await import(path.join(ROOT, 'server/tickets.mjs'));
 
 // ── Postgres ────────────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ function psqlAsync(sql, vars = {}) {
 
 // The RPC caller the handlers get: same contract as makeRpc (one jsonb arg p).
 const rpc = async (fn, p) => {
-  if (!/^frontrow_ticket_[a-z_]+$/.test(fn)) throw new Error(`unexpected rpc ${fn}`);
+  if (!/^frontrow_(ticket|room)_[a-z_]+$/.test(fn)) throw new Error(`unexpected rpc ${fn}`);
   return JSON.parse(psql(`SET ROLE service_role; SELECT public.${fn}(:'p'::jsonb);`, { p: JSON.stringify(p) }));
 };
 
@@ -143,7 +143,7 @@ const deps = (over = {}) => ({
   rpc,
   getUser: async (h) => USERS[h] || null,
   isAdmin: T.makeIsAdmin(rpc),
-  AccessToken, livekitKey: KEY, livekitSecret: SECRET, mode: 'stage',
+  AccessToken, TrackSource, livekitKey: KEY, livekitSecret: SECRET, mode: 'stage',
   ...over,
 });
 const ADMIN = 'Bearer admin-token';
@@ -181,9 +181,27 @@ check('a non-admin sign-in cannot be the performer', (await token({ role: 'perfo
 {
   const r = await token({ identity: 'Jess', role: 'performer' }, { authorization: ADMIN });
   const c = r.status === 200 && (await claims(r.body.token));
-  check('a FrontRow admin joins as the performer', c && c.sub === 'performer', r);
+  check('a FrontRow admin joins as performer-<their id>', c && c.sub === 'performer-e411d3d3d2fb', r);
+  check('  ...and may publish microphone and screen share', c && c.video.canPublishSources.join() === 'camera,microphone,screen_share,screen_share_audio', c && c.video);
 }
 check('room outside frontrow-* is refused', (await token({ room: 'soma-room-x' })).status === 403);
+check('"performer-1" is a performer name too', (await token({ identity: 'Performer-1' })).status === 403);
+check('ticketless audience cannot enter a non-theater frontrow-* room', (await token({ identity: 'Ann', room: 'frontrow-lobby' })).status === 403);
+{
+  const r = await token({ identity: 'Ann' });
+  const c = await claims(r.body.token);
+  check('audience publish only their seat camera', c.video.canPublishSources.join() === 'camera', c.video);
+}
+{
+  // A ticketed theater (005 will set this from theater status) refuses ticketless guests.
+  psql(`CREATE OR REPLACE FUNCTION public.frontrow_room_mode(p jsonb) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+        AS $f$ SELECT jsonb_build_object('mode', CASE WHEN p->>'venue_id' = 'big-house' THEN 'ticketed' ELSE 'open' END) $f$;`);
+  const r = await token({ identity: 'Ann', room: 'frontrow-big-house--screen-1' });
+  check('a ticketed theater refuses a ticketless guest', r.status === 401 && r.body.reason === 'ticket-required', r);
+  check('  ...while an open one lets them in', (await token({ identity: 'Ann', room: 'frontrow-front-row--library' })).status === 200);
+  const down = await token({ identity: 'Ann' }, {}, deps({ rpc: async () => { throw new Error('db down'); } }));
+  check('  ...and a failed status check refuses (503), not admits', down.status === 503, down);
+}
 check('mode all: ticketless audience is refused', (await token({ identity: 'Ann' }, {}, deps({ mode: 'all' }))).status === 401);
 check('mode all: an admin still gets in', (await token({ identity: 'Mike' }, { authorization: ADMIN }, deps({ mode: 'all' }))).status === 200);
 
@@ -254,7 +272,10 @@ check('a missing device is a 400', (await token({}, { ticket: A.code })).status 
   const t = (await issue({ ...base, role: 'performer' }, { authorization: ADMIN })).body.tickets[0];
   const r = await withTicket(t.code, dev(3), { identity: 'Jess', role: 'audience' });
   const c = r.status === 200 && (await claims(r.body.token));
-  check('a performer ticket joins as "performer", whatever was asked', c && c.sub === 'performer' && r.body.role === 'performer', r);
+  check('a performer ticket joins as performer-<ticket id>, whatever was asked', c && c.sub === `performer-${t.id.replace(/-/g, '').slice(0, 12)}` && r.body.role === 'performer', r);
+  const t2 = (await issue({ ...base, role: 'performer' }, { authorization: ADMIN })).body.tickets[0];
+  const r2 = await withTicket(t2.code, dev(8), { identity: 'Jess' });
+  check('  ...so a second performer (a trio) gets a distinct identity', r2.status === 200 && r2.body.identity !== r.body.identity && r2.body.identity.startsWith('performer-'), [r.body.identity, r2.body.identity]);
 }
 {
   const r = await withTicket((await issue(base, { authorization: ADMIN })).body.tickets[0].code, dev(4), { identity: 'performer' });

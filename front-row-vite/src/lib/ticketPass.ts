@@ -91,4 +91,36 @@ export async function tokenRequestHeaders(withTicket = true): Promise<Record<str
   return h;
 }
 
+/** Performers join as "performer-<id>", so a trio is three stage feeds. */
+export function isPerformerIdentity(identity: string): boolean {
+  return identity === 'performer' || identity.startsWith('performer-');
+}
+
+/** Refusals after which a guest may still sit in an open house without the ticket. */
+export const TICKET_FALLBACK_REASONS = ['closed', 'used-up', 'not-open', 'wrong-room'];
+
+export interface TicketRefusal {
+  reason: string;
+  validFrom?: string;
+}
+
+/**
+ * Tell the page the ticket was refused. The lobby or house shows it from the
+ * 'frontrow:ticket-refused' event (detail: TicketRefusal); the last one is
+ * also kept for a page that mounts later.
+ */
+let lastRefusal: TicketRefusal | null = null;
+export function reportTicketRefusal(reason: string, validFrom?: string): void {
+  lastRefusal = { reason, validFrom };
+  console.warn(`Ticket refused: ${reason}`);
+  try {
+    window.dispatchEvent(new CustomEvent<TicketRefusal>('frontrow:ticket-refused', { detail: lastRefusal }));
+  } catch {
+    /* no window (tests) */
+  }
+}
+export function getLastTicketRefusal(): TicketRefusal | null {
+  return lastRefusal;
+}
+
 captureTicketFromUrl();

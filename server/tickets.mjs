@@ -63,10 +63,27 @@ export const sha256 = (s) => crypto.createHash('sha256').update(String(s)).diges
 export const isCode = (s) => typeof s === 'string' && CODE.test(s);
 export const isDevice = (s) => typeof s === 'string' && DEVICE.test(s);
 
-/** The LiveKit identity "performer" is the stage feed every seat watches.
- *  Joining under an identity that is already in the room evicts the first
- *  one, so only a performer ticket or an admin may use it. */
-export const isReservedIdentity = (s) => String(s || '').trim().toLowerCase() === 'performer';
+/** Performers join as "performer-<id>" (the ticket's or the admin's id), so a
+ *  trio is three identities and every seat watches all of them. Joining under
+ *  an identity already in the room evicts the first one, so nobody else may
+ *  take "performer" or any "performer-…" name. */
+export const isReservedIdentity = (s) => /^performer(-|$)/i.test(String(s || '').trim());
+const SOURCE_ENUM = { camera: 'CAMERA', microphone: 'MICROPHONE', screen_share: 'SCREEN_SHARE', screen_share_audio: 'SCREEN_SHARE_AUDIO' };
+/** LiveKit's TrackSource enum values for a role (the SDK takes enums, not names). */
+function publishSources(TrackSource, role) {
+  if (!TrackSource) throw new Error('TrackSource missing from deps');
+  return (PUBLISH_SOURCES[role] || PUBLISH_SOURCES.audience).map((n) => TrackSource[SOURCE_ENUM[n]]);
+}
+const performerIdentity = (id) => `performer-${String(id).replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase()}`;
+
+/** What each role may publish. Audience publish only their seat camera (the
+ *  house sees itself); performers, crew and managers publish everything. */
+export const PUBLISH_SOURCES = {
+  audience: ['camera'],
+  performer: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+  crew: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+  manager: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+};
 
 function cleanText(v, max) {
   if (typeof v !== 'string') return '';
@@ -178,7 +195,7 @@ export function parseIssue(body, now = Date.now()) {
  *   {who, scope, until, canIssueManager:false}   a delegated manager ticket
  *   null                                  nobody
  */
-async function callerAuthority(req, deps) {
+export async function callerAuthority(req, deps) {
   if (req.authorization) {
     const user = await deps.getUser(req.authorization).catch(() => null);
     if (user) {
@@ -202,7 +219,7 @@ async function callerAuthority(req, deps) {
 }
 
 /** May this authority act on `scope`? For issuing, also checks role and window. */
-async function mayManage(auth, scope, deps, issue) {
+export async function mayManage(auth, scope, deps, issue) {
   if (!auth) return false;
   if (auth.any) return true;
   if (auth.managerCheck) {
@@ -298,11 +315,11 @@ export async function handleCheck(req, deps) {
  * req.ticket / req.device: the guest's ticket and device id, if any.
  * deps also: AccessToken, livekitKey, livekitSecret, mode ('stage' | 'all').
  *
- *   stage (default): a ticket, or a signed-in FrontRow admin, is needed for any
- *     role but audience and for the identity "performer". Ticketless audience
- *     still get a token, as before tickets existed. This closes the open
- *     performer mint without locking out today's guests.
- *   all: every token needs a ticket or an admin.
+ *   A ticket, or a signed-in FrontRow admin, is needed for any role but
+ *   audience and for any performer identity. A ticketless guest gets an
+ *   audience token only for a theater room (frontrow-<venue>--<room> or an
+ *   alias) whose frontrow_room_mode is 'open'; a ticketed theater refuses them.
+ *   mode 'all' (FRONTROW_TICKETS=all) refuses every ticketless guest.
  */
 export async function handleToken(req, deps) {
   const q = req.query || {};
@@ -317,6 +334,7 @@ export async function handleToken(req, deps) {
   let role;
   let until = now + TOKEN_TTL_MAX_S * 1000;
   let ticket = null;
+  let performerId = null;
 
   if (req.ticket) {
     if (!deps.rpc) return res(503, { error: 'Tickets are not configured on this server' });
@@ -337,26 +355,42 @@ export async function handleToken(req, deps) {
     }
     ticket = ticketSummary(r.ticket);
     role = r.ticket.role;
+    performerId = r.ticket.id;
     until = Math.min(until, Date.parse(r.ticket.valid_until));
   } else {
     let admin = false;
+    let adminUser = null;
     if (req.authorization) {
       const user = await deps.getUser(req.authorization).catch(() => null);
       admin = !!user && (await deps.isAdmin(user).catch(() => false));
+      if (admin) adminUser = user;
     }
     if (admin) {
       role = askedRole;
-    } else if (deps.mode === 'all') {
-      return res(401, { error: 'A ticket is needed to come in', reason: 'ticket-required' });
+      if (role === 'performer') performerId = adminUser.id;
     } else if (askedRole !== 'audience' || isReservedIdentity(identity)) {
       return res(403, { error: 'Only a performer ticket or a FrontRow admin can join as the performer', reason: 'ticket-required' });
     } else {
+      // Ticketless audience: only into a theater room whose theater is open.
+      const where = parseLivekitRoom(room);
+      if (!where) return res(403, { error: 'That room is not a theater room', reason: 'ticket-required' });
+      if (deps.mode === 'all') return res(401, { error: 'A ticket is needed to come in', reason: 'ticket-required' });
+      if (deps.rpc) {
+        let mode;
+        try {
+          const m = await deps.rpc('frontrow_room_mode', { venue_id: where.venue, room_id: where.room });
+          mode = m && m.mode;
+        } catch {
+          return res(503, { error: 'Could not check whether this theater is open', reason: 'unavailable' });
+        }
+        if (mode !== 'open') return res(401, { error: 'This performance is ticketed', reason: 'ticket-required' });
+      }
       role = 'audience';
     }
   }
 
-  // The stage feed is the identity "performer"; nobody else may take it.
-  if (role === 'performer') identity = 'performer';
+  // Performers are performer-<id>; nobody else may take a performer name.
+  if (role === 'performer') identity = performerIdentity(performerId);
   else if (isReservedIdentity(identity)) identity = 'Guest';
 
   const ttl = Math.max(60, Math.floor((until - now) / 1000));
@@ -366,10 +400,12 @@ export async function handleToken(req, deps) {
   });
   at.addGrant({
     roomJoin: true, room,
-    canPublish: true, canSubscribe: true, canPublishData: true,
+    canPublish: true, canPublishSources: publishSources(deps.TrackSource, role), canSubscribe: true, canPublishData: true,
   });
   const token = await at.toJwt();
-  return res(200, ticket ? { token, role, ticket } : { token, role });
+  const body = { token, role, identity };
+  if (ticket) body.ticket = ticket;
+  return res(200, body);
 }
 
 /** Admin check by email, then is_frontrow_admin via the service role. For frontrow-server. */

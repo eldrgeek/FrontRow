@@ -91,7 +91,7 @@ function ticketDeps() {
     ticketDepsPromise = import('./tickets.mjs').then((t) => {
       const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
       const rpc = t.makeRpc({ url: SUPABASE_URL, serviceKey });
-      const { AccessToken } = require('livekit-server-sdk');
+      const { AccessToken, TrackSource } = require('livekit-server-sdk');
       return {
         t,
         deps: {
@@ -100,6 +100,7 @@ function ticketDeps() {
           getUser: t.makeGetUser({ url: SUPABASE_URL, anonKey: serviceKey }),
           isAdmin: t.makeIsAdmin(rpc),
           AccessToken,
+          TrackSource,
           livekitKey: process.env.LIVEKIT_API_KEY,
           livekitSecret: process.env.LIVEKIT_API_SECRET,
           mode: process.env.FRONTROW_TICKETS === 'all' ? 'all' : 'stage',
