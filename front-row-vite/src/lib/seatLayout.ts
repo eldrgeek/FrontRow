@@ -7,12 +7,17 @@
 // faces. Front Row's live screen is twelve seats in a close half-circle around
 // the stage (Noel's spec: "a dozen seats, curved close around the stage").
 // frontrow-server caps how many are taken at once (MAX_SEATS there, 12) and
-// accepts ids seat-0 … seat-99.
+// accepts ids up to two digits (MAX_LAYOUT_SEATS below).
 import type { ScreenTemplate, SeatArrangement, SeatLayout } from '../theater/definition';
 
 export const SEAT_COUNT = 12;
-/** frontrow-server's SEAT_ID pattern allows two digits. */
-export const MAX_LAYOUT_SEATS = 100;
+/**
+ * The most seats a layout may hold: the one place this number lives. Seat ids
+ * run seat-0 … seat-98, inside the seat-\d{1,2} pattern the server and the
+ * definition validator accept. Seats above the server's taken-at-once cap
+ * (MAX_SEATS, 12) render but cannot be taken until that cap moves per room.
+ */
+export const MAX_LAYOUT_SEATS = 99;
 
 /** The stage: a half-disc of radius 8 centered here, front edge at z = 0. */
 const STAGE_Z = -8;

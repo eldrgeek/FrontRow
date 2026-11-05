@@ -21,6 +21,12 @@ export interface House {
 }
 
 export function makeHouse(definition: TheaterDefinition, screenId?: string): House {
+  // One live screen per theater until each room has its own seat map on the
+  // server; a second one is an error, never a quiet pick of the first.
+  const lives = definition.screens.filter((s) => s.kind === 'live');
+  if (lives.length > 1) {
+    throw new Error(`Theater "${definition.slug}" has ${lives.length} live screens; only one is supported for now`);
+  }
   const screen = (screenId && getScreen(definition, screenId)) || liveScreen(definition);
   const layout = screen?.seats ?? DEFAULT_LAYOUT;
   const seats = seatLayout(0, layout, screen?.template);

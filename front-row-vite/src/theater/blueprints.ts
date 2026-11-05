@@ -123,5 +123,22 @@ export function sampleTheater(search: string = typeof window !== 'undefined' ? w
 export function useCurrentTheater(): TheaterDefinition {
   const sample = useMemo(() => sampleTheater(), []);
   const { record } = useTheater(DEFAULT_THEATER_SLUG);
-  return sample ?? record?.definition ?? frontRowTheater;
+  if (sample) return sample;
+  return record && canOpenTheater(record as { status?: string | null }, isBuilder()) ? record.definition : frontRowTheater;
+}
+
+/**
+ * Who may open a stored theater by URL. A theater whose status is not
+ * published (the status column arrives with the records thread's migration
+ * 005) opens only for its builders; everyone else gets the built-in Front Row.
+ * Records without a status are treated as published, as Front Row is today.
+ */
+export function canOpenTheater(record: { status?: string | null }, builder: boolean): boolean {
+  const status = record.status ?? 'published';
+  return status === 'published' || builder;
+}
+
+/** Stub until builder roles exist: nobody is a builder, so previews stay closed. */
+export function isBuilder(): boolean {
+  return false;
 }
