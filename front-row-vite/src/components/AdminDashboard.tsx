@@ -28,6 +28,7 @@ export function AdminDashboard() {
       const { data: venuesData, error: venuesError } = await supabase
         .from('venues')
         .select('*')
+        .is('super_venue_id', null) // theaters only; screens are child venues
         .order('name');
 
       if (venuesError) throw venuesError;

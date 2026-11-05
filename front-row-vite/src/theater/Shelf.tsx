@@ -1,7 +1,8 @@
 // Behind the side doors: Songs of the Revolution and the Performance Library.
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { doorsFor, SHELVES, ShelfVideo } from './show';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { fill, screensInOrder, ShelfVideo, TheaterDefinition } from './definition';
+import { useTheater } from './theaterStore';
 import { WithTicket } from './FrontOfHouse';
 import { showPath } from './routes';
 import './shelf.css';
@@ -30,22 +31,40 @@ function VideoCard({ v, playing, onPlay }: { v: ShelfVideo; playing: boolean; on
   );
 }
 
-export function ShelfPage({ which }: { which: 'revolution' | 'library' }): JSX.Element {
+/** Which door a screen is, in the words the lobby uses. */
+function doorWord(def: TheaterDefinition, screenId: string): string {
+  const screens = screensInOrder(def);
+  const i = screens.findIndex((s) => s.id === screenId);
+  const live = screens.findIndex((s) => s.kind === 'live');
+  if (screens.length === 3 && live === 1) return i < live ? 'Left door' : 'Right door';
+  return `Door ${i + 1}`;
+}
+
+/**
+ * Any shelf screen of the theater, by id: /show/:slug/revolution and
+ * /show/:slug/library (Front Row's two), or /show/:slug/shelf/:screenId.
+ */
+export function ShelfPage({ which }: { which?: string }): JSX.Element {
   const navigate = useNavigate();
-  const { slug } = useParams();
+  const { slug, screenId } = useParams();
+  const id = which ?? screenId ?? '';
+  const { record } = useTheater();
   const [playing, setPlaying] = useState<string | null>(null);
-  useEffect(() => setPlaying(null), [which, slug]);
+  useEffect(() => setPlaying(null), [id, slug]);
 
   return (
     <WithTicket>
       {(show) => {
-        const door = doorsFor(show).find((d) => d.id === which)!;
-        const videos = SHELVES[which];
+        const def = record?.definition;
+        const screen = def?.screens.find((s) => s.id === id && s.kind === 'shelf');
+        if (!def || !screen) return <Navigate to={showPath(show, 'lobby')} replace />;
+        const door = { title: fill(screen.title, show, screen), blurb: fill(screen.blurb, show, screen) };
+        const videos: ShelfVideo[] = screen.shelf ?? [];
         return (
-          <div className="fr fr-shelf" data-testid={`fr-shelf-${which}`}>
+          <div className="fr fr-shelf" data-testid={`fr-shelf-${screen.id}`}>
             <header>
               <button type="button" className="fr-link" onClick={() => navigate(showPath(show, 'lobby'))}>← Back to the lobby</button>
-              <div className="fr-eyebrow">{door.side === 'left' ? 'Left door' : 'Right door'}</div>
+              <div className="fr-eyebrow">{doorWord(def, screen.id)}</div>
               <h1>{door.title}</h1>
               <p>{door.blurb}</p>
             </header>

@@ -100,11 +100,11 @@ export const frontRowTheater: TheaterDefinition = {
   hostedBy: 'Noel Paul Stookey',
   theme: {
     palette: {
-      wall: '#1a0f0a',
-      marquee: '#2a1208',
-      marqueeText: '#ffd98a',
-      accent: '#c8102e',
-      seat: '#b3122a',
+      wall: '#2a0812',
+      marquee: '#12050a',
+      marqueeText: '#fff4d2',
+      accent: '#d4af37',
+      seat: '#9b1529',
     },
     curtain: 'velvet-red',
   },
