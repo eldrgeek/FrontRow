@@ -4,9 +4,9 @@
 // the guest evening with ?theater=<slug>, e.g. /show/jess-wayne/lobby?theater=ten-screens,
 // and the choice sticks for the tab. ?theater=front-row goes back. Production
 // always shows Front Row until theater records load from the database.
-import { useMemo } from 'react';
-import { DEFAULT_THEATER_SLUG, DEFINITION_SCHEMA, ScreenDefinition, TheaterDefinition, frontRowTheater } from './definition';
-import { useTheater } from './theaterStore';
+import { useEffect, useMemo, useState } from 'react';
+import { DEFAULT_THEATER_SLUG, DEFINITION_SCHEMA, TheaterStatus, ScreenDefinition, TheaterDefinition, frontRowTheater } from './definition';
+import { isBuilder, useTheater } from './theaterStore';
 
 const live = (over: Partial<ScreenDefinition> = {}): ScreenDefinition => ({
   ...frontRowTheater.screens.find((s) => s.kind === 'live')!,
@@ -118,32 +118,36 @@ export function sampleTheater(search: string = typeof window !== 'undefined' ? w
 /**
  * The theater this tab shows: a sample if one was asked for, else Front Row's
  * stored record (theaterStore.ts), which starts as, and falls back to, the
- * built-in copy.
+ * built-in copy. A stored theater the guest may not open (canOpenTheater)
+ * shows the built-in Front Row instead.
  */
 export function useCurrentTheater(): TheaterDefinition {
   const sample = useMemo(() => sampleTheater(), []);
-  const { record } = useTheater(DEFAULT_THEATER_SLUG);
+  const slug = DEFAULT_THEATER_SLUG;
+  const { record } = useTheater(slug);
+  const needsBuilder = !!record && !canOpenTheater(record.status, false) && record.status !== 'archived';
+  const [builder, setBuilder] = useState(false);
+  useEffect(() => {
+    if (!needsBuilder) return;
+    let live = true;
+    isBuilder(slug).then((b) => live && setBuilder(b));
+    return () => {
+      live = false;
+    };
+  }, [needsBuilder, slug]);
   if (sample) return sample;
-  return record && canOpenTheater(record as { status?: string | null }, isBuilder()) ? record.definition : frontRowTheater;
+  return record && canOpenTheater(record.status, builder) ? record.definition : frontRowTheater;
 }
-
-export type TheaterStatus = 'draft' | 'preview' | 'open' | 'dark' | 'archived';
 
 /**
  * Who may open a stored theater by URL, by its status (migration 005):
  * open and dark (the "no performance tonight" lobby) for everyone, draft and
- * preview for builders only, archived for nobody. A record with no status is
- * treated as open, as Front Row is today; an unknown status opens for nobody
- * but builders.
+ * preview for builders only, archived for nobody. No status counts as open;
+ * an unknown status opens only for builders.
  */
-export function canOpenTheater(record: { status?: string | null }, builder: boolean): boolean {
-  const status = record.status ?? 'open';
-  if (status === 'archived') return false;
-  if (status === 'open' || status === 'dark') return true;
+export function canOpenTheater(status: TheaterStatus | string | null | undefined, builder: boolean): boolean {
+  const s = status ?? 'open';
+  if (s === 'archived') return false;
+  if (s === 'open' || s === 'dark') return true;
   return builder;
-}
-
-/** Stub until builder roles exist: nobody is a builder, so previews stay closed. */
-export function isBuilder(): boolean {
-  return false;
 }
