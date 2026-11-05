@@ -1,6 +1,6 @@
 // Sample theaters for trying the kit's layouts and templates.
 //
-// Dev servers and deploy previews only (import.meta.env.DEV): open any page of
+// Dev servers, deploy previews and VITE_THEATER_SAMPLES=true builds only: open any page of
 // the guest evening with ?theater=<slug>, e.g. /show/jess-wayne/lobby?theater=ten-screens,
 // and the choice sticks for the tab. ?theater=front-row goes back. Production
 // always shows Front Row until theater records load from the database.
@@ -99,11 +99,20 @@ export const BLUEPRINTS: Record<string, TheaterDefinition> = Object.fromEntries(
 const KEY = 'frontrow_kit_theater';
 
 /**
+ * Samples load on dev servers and deploy previews (DEV), and in builds made
+ * with VITE_THEATER_SAMPLES=true (e2e against `vite preview`). Not
+ * VITE_ENABLE_TEST_MODE: production sets that one (netlify.toml).
+ */
+export function samplesEnabled(): boolean {
+  return import.meta.env.DEV || import.meta.env.VITE_THEATER_SAMPLES === 'true';
+}
+
+/**
  * The sample this tab asked for, or null. Dev and preview builds only: the
  * URL's ?theater=<slug> (remembered for the tab) picks one of BLUEPRINTS.
  */
 export function sampleTheater(search: string = typeof window !== 'undefined' ? window.location.search : ''): TheaterDefinition | null {
-  if (!import.meta.env.DEV) return null;
+  if (!samplesEnabled()) return null;
   let slug: string | null = null;
   try {
     slug = new URLSearchParams(search).get('theater');

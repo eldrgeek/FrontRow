@@ -3,7 +3,8 @@ import { test, expect, Page } from '@playwright/test';
 // The theater kit: lobby doors laid out from the theater definition, and the
 // house reading its template and seat array. Sample theaters load with
 // ?theater=<slug> on dev servers and deploy previews only (theater/blueprints.ts),
-// so this runs against FRONTROW_URL = a preview or `vite` dev server, not production.
+// and VITE_THEATER_SAMPLES=true builds, so this runs against FRONTROW_URL = one of
+// those, not production.
 
 async function withTicket(page: Page): Promise<void> {
   await page.addInitScript(() => {
