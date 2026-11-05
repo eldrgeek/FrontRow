@@ -16,18 +16,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { requireUser, AuthError, type AuthedUser } from './auth';
+import { ADMIN_EMAILS } from '../../../server/tickets.mjs';
 
 const APP = 'frontrow';
 
-// Fallback allow-list. Migrate to app_roles (RPC) once these users have SOMA
-// accounts. Jess Jessop + George Coveney named as FrontRow admins in the
-// 2026-07-08 review meeting ("grant Jess and George admin access").
-const ADMIN_EMAILS = [
-  'mw@mike-wolf.com',
-  'mike@embeddedsystemsresearch.org',
-  'dwjessop@gmail.com',
-  'gtcoveney@gmail.com',
-];
+// Fallback allow-list: ADMIN_EMAILS in server/tickets.mjs, shared with
+// frontrow-server's token mint. Jess Jessop + George Coveney named as FrontRow
+// admins in the 2026-07-08 review meeting ("grant Jess and George admin access").
 
 /**
  * Verify the caller and confirm FrontRow-admin. Throws AuthError(401) if the
