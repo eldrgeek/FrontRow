@@ -1,7 +1,7 @@
 // The builder's edit ops: the only ways a theater definition changes.
 //
 // A person at the settings panel and an AI in the builder's SOMA room both
-// produce the same four ops. Every op is validated here, again, before it is
+// produce the same ops. Every op is validated here, again, before it is
 // applied, whoever sent it: the room's schema check is a guard, not the
 // authority (soma-rooms APP-OPS contract §5). applyOp is pure, so the preview
 // can show a proposal before anyone approves it.
@@ -11,6 +11,10 @@
 
 import {
   ScreenDefinition,
+  ShelfVideo,
+  shelfKey,
+  VIDEO_URL_RE,
+  YOUTUBE_ID_RE,
   ScreenKind,
   ScreenTemplate,
   SeatArrangement,
@@ -21,7 +25,7 @@ import {
 } from '../theater/definition';
 import { arrangementFor, MAX_LAYOUT_SEATS } from '../lib/seatLayout';
 
-export const OP_NAMES = ['setScreens', 'setTheme', 'setRoom', 'issueTickets'] as const;
+export const OP_NAMES = ['setScreens', 'setTheme', 'setRoom', 'issueTickets', 'addShelfItem', 'removeShelfItem'] as const;
 export type OpName = (typeof OP_NAMES)[number];
 
 // The allowed values come from definition.ts's types. A Record over each type
@@ -56,6 +60,7 @@ export const MAX_TICKETS = 200;
 export const MAX_TICKET_USES = 1000;
 /** Until each live screen gets its own room at runtime, the server and LiveKit run one (frontrow-main). */
 export const ONE_LIVE_SCREEN = 'Only one live screen for now: the server and LiveKit still run a single live room (frontrow-main).';
+export const MAX_SHELF = 60;
 const MAX_LINE = 60;
 const MAX_TEXT = 280;
 
@@ -110,11 +115,34 @@ export interface IssueTicketsArgs {
   holders?: string[];
 }
 
+export interface AddShelfItemArgs {
+  /** A shelf screen's id. */
+  screen: string;
+  title: string;
+  artist: string;
+  /** A YouTube id or link; or videoUrl. */
+  youtube?: string;
+  videoUrl?: string;
+  note?: string;
+  /** The performance this is a recording of (migrations/006), if any. */
+  performance?: string;
+  /** Where on the shelf, from 0; left out = the end. */
+  at?: number;
+}
+
+export interface RemoveShelfItemArgs {
+  screen: string;
+  /** Which item: its YouTube id, its videoUrl, or its title. */
+  item: string;
+}
+
 export type EditOp =
   | { op: 'setScreens'; args: SetScreensArgs }
   | { op: 'setTheme'; args: SetThemeArgs }
   | { op: 'setRoom'; args: SetRoomArgs }
-  | { op: 'issueTickets'; args: IssueTicketsArgs };
+  | { op: 'issueTickets'; args: IssueTicketsArgs }
+  | { op: 'addShelfItem'; args: AddShelfItemArgs }
+  | { op: 'removeShelfItem'; args: RemoveShelfItemArgs };
 
 export type Checked =
   | { ok: true; op: EditOp }
@@ -180,6 +208,14 @@ function time(v: unknown, at: string, errs: string[]): string | undefined {
   if (v === undefined) return undefined;
   if (typeof v !== 'string' || Number.isNaN(Date.parse(v))) { errs.push(`${at} must be a date and time`); return undefined; }
   return new Date(v).toISOString();
+}
+
+/** A YouTube id from an id or a youtu.be / youtube.com link; null if it is neither. */
+export function youtubeIdFrom(s: string): string | null {
+  const t = s.trim();
+  if (YOUTUBE_ID_RE.test(t)) return t;
+  const m = /^https:\/\/(?:www\.|m\.)?(?:youtu\.be\/|youtube\.com\/watch\?(?:[^#]*&)?v=|youtube\.com\/live\/)([A-Za-z0-9_-]{6,20})/.exec(t);
+  return m ? m[1] : null;
 }
 
 /** Turn untrusted {op, args} (from an AI, a panel, or the network) into a typed op, or say what is wrong. */
@@ -309,6 +345,53 @@ export function checkOp(op: unknown, args: unknown): Checked {
       }
       break;
     }
+    case 'addShelfItem': {
+      noExtra(args, ['screen', 'title', 'artist', 'youtube', 'videoUrl', 'note', 'performance', 'at'], 'args', errs);
+      const screen = typeof args.screen === 'string' && ID_RE.test(args.screen) ? args.screen : '';
+      if (!screen) errs.push('screen must name a shelf screen id');
+      const title = text(args.title, 120, 'title', errs);
+      const artist = text(args.artist, 120, 'artist', errs);
+      if (!title) errs.push('title is required');
+      if (!artist) errs.push('artist is required');
+      let youtubeId: string | undefined;
+      if (args.youtube !== undefined) {
+        youtubeId = typeof args.youtube === 'string' ? youtubeIdFrom(args.youtube) ?? undefined : undefined;
+        if (!youtubeId) errs.push('youtube must be a YouTube id or link');
+      }
+      let videoUrl: string | undefined;
+      if (args.videoUrl !== undefined) {
+        if (typeof args.videoUrl === 'string' && VIDEO_URL_RE.test(args.videoUrl)) videoUrl = args.videoUrl;
+        else errs.push('videoUrl must be an https link');
+      }
+      if (args.youtube === undefined && args.videoUrl === undefined) errs.push('give a youtube id or link, or a videoUrl');
+      if (youtubeId && videoUrl) errs.push('give a youtube id or a videoUrl, not both');
+      const note = text(args.note, 120, 'note', errs);
+      let performance: string | undefined;
+      if (args.performance !== undefined) {
+        if (typeof args.performance === 'string' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(args.performance) && args.performance.length <= 60) performance = args.performance;
+        else errs.push('performance must be a performance slug');
+      }
+      const at = int(args.at, 0, MAX_SHELF, 'at', errs);
+      if (!errs.length) {
+        const out: AddShelfItemArgs = { screen, title: title!, artist: artist! };
+        if (youtubeId) out.youtube = youtubeId;
+        if (videoUrl) out.videoUrl = videoUrl;
+        if (note) out.note = note;
+        if (performance) out.performance = performance;
+        if (at !== undefined) out.at = at;
+        return { ok: true, op: { op: 'addShelfItem', args: out } };
+      }
+      break;
+    }
+    case 'removeShelfItem': {
+      noExtra(args, ['screen', 'item'], 'args', errs);
+      const screen = typeof args.screen === 'string' && ID_RE.test(args.screen) ? args.screen : '';
+      if (!screen) errs.push('screen must name a shelf screen id');
+      const item = typeof args.item === 'string' ? args.item.trim().slice(0, 500) : '';
+      if (!item) errs.push('item must name a shelf item (its YouTube id, link or title)');
+      if (!errs.length) return { ok: true, op: { op: 'removeShelfItem', args: { screen, item } } };
+      break;
+    }
   }
   return { ok: false, errors: errs };
 }
@@ -418,6 +501,36 @@ export function applyOp(def: TheaterDefinition, edit: EditOp): Applied | { error
       const seat = a.seat ? `, seat ${a.seat}` : '';
       changes.push(`Issue ${a.count} ${a.role} ticket${a.count === 1 ? '' : 's'} for ${where} (${a.channel}${who}${uses}${seat}${when})`);
       return { next: def, changes, tickets: a };
+    }
+    case 'addShelfItem': {
+      const a = edit.args;
+      const s = next.screens.find((x) => x.id === a.screen);
+      if (!s) return { errors: [`there is no screen "${a.screen}"`] };
+      if (s.kind !== 'shelf') return { errors: [`${screenLabel(s)} is the live screen; only shelves hold videos`] };
+      const shelf = s.shelf ?? [];
+      if (shelf.length >= MAX_SHELF) return { errors: [`${screenLabel(s)} already holds ${MAX_SHELF} videos`] };
+      const item: ShelfVideo = { title: a.title, artist: a.artist };
+      if (a.youtube) item.youtubeId = a.youtube;
+      if (a.videoUrl) item.videoUrl = a.videoUrl;
+      if (a.note) item.note = a.note;
+      if (a.performance) item.performanceSlug = a.performance;
+      if (shelf.some((v) => shelfKey(v) === shelfKey(item))) return { errors: [`"${a.title}" is already on ${screenLabel(s)}`] };
+      const at = a.at === undefined ? shelf.length : Math.min(a.at, shelf.length);
+      s.shelf = [...shelf.slice(0, at), item, ...shelf.slice(at)];
+      changes.push(`Shelve "${a.title}" (${a.artist}) on ${screenLabel(s)}${at < shelf.length ? `, at ${at + 1}` : ''}`);
+      break;
+    }
+    case 'removeShelfItem': {
+      const a = edit.args;
+      const s = next.screens.find((x) => x.id === a.screen);
+      if (!s) return { errors: [`there is no screen "${a.screen}"`] };
+      const shelf = s.shelf ?? [];
+      const yt = youtubeIdFrom(a.item);
+      const i = shelf.findIndex((v) => (yt && v.youtubeId === yt) || v.videoUrl === a.item || v.title === a.item);
+      if (i < 0) return { errors: [`${screenLabel(s)} has no "${a.item}"`] };
+      changes.push(`Take "${shelf[i].title}" off ${screenLabel(s)}`);
+      s.shelf = shelf.filter((_, j) => j !== i);
+      break;
     }
   }
 

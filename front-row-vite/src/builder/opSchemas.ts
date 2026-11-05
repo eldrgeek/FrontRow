@@ -1,10 +1,10 @@
-// What the builder tells its SOMA room about the four edit ops, so an AI in
+// What the builder tells its SOMA room about the edit ops, so an AI in
 // the room can list them (list_app_ops) and propose one (propose_edit).
 // The schema uses only the subset soma-rooms checks (APP-OPS contract §1).
 // It is a guard for the room; ops.ts checkOp is what the page trusts.
 
 import {
-  ARRANGEMENTS, CURTAINS, KINDS, MAX_SCREENS, MAX_SEATS, MAX_TICKET_USES, MAX_TICKETS, OpName, PALETTE_KEYS,
+  ARRANGEMENTS, CURTAINS, KINDS, MAX_SCREENS, MAX_SEATS, MAX_SHELF, MAX_TICKET_USES, MAX_TICKETS, OpName, PALETTE_KEYS,
   TEMPLATES, TICKET_CHANNELS, TICKET_ROLES, TICKET_SCOPES,
 } from './ops';
 
@@ -120,6 +120,39 @@ export const APP_OPS: AppOpDecl[] = [
         seat: { type: 'string', minLength: 6, maxLength: 7 },
         holders: { type: 'array', items: str(120), maxItems: MAX_TICKETS },
       },
+    },
+  },
+  {
+    name: 'addShelfItem',
+    description:
+      'Put a video on a shelf screen (not the live one): a title, an artist, and either a YouTube id or link (youtube) or an https video file (videoUrl). ' +
+      `Optional note, the performance slug it records, and a position (at, from 0). At most ${MAX_SHELF} videos per shelf.`,
+    approve: 'anyone',
+    args: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['screen', 'title', 'artist'],
+      properties: {
+        screen: id,
+        title: str(120),
+        artist: str(120),
+        youtube: str(200),
+        videoUrl: str(490),
+        note: str(120),
+        performance: str(60),
+        at: { type: 'integer', minimum: 0, maximum: MAX_SHELF },
+      },
+    },
+  },
+  {
+    name: 'removeShelfItem',
+    description: 'Take a video off a shelf screen, named by its YouTube id or link, its videoUrl, or its title.',
+    approve: 'anyone',
+    args: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['screen', 'item'],
+      properties: { screen: id, item: str(500) },
     },
   },
 ];

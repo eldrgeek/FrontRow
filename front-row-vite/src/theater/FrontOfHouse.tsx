@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Show } from './show';
-import { showPath, useShow } from './routes';
+import { showPath, useShowState } from './routes';
 import { cleanName, issueTicket, MAX_NAME_LENGTH, readTicket, Ticket } from './ticket';
 import './theater.css';
 
@@ -23,15 +23,15 @@ export function NoSuchShow(): JSX.Element {
 
 /** Wraps every page past the invitation: no ticket, back to the invitation. */
 export function WithTicket({ children }: { children: (show: Show, ticket: Ticket) => React.ReactNode }): JSX.Element {
-  const show = useShow();
-  if (!show) return <NoSuchShow />;
+  const { show, loading } = useShowState();
+  if (!show) return loading ? <div className="fr" aria-busy="true" /> : <NoSuchShow />;
   const ticket = readTicket(show.slug);
   if (!ticket) return <Navigate to={showPath(show)} replace />;
   return <>{children(show, ticket)}</>;
 }
 
 export function InvitePage(): JSX.Element {
-  const show = useShow();
+  const { show, loading } = useShowState();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const existing = show ? readTicket(show.slug) : null;
@@ -46,7 +46,10 @@ export function InvitePage(): JSX.Element {
     if (asking) inputRef.current?.focus();
   }, [asking]);
 
-  if (!show) return <NoSuchShow />;
+  if (!show) return loading ? <div className="fr" aria-busy="true" /> : <NoSuchShow />;
+  const closed = show.status === 'cancelled' ? 'This night was cancelled. We are sorry to miss you.'
+    : show.status === 'library' ? 'This show is over. Its recording, if there is one, is in the Performance Library.'
+    : null;
 
   const takeSeat = () => {
     if (existing) navigate(showPath(show, 'ticket'));
@@ -67,7 +70,9 @@ export function InvitePage(): JSX.Element {
           <h1>{show.artist}</h1>
           <div className="tag">{show.tagline}</div>
           <div className="when">{show.when} · {show.setLength}</div>
-          {!asking ? (
+          {closed ? (
+            <p className="fine" data-testid="fr-show-closed">{closed}</p>
+          ) : !asking ? (
             <button type="button" className="fr-btn" onClick={takeSeat} data-testid="fr-take-seat">
               {existing ? `Welcome back, ${existing.name}` : 'Take your seat'}
             </button>

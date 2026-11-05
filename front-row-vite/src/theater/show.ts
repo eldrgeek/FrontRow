@@ -2,7 +2,8 @@
 //
 // One show is "tonight's". The invite, ticket, lobby and house all read from
 // here, so a new night is a new entry in SHOWS, not a code change elsewhere.
-// Dates are display strings until a real schedule exists (ROADMAP.md §6).
+// These compiled-in shows are the floor: schedule.ts reads the performances
+// table (migrations/006) and a stored row replaces the entry of the same slug.
 
 import { fill, frontRowTheater, screensInOrder, ShelfVideo } from './definition';
 
@@ -32,7 +33,17 @@ export interface Show {
   seats: number;
   /** Plays on the stage screen until the performer's own stream arrives. */
   fallbackVideoUrl: string;
+  /** Set when the show comes from the performances table (schedule.ts, migrations/006). */
+  status?: PerformanceStatus;
+  startsAt?: string;
+  doorsAt?: string;
+  /** The screen it plays on. */
+  screen?: string;
 }
+
+/** A performance's place in its night (migrations/006). Forward only; 'cancelled' before 'after'. */
+export type PerformanceStatus =
+  | 'scheduled' | 'tickets-out' | 'doors' | 'green-room' | 'curtain' | 'after' | 'library' | 'cancelled';
 
 export const SHOWS: Record<string, Show> = {
   'jess-wayne': {

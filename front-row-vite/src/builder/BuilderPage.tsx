@@ -3,7 +3,7 @@
 // A live preview of the theater on the left; a SOMA room docked on the right,
 // where several people and their AIs talk about how the theater should work.
 // Every change, from a person at the panel or an AI in the room, is one of the
-// four edit ops (ops.ts). A person's own panel edit applies at once. An AI's
+// edit ops (ops.ts). A person's own panel edit applies at once. An AI's
 // proposal waits on a card: Preview shows it on the theater, Approve claims it
 // in the room, applies it, saves a new version and reports back; Reject says
 // no. Every applied change lands in the theater's change history.

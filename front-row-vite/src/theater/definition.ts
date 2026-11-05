@@ -20,8 +20,21 @@ export type SeatArrangement = 'semicircle' | 'rows' | 'tables' | 'round' | 'hors
 export interface ShelfVideo {
   title: string;
   artist: string;
-  youtubeId: string;
+  /** A YouTube video. Every shelf item has this or videoUrl. */
+  youtubeId?: string;
+  /** An https video file: a recording that is not on YouTube. */
+  videoUrl?: string;
+  /** Set when the Library job (migrations/006) shelved this performance's recording. */
+  performanceSlug?: string;
   note?: string;
+}
+
+export const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{6,20}$/;
+export const VIDEO_URL_RE = /^https:\/\/[^\s<>"]{1,490}$/;
+
+/** A stable key for a shelf item. */
+export function shelfKey(v: ShelfVideo): string {
+  return v.youtubeId ?? v.videoUrl ?? v.title;
 }
 
 export interface SeatLayout {
@@ -268,6 +281,13 @@ export function validateDefinition(def: unknown): string[] {
     if (s.kind !== 'live' && s.kind !== 'shelf') errs.push(`${at}.kind must be live or shelf`);
     if (!Array.isArray(s.marquee)) errs.push(`${at}.marquee must be a list of lines`);
     if (s.kind === 'live' && !(s.seats && s.seats.count > 0)) errs.push(`${at} is live and needs seats.count`);
+    if (s.shelf !== undefined && !Array.isArray(s.shelf)) errs.push(`${at}.shelf must be a list`);
+    (Array.isArray(s.shelf) ? s.shelf : []).forEach((v, j) => {
+      const yt = typeof v?.youtubeId === 'string' && YOUTUBE_ID_RE.test(v.youtubeId);
+      const url = typeof v?.videoUrl === 'string' && VIDEO_URL_RE.test(v.videoUrl);
+      if (!yt && !url) errs.push(`${at}.shelf[${j}] needs a youtubeId or an https videoUrl`);
+      if (!v?.title) errs.push(`${at}.shelf[${j}].title is required`);
+    });
   });
   if (d.screens.filter((s) => s.kind === 'live').length > 1) errs.push('only one live screen is supported for now');
   return errs;
