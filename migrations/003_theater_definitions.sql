@@ -2,6 +2,10 @@
 -- Target: shared project omfwcodoimjmbrhssvfl. NOT YET APPLIED: needs Mike's yes.
 -- Builds on 002 (which is what actually created venues/venue_settings; 001 was never run).
 --
+-- Slugs and screen keys: lowercase words joined by single dashes, at most 40
+-- characters (no '--', no leading/trailing dash), so LiveKit room names
+-- frontrow-<theater>--<screen> stay unambiguous.
+--
 -- Shape:
 --   * A theater is a parent `venues` row (super_venue_id IS NULL) with a unique `slug`.
 --   * Each screen is a child `venues` row (super_venue_id = the theater) with a
@@ -26,11 +30,11 @@ ALTER TABLE public.venues ADD COLUMN IF NOT EXISTS screen_key text;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'venues_slug_format') THEN
     ALTER TABLE public.venues ADD CONSTRAINT venues_slug_format
-      CHECK (slug IS NULL OR slug ~ '^[a-z0-9][a-z0-9-]{0,39}$');
+      CHECK (slug IS NULL OR (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND length(slug) <= 40));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'venues_screen_key_format') THEN
     ALTER TABLE public.venues ADD CONSTRAINT venues_screen_key_format
-      CHECK (screen_key IS NULL OR screen_key ~ '^[a-z0-9][a-z0-9-]{0,39}$');
+      CHECK (screen_key IS NULL OR (screen_key ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND length(screen_key) <= 40));
   END IF;
   -- A theater has a slug and no screen_key; a screen has a screen_key and no slug.
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'venues_slug_only_on_theaters') THEN
@@ -135,7 +139,7 @@ BEGIN
 
   -- Keep one active child venue per screen.
   FOR v_screen IN SELECT * FROM jsonb_array_elements(p_definition->'screens') LOOP
-    IF (v_screen->>'id') IS NULL OR (v_screen->>'id') !~ '^[a-z0-9][a-z0-9-]{0,39}$' THEN
+    IF (v_screen->>'id') IS NULL OR (v_screen->>'id') !~ '^[a-z0-9]+(-[a-z0-9]+)*$' OR length(v_screen->>'id') > 40 THEN
       RAISE EXCEPTION 'screen id % is not a slug', v_screen->>'id' USING ERRCODE = '22023';
     END IF;
     IF (v_screen->>'id') = ANY (v_keys) THEN

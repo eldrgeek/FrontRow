@@ -198,10 +198,12 @@ export function getScreen(def: TheaterDefinition, id: string): ScreenDefinition 
 /** Problems that would stop a definition from rendering; empty when it is usable. */
 export function validateDefinition(def: unknown): string[] {
   const errs: string[] = [];
+  // Words joined by single dashes, at most 40 long: LiveKit rooms are frontrow-<theater>--<screen>.
+  const isSlug = (v: unknown): boolean => typeof v === 'string' && v.length <= 40 && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(v);
   const d = def as Partial<TheaterDefinition> | null;
   if (!d || typeof d !== 'object') return ['definition is not an object'];
   if (d.schema !== DEFINITION_SCHEMA) errs.push(`schema must be ${DEFINITION_SCHEMA}`);
-  if (!d.slug || !/^[a-z0-9-]+$/.test(d.slug)) errs.push('slug must be lowercase letters, digits and dashes');
+  if (!isSlug(d.slug)) errs.push('slug must be lowercase words joined by single dashes, at most 40 characters');
   if (!d.name) errs.push('name is required');
   if (!d.theme || !d.theme.palette) errs.push('theme.palette is required');
   if (!Array.isArray(d.screens) || d.screens.length === 0) {
@@ -211,7 +213,7 @@ export function validateDefinition(def: unknown): string[] {
   const ids = new Set<string>();
   d.screens.forEach((s, i) => {
     const at = `screens[${i}]`;
-    if (!s.id || !/^[a-z0-9-]+$/.test(s.id)) errs.push(`${at}.id must be lowercase letters, digits and dashes`);
+    if (!isSlug(s.id)) errs.push(`${at}.id must be lowercase words joined by single dashes, at most 40 characters`);
     if (ids.has(s.id)) errs.push(`${at}.id "${s.id}" is used twice`);
     ids.add(s.id);
     if (s.kind !== 'live' && s.kind !== 'shelf') errs.push(`${at}.kind must be live or shelf`);
