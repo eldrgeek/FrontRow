@@ -21,6 +21,9 @@ const getAllowedOrigins = () => {
       // so a PR can be tried with real seats before it merges. Anchored: no
       // other Netlify site matches.
       /^https:\/\/deploy-preview-\d+--frontrowtheater\.netlify\.app$/,
+      // Vite's dev server. PR #4 dropped this line by accident; without it a
+      // local `npm run dev` cannot reach the production server.
+      'http://localhost:5173',
       'http://localhost:3000',
       'https://localhost:5173'
     ].filter(Boolean);
