@@ -75,6 +75,11 @@ export interface TheaterDefinition {
   currentShowSlug?: string;
 }
 
+/** Where a theater is in its life (migrations/005). Guests get in only when open or dark. */
+export type TheaterStatus = 'draft' | 'preview' | 'open' | 'dark' | 'archived';
+/** Where a screen (room) is in its life. */
+export type RoomStatus = 'proposed' | 'setup' | 'open' | 'dark' | 'retired';
+
 /** A stored record: the definition plus the database ids it lives under. */
 export interface TheaterRecord {
   /** Parent venues.id. Null for the compiled-in copy. */
@@ -85,6 +90,12 @@ export interface TheaterRecord {
   version: number;
   definition: TheaterDefinition;
   source: 'database' | 'built-in';
+  /** 'open' for a built-in record, and for a stored one read before migration 005. */
+  status: TheaterStatus;
+  /** Status per screen id; screens not listed count as open. */
+  roomStatus: Record<string, RoomStatus>;
+  /** The theater's one SOMA builder room, once a builder has made it. */
+  builderRoomId: string | null;
 }
 
 // ---------------------------------------------------------------------------

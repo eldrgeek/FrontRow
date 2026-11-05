@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   BUILT_IN_THEATERS,
+  RoomStatus,
+  TheaterStatus,
   DEFAULT_THEATER_SLUG,
   FRONT_ROW_VENUE_ID,
   TheaterDefinition,
@@ -22,7 +24,7 @@ const LOAD_TIMEOUT_MS = 2500;
 export function builtInRecord(slug: string = DEFAULT_THEATER_SLUG): TheaterRecord | null {
   const definition = BUILT_IN_THEATERS[slug];
   if (!definition) return null;
-  return { venueId: null, screenVenueIds: {}, version: 0, definition, source: 'built-in' };
+  return { venueId: null, screenVenueIds: {}, version: 0, definition, source: 'built-in', status: 'open', roomStatus: {}, builderRoomId: null };
 }
 
 /** Minimal surface of the Supabase client this module uses, so tests can stub it. */
@@ -49,6 +51,18 @@ interface VenueRow {
   slug: string | null;
   screen_key: string | null;
   super_venue_id: string | null;
+  status?: TheaterStatus | RoomStatus;
+  builder_room_id?: string | null;
+}
+
+const COLS_003 = 'id, slug, screen_key, super_venue_id';
+const COLS_005 = `${COLS_003}, status, builder_room_id`;
+
+/** Reads venues with 005's columns, or without them while 005 is not applied. */
+async function selectVenues(build: (cols: string) => PromiseLike<{ data: unknown; error: unknown }>): Promise<{ data: unknown; error: unknown }> {
+  const first = await build(COLS_005);
+  if (!first.error) return first;
+  return build(COLS_003);
 }
 
 /**
@@ -59,7 +73,7 @@ export async function fetchStoredTheater(slug: string): Promise<TheaterRecord | 
   // Before migration 003, venues has no slug column; Front Row is still
   // reachable by its fixed id, and simply has no stored definition yet.
   let theater: VenueRow | null = null;
-  const bySlug = await db.from('venues').select('id, slug, screen_key, super_venue_id').eq('slug', slug).is('super_venue_id', null).maybeSingle();
+  const bySlug = await selectVenues((cols) => db.from('venues').select(cols).eq('slug', slug).is('super_venue_id', null).maybeSingle());
   if (!bySlug.error && bySlug.data) theater = bySlug.data as VenueRow;
   else if (slug === DEFAULT_THEATER_SLUG) theater = { id: FRONT_ROW_VENUE_ID, slug, screen_key: null, super_venue_id: null };
   if (!theater) return null;
@@ -76,9 +90,14 @@ export async function fetchStoredTheater(slug: string): Promise<TheaterRecord | 
   }
 
   const screenVenueIds: Record<string, string> = {};
-  const screens = await db.from('venues').select('id, screen_key').eq('super_venue_id', theater.id);
-  if (!screens.error && screens.data) {
-    for (const s of screens.data as VenueRow[]) if (s.screen_key) screenVenueIds[s.screen_key] = s.id;
+  const roomStatus: Record<string, RoomStatus> = {};
+  const screens = await selectVenues((cols) => db.from('venues').select(cols).eq('super_venue_id', theater.id));
+  if (!screens.error && Array.isArray(screens.data)) {
+    for (const s of screens.data as VenueRow[]) {
+      if (!s.screen_key) continue;
+      screenVenueIds[s.screen_key] = s.id;
+      if (s.status) roomStatus[s.screen_key] = s.status as RoomStatus;
+    }
   }
 
   return {
@@ -87,6 +106,9 @@ export async function fetchStoredTheater(slug: string): Promise<TheaterRecord | 
     version: row.version ?? 1,
     definition: definition as TheaterDefinition,
     source: 'database',
+    status: (theater.status as TheaterStatus | undefined) ?? 'open',
+    roomStatus,
+    builderRoomId: theater.builder_room_id ?? null,
   };
 }
 
@@ -153,6 +175,89 @@ export async function listChanges(slug: string, limit = 50): Promise<TheaterChan
     changedAt: c.changed_at,
     definition: c.definition,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Who may build, and the theater's life (migrations/005)
+// ---------------------------------------------------------------------------
+
+export interface BuilderAccess {
+  /** False also for a draft or preview theater the caller may not build. */
+  exists: boolean;
+  canBuild: boolean;
+  /** A theater manager: may approve proposals, invite builders and change status. */
+  canApprove: boolean;
+  builderRoomId: string | null;
+  status: TheaterStatus | null;
+}
+
+const NO_ACCESS: BuilderAccess = { exists: false, canBuild: false, canApprove: false, builderRoomId: null, status: null };
+
+/** Never rejects: no session, no 005, or no network all read as no access. */
+export async function builderAccess(slug: string): Promise<BuilderAccess> {
+  try {
+    const { data, error } = await db.rpc('frontrow_builder_access', { p_slug: slug });
+    if (error || !data) return NO_ACCESS;
+    const r = data as { exists: boolean; can_build: boolean; can_approve: boolean; builder_room_id: string | null; status: TheaterStatus | null };
+    return { exists: !!r.exists, canBuild: !!r.can_build, canApprove: !!r.can_approve, builderRoomId: r.builder_room_id ?? null, status: r.status ?? null };
+  } catch {
+    return NO_ACCESS;
+  }
+}
+
+/** A theater manager or the holder of an unexpired builder grant for this theater. */
+export async function isBuilder(slug: string): Promise<boolean> {
+  return (await builderAccess(slug)).canBuild;
+}
+
+type Rpc<T> = { ok: true; value: T } | { ok: false; error: string };
+
+async function call<T>(fn: string, args: Record<string, unknown>): Promise<Rpc<T>> {
+  try {
+    const { data, error } = await db.rpc(fn, args);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, value: data as T };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Stores the theater's builder room. The first builder's room wins: the
+ * returned id is the stored one, which may not be the one passed in.
+ */
+export function setBuilderRoom(slug: string, roomId: string): Promise<Rpc<string>> {
+  return call<string>('set_builder_room', { p_slug: slug, p_room_id: roomId });
+}
+
+/** FrontRow admins only. The new theater starts as a draft managed by `managerUserId`. */
+export function createTheater(slug: string, blueprint: TheaterDefinition, managerUserId: string): Promise<Rpc<{ venue_id: string; version: number }>> {
+  return call('create_theater', { p_slug: slug, p_blueprint: { ...blueprint, slug }, p_manager: managerUserId });
+}
+
+/** Theater managers only. 1 to 90 days. Returns the grant id. */
+export function grantBuilder(slug: string, email: string, days = 30, note = ''): Promise<Rpc<string>> {
+  return call<string>('grant_builder', { p_slug: slug, p_email: email, p_days: days, p_note: note });
+}
+
+export function revokeBuilderGrant(grantId: string): Promise<Rpc<boolean>> {
+  return call<boolean>('revoke_builder_grant', { p_grant: grantId });
+}
+
+/** screenId null sets the theater's status; otherwise that screen's. */
+export function setStatus(slug: string, screenId: string | null, status: TheaterStatus | RoomStatus): Promise<Rpc<string>> {
+  return call<string>('set_venue_status', { p_slug: slug, p_screen: screenId, p_status: status });
+}
+
+export type TheaterRole = 'venue_manager' | 'performance_manager';
+
+/** venue_manager takes screenId null; performance_manager names a screen. Returns the role id. */
+export function grantRole(slug: string, screenId: string | null, userId: string, role: TheaterRole): Promise<Rpc<string>> {
+  return call<string>('grant_theater_role', { p_slug: slug, p_screen: screenId, p_user: userId, p_role: role });
+}
+
+export function revokeRole(roleId: string): Promise<Rpc<boolean>> {
+  return call<boolean>('revoke_theater_role', { p_role_id: roleId });
 }
 
 /**
