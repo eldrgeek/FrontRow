@@ -1,0 +1,43 @@
+# FrontRow CI: the checks a PR must pass before Claude's auto-merge can merge it.
+# The Netlify production build already typechecks the functions and builds the site, so a
+# PR that breaks either now fails here first, instead of at deploy. The smoke test opens the
+# built 3D theater in real Chromium and checks that the scene renders.
+# The rest of tests/e2e runs against the shared production backend, so it stays out of PR CI.
+# Created 2026-11-05 by Claude Opus 5.5 for Mike (EM thread "Auto-merge Claude PRs when checks pass").
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [master]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Netlify functions typecheck
+        working-directory: netlify/functions
+        run: npm install --include=dev --no-audit --no-fund && npm run typecheck
+      - name: Frontend typecheck and build
+        working-directory: front-row-vite
+        run: npm install --no-audit --no-fund && npm run build
+      - name: Server parses
+        working-directory: server
+        run: for f in *.js; do node --check "$f"; done
+      - name: Install Playwright
+        run: npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: Theater smoke test against the built site
+        run: |
+          (cd front-row-vite && npx vite preview --port 4173 --strictPort &)
+          for i in $(seq 30); do curl -sf -o /dev/null http://localhost:4173 && break; sleep 1; done
+          FRONTROW_URL=http://localhost:4173 npx playwright test tests/e2e/theater-smoke.spec.ts --reporter=line --retries=0
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results

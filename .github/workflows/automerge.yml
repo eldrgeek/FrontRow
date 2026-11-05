@@ -1,0 +1,25 @@
+# Claude auto-merge for FrontRow: merges Claude's ready claude/ PRs once every check passes.
+# The gate and its rules live in eldrgeek/projects-meta (_estate/ci/README.md there).
+name: Claude auto-merge
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  pull_request_target:
+    types: [ready_for_review, reopened, unlabeled]
+  status:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to check
+        required: true
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  statuses: read
+jobs:
+  automerge:
+    uses: eldrgeek/projects-meta/.github/workflows/claude-automerge-gate.yml@main
+    with:
+      pr: ${{ inputs.pr || '' }}
