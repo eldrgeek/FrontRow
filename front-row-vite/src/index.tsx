@@ -24,6 +24,7 @@ import { HallwayPage } from './theater/Hallway';
 import { ShelfPage } from './theater/Shelf';
 import { HousePage } from './theater/House';
 import { GreenRoomPage } from './theater/GreenRoomPage';
+import { BuilderPage } from './builder/BuilderPage';
 
 // SOMA feedback stack — boot wiring (must run before render):
 //  - identity/auth hooks let the soma-feedback widget autofill the signed-in
@@ -73,6 +74,8 @@ function AppRoutes() {
       <Route path="/show/:slug/shelf/:screenId" element={<ShelfPage />} />
       <Route path="/show/:slug/house" element={<HousePage />} />
       <Route path="/show/:slug/green-room" element={<GreenRoomPage />} />
+      {/* Theater kit: the builder, with a SOMA room for the people and AIs designing it. */}
+      <Route path="/build/:theater" element={<BuilderPage />} />
 
       {/* Protected routes */}
       <Route
