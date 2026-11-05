@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS public.tickets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   code_hash text NOT NULL UNIQUE CHECK (code_hash ~ '^[0-9a-f]{64}$'),
   venue_id text NOT NULL CHECK (venue_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(venue_id) <= 40),
-  room_id text CHECK (room_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(room_id) <= 30),
+  room_id text CHECK (room_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(room_id) <= 40),
   performance_id text CHECK (performance_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(performance_id) <= 60),
   role text NOT NULL CHECK (role IN ('audience', 'performer', 'crew', 'manager')),
   valid_from timestamptz NOT NULL,

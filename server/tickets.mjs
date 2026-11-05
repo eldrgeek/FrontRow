@@ -27,7 +27,7 @@ const MAX_WINDOW_MS = 400 * 24 * 3600 * 1000;
 const TOKEN_TTL_MAX_S = 2 * 3600;
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-export const isSlug = (s, max = 30) => typeof s === 'string' && s.length <= max && SLUG.test(s);
+export const isSlug = (s, max = 40) => typeof s === 'string' && s.length <= max && SLUG.test(s);
 const SEAT = /^seat-\d{1,2}$/;
 const CODE = /^frt_[A-Za-z0-9_-]{24}$/;
 const DEVICE = /^[A-Za-z0-9_-]{16,128}$/;
@@ -35,7 +35,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // LiveKit keys are not scoped to rooms, so a token minted here could join any
 // room on the server. FrontRow only uses frontrow-* rooms.
-export const ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,90}$/;
+export const ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,100}$/;
 
 // LiveKit room names. A kit room is frontrow-<venue>--<room> (slugs never hold
 // "--", so the split is unambiguous). Rooms that existed before the kit keep
