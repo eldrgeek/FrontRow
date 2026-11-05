@@ -2,7 +2,7 @@
 // (netlify/functions/ticket-*.ts, get-livekit-token.ts) and frontrow-server's
 // /api/livekit-token. One copy of the rules, so the two token mints cannot drift.
 //
-// A ticket is a revocable grant stored in Supabase (migrations/003). Holders
+// A ticket is a revocable grant stored in Supabase (migrations/004). Holders
 // carry a bearer code; the database keeps only sha256(code). Every request
 // re-reads the ticket, so a revoke takes effect on the next token request.
 //
@@ -35,7 +35,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // LiveKit keys are not scoped to rooms, so a token minted here could join any
 // room on the server. FrontRow only uses frontrow-* rooms.
-export const ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,80}$/;
+export const ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,90}$/;
 
 // LiveKit room names. A kit room is frontrow-<venue>--<room> (slugs never hold
 // "--", so the split is unambiguous). Rooms that existed before the kit keep
@@ -54,7 +54,7 @@ export function livekitRoomFor(venue, room) {
 export function parseLivekitRoom(name) {
   if (ROOM_ALIASES[name]) return { ...ROOM_ALIASES[name] };
   const m = /^frontrow-([a-z0-9-]+)--([a-z0-9-]+)$/.exec(name || '');
-  if (!m || !isSlug(m[1]) || !isSlug(m[2])) return null;
+  if (!m || !isSlug(m[1], 40) || !isSlug(m[2])) return null;
   return { venue: m[1], room: m[2] };
 }
 
@@ -132,7 +132,7 @@ function parseTime(v) {
 export function parseIssue(body, now = Date.now()) {
   const b = body && typeof body === 'object' ? body : {};
   const scope = { venue: b.venue, room: b.room ?? null, performance: b.performance ?? null };
-  if (!isSlug(scope.venue)) return { error: 'venue must be a theater slug' };
+  if (!isSlug(scope.venue, 40)) return { error: 'venue must be a theater slug' };
   if (scope.room !== null && !isSlug(scope.room)) return { error: 'room must be a screen slug' };
   if (scope.performance !== null && !isSlug(scope.performance, 60)) return { error: 'performance must be a show slug' };
   if (scope.performance && !scope.room) return { error: 'a performance ticket names its room' };
@@ -257,7 +257,7 @@ export async function handleList(req, deps) {
   if (!deps.rpc) return res(503, { error: 'Tickets are not configured on this server' });
   const q = req.query || {};
   const scope = { venue: q.venue, room: q.room || null, performance: q.performance || null };
-  if (!isSlug(scope.venue) || (scope.room && !isSlug(scope.room)) || (scope.performance && !isSlug(scope.performance, 60))) {
+  if (!isSlug(scope.venue, 40) || (scope.room && !isSlug(scope.room)) || (scope.performance && !isSlug(scope.performance, 60))) {
     return res(400, { error: 'venue (and optional room, performance) must be slugs' });
   }
   const auth = await callerAuthority(req, deps);

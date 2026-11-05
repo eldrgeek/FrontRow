@@ -24,16 +24,16 @@
 -- authenticated get nothing, and the tables have RLS on with no policies, so
 -- PostgREST exposes no rows to a browser.
 
--- Theater slug on venues (the definition records key a theater by slug; the
--- "Store theaters as definition records" thread adds the same column, and
--- both statements are IF NOT EXISTS so either order works).
+-- Runs after 003_theater_definitions.sql, which adds venues.slug (the theater
+-- slug a ticket's venue_id names). Repeated here as IF NOT EXISTS, with 003's
+-- index name, so this file also stands alone.
 ALTER TABLE public.venues ADD COLUMN IF NOT EXISTS slug text;
 CREATE UNIQUE INDEX IF NOT EXISTS venues_slug_key ON public.venues (slug) WHERE slug IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.tickets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   code_hash text NOT NULL UNIQUE CHECK (code_hash ~ '^[0-9a-f]{64}$'),
-  venue_id text NOT NULL CHECK (venue_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(venue_id) <= 30),
+  venue_id text NOT NULL CHECK (venue_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(venue_id) <= 40),
   room_id text CHECK (room_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(room_id) <= 30),
   performance_id text CHECK (performance_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(performance_id) <= 60),
   role text NOT NULL CHECK (role IN ('audience', 'performer', 'crew', 'manager')),

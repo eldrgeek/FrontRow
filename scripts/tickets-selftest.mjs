@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Ticket grants selftest: migrations 002 + 003 on a real, throwaway Postgres
+// Ticket grants selftest: migrations 002 (+ 003 when present) + 004 on a real, throwaway Postgres
 // (with a minimal stand-in for Supabase's auth schema and roles), then every
 // rule in server/tickets.mjs through its handlers, with the real LiveKit SDK
 // minting and verifying tokens.
@@ -115,9 +115,15 @@ psql(`
     ON CONFLICT DO NOTHING;
 `);
 psql(fs.readFileSync(path.join(ROOT, 'migrations/002_frontrow_venues_rls_fix_and_seed.sql'), 'utf8'));
-const M003 = fs.readFileSync(path.join(ROOT, 'migrations/003_frontrow_tickets.sql'), 'utf8');
-psql(M003);
-psql(M003); // idempotent: a second run must not fail
+// 003 (theater definitions) comes from its own PR; apply it when present.
+const DEF = path.join(ROOT, 'migrations/003_theater_definitions.sql');
+if (process.env.TICKETS_DEF_SQL || fs.existsSync(DEF)) {
+  psql(fs.readFileSync(process.env.TICKETS_DEF_SQL || DEF, 'utf8'));
+  console.log('applied 003_theater_definitions first');
+}
+const M004 = fs.readFileSync(path.join(ROOT, 'migrations/004_frontrow_tickets.sql'), 'utf8');
+psql(M004);
+psql(M004); // idempotent: a second run must not fail
 psql(`
   UPDATE public.venues SET slug = 'front-row' WHERE id = 'a0000000-0000-4000-8000-000000000001';
   INSERT INTO public.venues (name, room_template_id, theater_manager_id, active, created_by, slug)
