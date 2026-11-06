@@ -177,7 +177,7 @@ test.describe('Theater builder', () => {
     await expect(page.getByTestId('bp-room-status')).toContainText('AIs in it can propose', { timeout: 10000 });
     expect(await page.evaluate(() => (window as any).__stubRoom.getAttribute('room'))).toBe('room-abc');
     expect(await page.evaluate(() => (window as any).__stubRoom.ops.map((o: any) => `${o.name}:${o.approve}`)))
-      .toEqual(['setScreens:anyone', 'setTheme:anyone', 'setRoom:anyone', 'issueTickets:anyone', 'addShelfItem:anyone', 'removeShelfItem:anyone']);
+      .toEqual(['setScreens:app', 'setTheme:app', 'setRoom:app', 'issueTickets:app', 'addShelfItem:app', 'removeShelfItem:app']);
     await expect(page.getByTestId('bp-store')).toContainText('shared record');
     await expect(page.getByTestId('bp-seat')).toHaveCount(12);
   });
