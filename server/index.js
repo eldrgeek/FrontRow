@@ -17,7 +17,10 @@ const getAllowedOrigins = () => {
     // Always allow localhost for testing during development
     const origins = [
       ...envOrigins,
-      'http://localhost:5173',
+      // This site's Netlify deploy previews (deploy-preview-<PR>--frontrowtheater),
+      // so a PR can be tried with real seats before it merges. Anchored: no
+      // other Netlify site matches.
+      /^https:\/\/deploy-preview-\d+--frontrowtheater\.netlify\.app$/,
       'http://localhost:3000',
       'https://localhost:5173'
     ].filter(Boolean);
@@ -51,6 +54,21 @@ app.use('/api/v1', apiRouter);
 // --- IN-MEMORY STORES FOR REV 1 ---
 // Data will be lost on server restart. Persistence is for Rev 2.
 const scheduledShows = []; // { id, artistId, title, dateTime, status: 'scheduled' | 'live' | 'ended' }
+// Seats in the house: seat-0 … seat-11 (front-row-vite/src/lib/seatLayout.ts).
+const MAX_SEATS = Number(process.env.MAX_SEATS) || 12;
+const SEAT_ID = /^seat-\d{1,2}$/;
+
+// Post-show chat state (see the 'postshow:chat' handler).
+const postShowChat = [];
+const chatLastSent = new Map();
+function cleanChat(v, max) {
+  if (typeof v !== 'string') return '';
+  return Array.from(v)
+    .filter((c) => { const n = c.codePointAt(0); return n >= 32 && n !== 127; })
+    .join('').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+
 let activeShow = {
   artistId: null,
   startTime: null,
@@ -437,6 +455,7 @@ app.post('/api/artist-simulate-live', (req, res) => {
       return res.status(400).json({ error: 'Show already active or in invalid state.' });
     }
     activeShow.status = 'live';
+    postShowChat.length = 0;
     activeShow.artistId = 'simulated-artist'; // Placeholder ID
     activeShow.startTime = Date.now();
     io.emit('show-status-update', { status: 'live', artistId: activeShow.artistId });
@@ -1047,7 +1066,20 @@ io.on('connection', (socket) => {
       });
       return;
     }
-    if (Object.keys(activeShow.audienceSeats).length >= 9) { // Cap at 9 front-row seats
+    if (!SEAT_ID.test(String(seatId || '')) || Number(String(seatId).slice(5)) >= MAX_SEATS) {
+      socket.emit('seat-selected', { success: false, message: 'There is no such seat' });
+      return;
+    }
+    // One seat per guest: picking another seat moves you. The page does not
+    // always say which seat it is leaving, so the server frees it here.
+    for (const [heldId, held] of Object.entries(activeShow.audienceSeats)) {
+      if (held && held.socketId === socket.id && heldId !== seatId) {
+        delete activeShow.audienceSeats[heldId];
+        io.emit('seat-update', { seatId: heldId, user: null });
+        console.log(`User ${socket.id} moved out of seat ${heldId}`);
+      }
+    }
+    if (Object.keys(activeShow.audienceSeats).length >= MAX_SEATS) { // a dozen seats, close to the stage
       socket.emit('seat-selected', { success: false, message: 'Front row is full!' });
       logTestEvent('seat-select-failed', { 
         socketId: socket.id, 
@@ -1157,6 +1189,7 @@ io.on('connection', (socket) => {
     // Now proceed with going live (if not already live)
     if (activeShow.status !== 'live') {
       activeShow.status = 'live';
+      postShowChat.length = 0;
       activeShow.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
       activeShow.startTime = Date.now();
       io.emit('show-status-update', { status: 'live', artistId: socket.id });
@@ -1281,6 +1314,7 @@ io.on('connection', (socket) => {
         activeShow.countdown.interval = null;
         activeShow.countdown.isActive = false;
         activeShow.status = 'live';
+        postShowChat.length = 0;
         activeShow.startTime = Date.now();
         
         console.log('🎭 Countdown finished - show is now LIVE!');
@@ -1445,6 +1479,7 @@ io.on('connection', (socket) => {
     // Transition show to live if not already
     if (activeShow.status !== 'live') {
       activeShow.status = 'live';
+      postShowChat.length = 0;
       activeShow.artistId = socket.id;
       activeShow.startTime = Date.now();
       io.emit('show-status-update', {
@@ -1482,6 +1517,26 @@ io.on('connection', (socket) => {
     io.emit('performer:spotlight', { active: activeShow.spotlightActive });
   });
 
+  // ── Post-show chat (src/theater/postShowChat.ts) ───────────────────────
+  // Plain text only (the page renders it as text, never HTML): control
+  // characters are dropped, a line is at most 280 characters, a socket may send one line a second, and
+  // the last 50 lines are kept in memory until the next show goes live.
+  socket.on('postshow:history', () => {
+    socket.emit('postshow:history', postShowChat);
+  });
+  socket.on('postshow:chat', (data) => {
+    const now = Date.now();
+    if (now - (chatLastSent.get(socket.id) || 0) < 1000) return;
+    const text = cleanChat(data && data.text, 280);
+    if (!text) return;
+    const name = cleanChat((userProfiles[socket.id] && userProfiles[socket.id].name) || (data && data.name), 40) || 'Guest';
+    chatLastSent.set(socket.id, now);
+    const line = { name, text, at: now, from: socket.id };
+    postShowChat.push(line);
+    if (postShowChat.length > 50) postShowChat.shift();
+    io.emit('postshow:chat', line);
+  });
+
   // ── Phase 2: Audience reactions ────────────────────────────────────────
   socket.on('audience:reaction', (data) => {
     const type = ['clap', 'laugh', 'wow'].includes(data.type) ? data.type : 'clap';
@@ -1493,6 +1548,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('user disconnected:', socket.id);
+    chatLastSent.delete(socket.id);
     const userData = userProfiles[socket.id];
     
     logTestEvent('user-disconnected', { 

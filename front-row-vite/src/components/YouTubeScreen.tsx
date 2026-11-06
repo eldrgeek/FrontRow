@@ -27,13 +27,14 @@ function YouTubeScreen({ videoId, position = [0, 3, -8], isLive = false, isPerfo
   const cleanVideoId = getVideoId(videoId);
   // Mute audio for performers to prevent feedback
   const muteParam = isPerformer ? '1' : '0';
-  const embedUrl = `https://www.youtube.com/embed/${cleanVideoId}?autoplay=1&mute=${muteParam}&loop=1&playlist=${cleanVideoId}&controls=1&showinfo=0&rel=0&modestbranding=1`;
+  const embedUrl = `https://www.youtube-nocookie.com/embed/${cleanVideoId}?autoplay=1&mute=${muteParam}&loop=1&playlist=${cleanVideoId}&controls=1&showinfo=0&rel=0&modestbranding=1`;
 
   return (
     <Html
       position={position}
       transform
       occlude="blending"
+      zIndexRange={[50, 0]} // stay under the page overlays (HUD, controls), which sit at 10000
       style={{
         width: '800px',
         height: '450px',

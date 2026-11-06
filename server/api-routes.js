@@ -90,6 +90,7 @@ router.get('/venues', extractUser, async (req, res) => {
       .from('venues')
       .select('*')
       .eq('active', true)
+      .is('super_venue_id', null) // theaters only; screens are child venues
       .order('name');
 
     if (error) throw error;

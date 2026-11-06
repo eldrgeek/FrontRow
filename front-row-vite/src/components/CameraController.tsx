@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from 'three-stdlib';
 import * as THREE from 'three';
+import { useHouse } from '../theater/useHouse';
 
 interface CameraControllerProps {
   currentView: 'eye-in-the-sky' | 'performer' | 'user';
@@ -46,23 +47,8 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
     return ctrl && typeof ctrl.target !== 'undefined' && typeof ctrl.update === 'function';
   };
 
-  // Generate seat positions (same logic as SeatSelection)
-  const getSeatsData = (): SeatData[] => {
-    const seatsData: SeatData[] = [];
-    const frontRowRadius = 10; // Increased radius for better spacing
-    const stageZOffset = -8;
-    const startAngle = 0; // Start from front (0 degrees)
-    const endAngle = Math.PI; // End at back (180 degrees)
-    const totalSeats = 9;
-
-    for (let i = 0; i < totalSeats; i++) {
-      const angle = startAngle + (i / (totalSeats - 1)) * (endAngle - startAngle);
-      const x = frontRowRadius * Math.cos(angle);
-      const z = frontRowRadius * Math.sin(angle) + stageZOffset; // Align with stage
-      seatsData.push({ id: `seat-${i}`, position: [x, 0.5, z] });
-    }
-    return seatsData;
-  };
+  const house = useHouse();
+  const getSeatsData = (): SeatData[] => house.seatsAt(0.5);
 
   // Update camera position when view changes
   // Handle custom camera control events
@@ -216,13 +202,18 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
     }
   }, [selectedSeat, currentView]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (isTransitioning.current && isOrbitControls(controls)) {
-       const dt = 1/60;
+       // Real elapsed time, so the swoop takes the same time at any frame rate.
+       const dt = Math.min(delta, 0.1);
        transitionProgress.current += dt/transitionDuration;
        const t = Math.min(transitionProgress.current,1);
-       camera.position.lerpVectors(startPosRef.current, targetPosRef.current, t);
-       controls.target.lerpVectors(startTargetRef.current, targetLookRef.current, t);
+       // Ease in and out, and lift the camera in an arc on the way: a swoop
+       // down to the seat rather than a straight dolly.
+       const e = t * t * (3 - 2 * t);
+       camera.position.lerpVectors(startPosRef.current, targetPosRef.current, e);
+       camera.position.y += Math.sin(Math.PI * e) * 1.5;
+       controls.target.lerpVectors(startTargetRef.current, targetLookRef.current, e);
        if(t>=1){isTransitioning.current=false;}
        controls.update();
     }

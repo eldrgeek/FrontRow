@@ -1,0 +1,43 @@
+.fr-post {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  top: 110px;
+  width: min(380px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  z-index: 9992;
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--house-black, var(--t-house-black, #140508)) 92%, transparent);
+  border: 1px solid #d4af37;
+  border-radius: 8px;
+  color: #f4ead3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+}
+.fr-post header { padding: 14px 16px 10px; border-bottom: 1px solid rgba(212, 175, 55, 0.35); }
+.fr-post .k { font: 600 10px/1 sans-serif; letter-spacing: 0.3em; text-transform: uppercase; color: #a9791f; }
+.fr-post .t { font: 700 22px/1.2 'Playfair Display', Georgia, serif; margin-top: 4px; }
+.fr-post .s { font-size: 13px; color: #c9b48a; margin-top: 2px; }
+.fr-post .lines { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: 10px 16px; display: flex; flex-direction: column; gap: 10px; }
+.fr-post .lines li { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.fr-post .lines li b { color: #f6e3a1; }
+.fr-post .lines li.mine b { color: #ffd66b; }
+.fr-post .lines time { font-size: 11px; color: #8c7a5a; margin-left: 4px; }
+.fr-post .lines .empty { color: #a99a7a; font-style: italic; }
+.fr-post form { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid rgba(212, 175, 55, 0.35); }
+.fr-post input { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 999px; border: 1px solid #6b4a1c; background: #1b0a0d; color: #f4ead3; font-size: 15px; }
+.fr-post form button, .fr-post footer button, .fr-post footer a {
+  appearance: none;
+  border: 1px solid #d4af37;
+  background: transparent;
+  color: #f6e3a1;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font: 13px sans-serif;
+  cursor: pointer;
+  text-decoration: none;
+}
+.fr-post form button:disabled { opacity: 0.45; cursor: default; }
+.fr-post footer { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 12px 12px; }
+.fr-post :focus-visible { outline: 3px solid #ffd66b; outline-offset: 2px; }
+@media (max-width: 560px) { .fr-post { top: auto; height: 62vh; } }

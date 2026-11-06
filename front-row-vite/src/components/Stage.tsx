@@ -7,6 +7,8 @@ import YouTubeScreen from './YouTubeScreen';
 import useVideoTexture from '../hooks/useVideoTexture';
 import PerformerMesh from './PerformerMesh';
 import ReactionBar from './ReactionBar';
+import { useHouse } from '../theater/useHouse';
+import { mix } from '../theater/theme';
 
 interface StageProps {
   config: {
@@ -31,10 +33,14 @@ interface StageProps {
   reactionLevel?: number;
   /** Phase 2: spotlight */
   spotlightActive?: boolean;
+  /** Ticketed shows: the fallback video waits behind the curtain until Live */
+  holdFallbackUntilLive?: boolean;
 }
 
 // Semicircle stage platform component
 function SemicircleStage(): JSX.Element {
+  // Boards and brass edge from the theater's palette (Front Row: oak and brass).
+  const { palette } = useHouse();
   return (
     <group>
       {/* Main semicircle stage platform - rotated 90 degrees clockwise */}
@@ -43,7 +49,7 @@ function SemicircleStage(): JSX.Element {
         position={[0, 0.1, -8]}
         rotation-x={0}
       >
-        <meshStandardMaterial color="#444444" />
+        <meshStandardMaterial color={palette.stageWood} roughness={0.7} />
       </Cylinder>
 
       {/* Stage edge for visual definition */}
@@ -52,11 +58,11 @@ function SemicircleStage(): JSX.Element {
         position={[0, 0.05, -8]}
         rotation-x={0}
       >
-        <meshStandardMaterial color="#333333" />
+        <meshStandardMaterial color={palette.accentLo} metalness={0.4} roughness={0.4} />
       </Cylinder>
       {/* Apron rectangle between stage flat edge and screen */}
       <Plane args={[16.0, 4]} rotation-x={-Math.PI / 2} position={[0, 0.11, -10]}>
-        <meshStandardMaterial color="#444444" side={THREE.DoubleSide} />
+        <meshStandardMaterial color={mix(palette.stageWood, '#000000', 0.16)} roughness={0.75} side={THREE.DoubleSide} />
       </Plane>
     </group>
   );
@@ -70,6 +76,7 @@ function CurvedScreen({
   showState,
   isPerformer = false,
   hidden = false,
+  holdUntilLive = false,
 }: {
   videoTexture: THREE.VideoTexture | null;
   fallbackVideoId?: string;
@@ -77,6 +84,7 @@ function CurvedScreen({
   showState: 'idle' | 'pre-show' | 'live' | 'post-show';
   isPerformer?: boolean;
   hidden?: boolean;
+  holdUntilLive?: boolean;
 }): JSX.Element | null {
   if (hidden) return null;
 
@@ -115,7 +123,7 @@ function CurvedScreen({
       >
         <meshBasicMaterial color="#222222" side={THREE.DoubleSide} />
       </Plane>
-      {!hasLiveStream && (
+      {!hasLiveStream && (!holdUntilLive || showState === 'live') && (
         <YouTubeScreen
           videoId={fallbackVideoId}
           position={[adjustedScreenPosition[0], adjustedScreenPosition[1], adjustedScreenPosition[2] + 0.5]}
@@ -182,6 +190,7 @@ function Stage({
   curtainStyle = 'velvet-red',
   reactionLevel = 0,
   spotlightActive = false,
+  holdFallbackUntilLive = false,
 }: StageProps): JSX.Element {
   const stageRef = useRef<THREE.Group>(null);
   const videoTexture = useVideoTexture(performerStream || null);
@@ -211,6 +220,7 @@ function Stage({
         showState={showState}
         isPerformer={isPerformer}
         hidden={performerOnStage}
+        holdUntilLive={holdFallbackUntilLive}
       />
 
       {/* Phase 2: Performer mesh on stage floor */}
@@ -248,8 +258,9 @@ function Stage({
       <Text
         position={[0, 0.02, -1]}
         rotation-x={-Math.PI / 2}
-        fontSize={0.8}
-        color="white"
+        fontSize={1.1}
+        color="#d9b77a"
+        letterSpacing={0.04}
         anchorX="center"
         anchorY="middle"
       >

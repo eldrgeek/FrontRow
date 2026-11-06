@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { AuthCallback } from './components/AuthCallback';
@@ -16,8 +16,16 @@ import { installSomaFeedbackIdentityHook } from './lib/somaFeedbackIdentity';
 import { installSomaFeedbackAuthHook } from './lib/somaFeedbackAuth';
 import { installGlobalErrorHandlers } from './lib/errorReport';
 import App from './App';
+import { configureTextBuilder } from 'troika-three-text';
 import HouseManagerApp from './HouseManagerApp';
 import BackstageRoom from './BackstageRoom';
+import { InvitePage, TicketPage } from './theater/FrontOfHouse';
+import { LobbyPage } from './theater/Lobby';
+import { HallwayPage } from './theater/Hallway';
+import { ShelfPage } from './theater/Shelf';
+import { HousePage } from './theater/House';
+import { GreenRoomPage } from './theater/GreenRoomPage';
+import { BuilderPage } from './builder/BuilderPage';
 
 // SOMA feedback stack — boot wiring (must run before render):
 //  - identity/auth hooks let the soma-feedback widget autofill the signed-in
@@ -30,11 +38,19 @@ installSomaFeedbackIdentityHook();
 installSomaFeedbackAuthHook();
 installGlobalErrorHandlers();
 
+// 3D text (seat names, the stage stencil) uses a font shipped with the site.
+// Without this, troika fetches font data from cdn.jsdelivr.net at runtime and
+// the whole theater stays on its loading spinner wherever that CDN is blocked.
+configureTextBuilder({ defaultFontURL: '/fonts/playfair-display-latin-700-normal.woff' });
+
 // Router wrapper that requires auth setup
 function AppRoutes() {
   const { loading } = useAuth();
+  const { pathname } = useLocation();
+  // The front of house needs no account, so it never waits on the auth check.
+  const isFrontOfHouse = pathname === '/' || pathname === '/show' || pathname.startsWith('/show/');
 
-  if (loading) {
+  if (loading && !isFrontOfHouse) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>;
   }
 
@@ -48,9 +64,23 @@ function AppRoutes() {
       <Route path="/housemanager" element={<HouseManagerApp />} />
       <Route path="/backstage" element={<BackstageRoom />} />
 
+      {/* Front of house: invitation, ticket, lobby, house. No account. */}
+      <Route path="/" element={<InvitePage />} />
+      <Route path="/show/:slug" element={<InvitePage />} />
+      <Route path="/show/:slug/ticket" element={<TicketPage />} />
+      <Route path="/show/:slug/lobby" element={<LobbyPage />} />
+      <Route path="/show/:slug/hallway" element={<HallwayPage />} />
+      <Route path="/show/:slug/revolution" element={<ShelfPage which="revolution" />} />
+      <Route path="/show/:slug/library" element={<ShelfPage which="library" />} />
+      <Route path="/show/:slug/shelf/:screenId" element={<ShelfPage />} />
+      <Route path="/show/:slug/house" element={<HousePage />} />
+      <Route path="/show/:slug/green-room" element={<GreenRoomPage />} />
+      {/* Theater kit: the builder, with a SOMA room for the people and AIs designing it. */}
+      <Route path="/build/:theater" element={<BuilderPage />} />
+
       {/* Protected routes */}
       <Route
-        path="/"
+        path="/venues"
         element={
           <ProtectedRoute>
             <Lobby />

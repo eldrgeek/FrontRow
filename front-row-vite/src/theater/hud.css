@@ -1,0 +1,42 @@
+.fr-hud { position: fixed; inset: 0; pointer-events: none; z-index: 9990; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; }
+.fr-hud .playbill {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  max-width: calc(100% - 28px);
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--house-black, var(--t-house-black, #140508)) 82%, transparent);
+  border: 1px solid #d4af37;
+  border-radius: 6px;
+  color: #f4ead3;
+}
+.fr-hud .k { font: 600 10px/1 sans-serif; letter-spacing: 0.3em; text-transform: uppercase; color: #a9791f; }
+.fr-hud .t { font: 700 22px/1.2 'Playfair Display', Georgia, serif; margin-top: 4px; }
+.fr-hud .s { font-size: 13px; color: #c9b48a; margin-top: 2px; }
+.fr-hud .s b { color: #f6e3a1; }
+.fr-hud .face { position: absolute; top: 14px; right: 14px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; max-width: 60%; }
+.fr-hud .face .err { flex-basis: 100%; text-align: right; font-size: 13px; color: #ffb4a8; }
+.fr-hud-btn.on { background: #5a1010; border-color: #e04a4a; }
+.fr-hud-btn {
+  pointer-events: auto;
+  appearance: none;
+  border: 1px solid #d4af37;
+  background: color-mix(in srgb, var(--house-black, var(--t-house-black, #140508)) 82%, transparent);
+  color: #f6e3a1;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font: 14px sans-serif;
+  cursor: pointer;
+}
+.fr-hud-btn:focus-visible { outline: 3px solid #ffd66b; outline-offset: 2px; }
+.fr-hud-modal {
+  pointer-events: auto;
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+@media (max-width: 560px) {
+  .fr-hud .face { top: auto; bottom: 96px; right: 14px; }
+}

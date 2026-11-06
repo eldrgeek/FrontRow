@@ -66,6 +66,10 @@
 
 [context.deploy-preview.environment]
   NODE_ENV = "preview"
+  # NODE_ENV=preview makes Vite build with DEV=true, so config.ts would ask
+  # the VPS for LiveKit tokens, which LiveKit Cloud refuses ("invalid API
+  # key"). Use this site's own token function, as production does.
+  VITE_TOKEN_URL = "/.netlify/functions/get-livekit-token"
   VITE_BACKEND_URL = "https://vpsmikewolf.duckdns.org:4001"
   VITE_SOCKET_URL = "https://vpsmikewolf.duckdns.org:4001"
   VITE_LIVEKIT_URL = "wss://hootnet-zkp2l3aj.livekit.cloud"

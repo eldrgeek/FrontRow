@@ -1,0 +1,75 @@
+/* The hallway: a long corridor seen from above the runner, doors set into the
+   left and right walls, angled toward the middle of the hall. */
+
+.fr-hallway {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--velvet) 55%, #000) 0, var(--velvet) 18%, transparent 30%, transparent 70%, var(--velvet) 82%, color-mix(in srgb, var(--velvet) 55%, #000) 100%),
+    var(--house-black);
+}
+
+.fr-hallway-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 16px;
+  background: linear-gradient(180deg, var(--house-black) 70%, transparent);
+}
+
+.fr-hallway .corridor {
+  position: relative;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px 16px 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.fr-hallway .runner {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: min(38%, 220px);
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.5) 0 3px, transparent 4px) 0 0 / 40px 40px,
+    var(--carpet);
+  border-left: 3px solid var(--brass-lo);
+  border-right: 3px solid var(--brass-lo);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+.fr-hallway .bay { position: relative; z-index: 1; display: flex; }
+.fr-hallway .bay.left { justify-content: flex-start; }
+.fr-hallway .bay.right { justify-content: flex-end; }
+
+.fr-hallway .fr-door { width: clamp(110px, 34vw, 190px); }
+.fr-hallway .fr-door.wall-left { --door-tf: perspective(900px) rotateY(18deg); transform-origin: left center; }
+.fr-hallway .fr-door.wall-right { --door-tf: perspective(900px) rotateY(-18deg); transform-origin: right center; }
+
+.fr-hallway .end-wall {
+  position: relative;
+  z-index: 1;
+  align-self: center;
+  padding: 6px 14px;
+  border: 1px solid var(--brass-lo);
+  color: #7fd28a;
+  font: 700 12px var(--sans);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: #0b0405;
+}
+
+.fr-hallway .placard {
+  position: fixed;
+  z-index: 4;
+  left: 16px;
+  bottom: 16px;
+  width: min(360px, calc(100% - 32px));
+}

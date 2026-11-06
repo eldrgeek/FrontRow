@@ -1,0 +1,40 @@
+/* Entry through the back curtain: two velvet halves part from a sliver of
+   light, then fade, revealing the house loading behind them. */
+.fr-curtain-entry {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+  animation: fr-entry-fade 2.6s ease-in forwards;
+}
+.fr-curtain-entry .half {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 51%;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.42) 0 6px, rgba(255, 80, 80, 0.06) 22px, rgba(0, 0, 0, 0.42) 44px),
+    linear-gradient(180deg, #4a0610, #8d0f1f 40%, #5c0a17);
+  box-shadow: inset 0 -80px 120px rgba(0, 0, 0, 0.6);
+}
+.fr-curtain-entry .left { left: 0; animation: fr-part-left 2.2s cubic-bezier(0.6, 0, 0.3, 1) 0.4s forwards; }
+.fr-curtain-entry .right { right: 0; animation: fr-part-right 2.2s cubic-bezier(0.6, 0, 0.3, 1) 0.4s forwards; }
+.fr-curtain-entry .gap-light {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 6px;
+  translate: -50% 0;
+  background: linear-gradient(180deg, transparent, rgba(255, 214, 107, 0.9) 30%, rgba(255, 214, 107, 0.9) 70%, transparent);
+  box-shadow: 0 0 40px 12px rgba(255, 214, 107, 0.4);
+  animation: fr-gap 2.2s ease-out 0.4s forwards;
+}
+@keyframes fr-part-left { to { transform: translateX(-100%) skewX(4deg); } }
+@keyframes fr-part-right { to { transform: translateX(100%) skewX(-4deg); } }
+@keyframes fr-gap { to { width: 100%; opacity: 0; } }
+@keyframes fr-entry-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .fr-curtain-entry, .fr-curtain-entry * { animation-duration: 0.3s !important; animation-delay: 0s !important; }
+}

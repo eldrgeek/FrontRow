@@ -1,8 +1,11 @@
 
 import React from 'react';
-import { Text, Box } from '@react-three/drei';
+import { Text, Box, Billboard } from '@react-three/drei';
 import { ThreeEvent } from '@react-three/fiber';
 import PhotoCube from './PhotoCube';
+import type { SeatSpot } from '../lib/seatLayout';
+import { useHouse } from '../theater/useHouse';
+import type { HousePalette } from '../theater/theme';
 
 interface AudienceSeat {
   name: string;
@@ -16,10 +19,7 @@ interface AudienceSeats {
   [seatId: string]: AudienceSeat;
 }
 
-interface SeatData {
-  id: string;
-  position: [number, number, number];
-}
+type SeatData = SeatSpot;
 
 interface SeatSelectionProps {
   selectedSeat: string | null;
@@ -34,22 +34,8 @@ interface SeatSelectionProps {
 }
 
 function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwitching = true, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto, audienceStreams }: SeatSelectionProps): JSX.Element {
-  const seatsData: SeatData[] = [];
-  const frontRowRadius = 10; // Increased radius for better spacing
-  const stageZOffset = -8; // Stage position in Z
-
-  // Generate 9 seat positions in a 180-degree arc around the semicircle 
-  // Rotated 90 degrees clockwise so they face the back screen
-  const startAngle = 0; // Start from front (0 degrees)
-  const endAngle = Math.PI; // End at back (180 degrees) 
-  const totalSeats = 9;
-
-  for (let i = 0; i < totalSeats; i++) {
-    const angle = startAngle + (i / (totalSeats - 1)) * (endAngle - startAngle);
-    const x = frontRowRadius * Math.cos(angle);
-    const z = frontRowRadius * Math.sin(angle) + stageZOffset; // Align with stage
-    seatsData.push({ id: `seat-${i}`, position: [x, 0, z] });
-  }
+  // The seat array and colors come from the theater's live screen (theater/house.tsx).
+  const { seats: seatsData, palette } = useHouse();
 
   return (
     <group>
@@ -57,13 +43,14 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
         <Seat
           key={seat.id}
           seat={seat}
+          palette={palette}
           isSelected={selectedSeat === seat.id}
           isOccupied={!!audienceSeats[seat.id]}
           occupantName={audienceSeats[seat.id]?.name}
           occupantImage={audienceSeats[seat.id]?.imageUrl}
           occupantSocketId={audienceSeats[seat.id]?.socketId}
           occupantCaptureMode={audienceSeats[seat.id]?.captureMode}
-          occupantVideoStream={audienceStreams?.get(audienceSeats[seat.id]?.name || '')}
+          occupantVideoStream={audienceStreams?.get(`a-${audienceSeats[seat.id]?.socketId}`) || audienceStreams?.get(audienceSeats[seat.id]?.name || '')}
           mySocketId={mySocketId}
           myVideoStream={myVideoStream}
           myCaptureMode={myCaptureMode}
@@ -79,6 +66,7 @@ function SeatSelection({ selectedSeat, onSeatSelect, audienceSeats, allowSeatSwi
 
 interface SeatProps {
   seat: SeatData;
+  palette: HousePalette;
   isSelected: boolean;
   isOccupied: boolean;
   occupantName?: string;
@@ -95,7 +83,7 @@ interface SeatProps {
   hasSelectedSeat?: boolean;
 }
 
-function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, occupantCaptureMode, occupantVideoStream, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
+function Seat({ seat, palette, isSelected, isOccupied, occupantName, occupantImage, occupantSocketId, occupantCaptureMode, occupantVideoStream, mySocketId, myVideoStream, myCaptureMode, hideMyPhoto, onSelect, allowSwitching = true, hasSelectedSeat = false }: SeatProps): JSX.Element {
   const handleClick = () => {
     // Allow clicking if:
     // 1. Seat is not occupied by someone else AND not currently selected, OR
@@ -114,15 +102,14 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
     handleClick();
   };
 
-  // Color logic: occupied=darkred, selected=gold, available=blue
+  // Theme colors: free = the palette's seat (Front Row's velvet red), taken =
+  // its darker shade, yours = the accent (brass).
   const occupiedByMe = isOccupied && occupantSocketId === mySocketId;
-  const color = occupiedByMe
-    ? 'gold'
+  const color = occupiedByMe || isSelected
+    ? palette.accent
     : isOccupied
-      ? 'darkred'
-      : isSelected
-        ? 'gold'
-        : 'blue'; // Keep all unoccupied seats blue
+      ? palette.seatTaken
+      : palette.seat;
 
   // Mobile-friendly seat size - larger for easier touch
   const seatSize = window.innerWidth < 768 ? 1.3 : 1; // Larger seats on mobile
@@ -131,9 +118,9 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
   return (
     <group 
       position={seat.position} 
-      rotation-y={-Math.atan2(seat.position[0], seat.position[2] - (-5))}
+      rotation-y={seat.rotationY}
       name={seat.id}
-    > {/* Rotate to face center/stage */}
+    > {/* Faces the stage, or the middle of a round table (lib/seatLayout.ts) */}
       <group
         onPointerOver={(e) => {
           // Visual feedback on hover/touch
@@ -169,10 +156,10 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
             args={[seatSize * 1.1, seatSize * 1.1, seatSize * 1.1]}
             position={[0, 0, 0]}
           >
-            <meshBasicMaterial 
-              color="blue"
+            <meshBasicMaterial
+              color={palette.marqueeGlow}
               transparent={true}
-              opacity={0.2}
+              opacity={0.15}
             />
           </Box>
         )}
@@ -191,31 +178,33 @@ function Seat({ seat, isSelected, isOccupied, occupantName, occupantImage, occup
         />
       )}
 
-      {/* Text elements outside clickable group to prevent click interference */}
-      {isOccupied && !(occupiedByMe && hideMyPhoto) && (
-        <>
+      {/* The guest's name, always facing the viewer, above their seat */}
+      {isOccupied && !(occupiedByMe && hideMyPhoto) && occupantName && (
+        <Billboard position={[0, seatSize * 3.05, 0]}>
           <Text
-            position={[0, -0.3, 0.8]}
-            fontSize={nameTextSize}
-            color="white"
+            fontSize={nameTextSize * 2.6}
+            color={palette.accentHi}
+            outlineWidth={0.02}
+            outlineColor={palette.houseBlack}
             anchorX="center"
             anchorY="middle"
+            maxWidth={3}
           >
             {occupantName}
           </Text>
-        </>
+        </Billboard>
       )}
-      
-      {/* Add seat number for easier identification on mobile */}
+
+      {/* Seat number painted on the floor in front of the seat */}
       <Text
-        position={[0, -0.7, 0]}
-        fontSize={0.2}
-        color="rgba(255, 255, 255, 0.7)"
+        position={[0, 0.02, 0.9]}
+        fontSize={0.32}
+        color={palette.accent}
         anchorX="center"
         anchorY="middle"
         rotation-x={-Math.PI / 2}
       >
-        {seat.id.replace('seat-', 'Seat ')}
+        {seat.label}
       </Text>
     </group>
   );

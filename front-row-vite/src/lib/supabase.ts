@@ -41,6 +41,7 @@ export async function getVenuesForUser(userId: string) {
     const { data, error } = await supabase
       .from('venues')
       .select('*')
+      .is('super_venue_id', null) // theaters only; screens are child venues
       .order('name');
     return { data: data || [], error };
   }
@@ -51,6 +52,7 @@ export async function getVenuesForUser(userId: string) {
     .from('venues')
     .select('*')
     .eq('active', true)
+    .is('super_venue_id', null)
     .order('name');
   return { data: data || [], error };
 }
