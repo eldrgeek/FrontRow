@@ -17,7 +17,8 @@
     "test": "cd tests && python auto_test.py",
     "deploy-prep": "./deploy.sh",
     "build-test": "npm run build && echo 'Build test completed successfully!'",
-    "test:rooms": "node scripts/rooms-selftest.mjs"
+    "test:rooms": "node scripts/rooms-selftest.mjs",
+    "test:livekit-token": "node scripts/livekit-token-selftest.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
