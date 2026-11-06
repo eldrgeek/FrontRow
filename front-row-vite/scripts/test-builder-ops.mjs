@@ -40,8 +40,9 @@ const apply = (edit, def = frontRowTheater) => {
   return r;
 };
 
-test('the op schemas declared to the room name exactly the four ops', () => {
-  assert.deepEqual(APP_OPS.map((o) => o.name), ['setScreens', 'setTheme', 'setRoom', 'issueTickets']);
+test('the op schemas declared to the room name exactly the ops', () => {
+  assert.deepEqual(APP_OPS.map((o) => o.name), ['setScreens', 'setTheme', 'setRoom', 'issueTickets', 'addShelfItem', 'removeShelfItem']);
+  assert.deepEqual(APP_OPS.map((o) => o.name), [...ops.OP_NAMES]);
   // Who may decide is the builder grant, checked by the page and the save RPC, not room creator status.
   for (const o of APP_OPS) assert.equal(o.approve, 'app');
   const tix = APP_OPS.find((o) => o.name === 'issueTickets');
@@ -191,4 +192,58 @@ test('an issueTickets op becomes the body /api/ticket-issue takes', async () => 
   const named = ticketRequestBody('front-row', { scope: 'screen', screen: 'live', count: 2, role: 'crew', channel: 'sent', holders: ['Noel', 'Jess'], ...W });
   assert.deepEqual(named.holders, ['Noel', 'Jess']);
   assert.equal(named.count, undefined);
+});
+
+test('addShelfItem: a YouTube link goes on the library shelf as an id', () => {
+  const edit = ok('addShelfItem', { screen: 'library', title: 'Noel at the Bitter End', artist: 'Noel Paul Stookey', youtube: 'https://www.youtube.com/watch?v=AbCdEf12345&t=3' });
+  assert.equal(edit.args.youtube, 'AbCdEf12345');
+  const r = apply(edit);
+  const shelf = r.next.screens.find((s) => s.id === 'library').shelf;
+  assert.equal(shelf.length, 2);
+  assert.deepEqual(shelf[1], { title: 'Noel at the Bitter End', artist: 'Noel Paul Stookey', youtubeId: 'AbCdEf12345' });
+  assert.match(r.changes[0], /Shelve "Noel at the Bitter End"/);
+  assert.deepEqual(validateDefinition(r.next), []);
+});
+
+test('addShelfItem: a file recording, at the front, with its performance', () => {
+  const r = apply(ok('addShelfItem', { screen: 'library', title: 'Second set', artist: 'Jess Wayne', videoUrl: 'https://media.example.org/a.mp4', performance: 'jess-wayne', at: 0 }));
+  const shelf = r.next.screens.find((s) => s.id === 'library').shelf;
+  assert.equal(shelf[0].videoUrl, 'https://media.example.org/a.mp4');
+  assert.equal(shelf[0].performanceSlug, 'jess-wayne');
+  assert.equal(shelf[0].youtubeId, undefined);
+});
+
+test('addShelfItem: refused shapes', () => {
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y' }, /youtube id or link, or a videoUrl/);
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y', youtube: 'not a link at all!' }, /YouTube id or link/);
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y', videoUrl: 'http://plain.example/a.mp4' }, /https/);
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y', videoUrl: 'javascript:alert(1)' }, /https/);
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y', youtube: 'AbCdEf12345', videoUrl: 'https://a.example/b.mp4' }, /not both/);
+  bad('addShelfItem', { screen: 'library', artist: 'y', youtube: 'AbCdEf12345' }, /title is required/);
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y', youtube: 'AbCdEf12345', performance: 'Bad Slug' }, /performance slug/);
+  bad('addShelfItem', { screen: 'library', title: 'x', artist: 'y', youtube: 'AbCdEf12345', extra: 1 }, /unknown field/);
+});
+
+test('addShelfItem: not on the live screen, not twice', () => {
+  const live = ops.applyOp(frontRowTheater, ok('addShelfItem', { screen: 'live', title: 'x', artist: 'y', youtube: 'AbCdEf12345' }));
+  assert.match(live.errors[0], /only shelves hold videos/);
+  const twice = ops.applyOp(frontRowTheater, ok('addShelfItem', { screen: 'library', title: 'Again', artist: 'y', youtube: 'K6ZeroIZd5g' }));
+  assert.match(twice.errors[0], /already on/);
+  const none = ops.applyOp(frontRowTheater, ok('addShelfItem', { screen: 'attic', title: 'x', artist: 'y', youtube: 'AbCdEf12345' }));
+  assert.match(none.errors[0], /no screen/);
+});
+
+test('removeShelfItem: by id, by link, by title', () => {
+  for (const item of ['K6ZeroIZd5g', 'https://youtu.be/K6ZeroIZd5g', 'Jess Wayne Trio, Part III']) {
+    const r = apply(ok('removeShelfItem', { screen: 'library', item }));
+    assert.equal(r.next.screens.find((s) => s.id === 'library').shelf.length, 0, item);
+  }
+  const miss = ops.applyOp(frontRowTheater, ok('removeShelfItem', { screen: 'library', item: 'nope' }));
+  assert.match(miss.errors[0], /has no "nope"/);
+});
+
+test('validateDefinition: a shelf item needs a YouTube id or an https file', () => {
+  const def = structuredClone(frontRowTheater);
+  def.screens[2].shelf.push({ title: 'Bad', artist: 'x', videoUrl: 'http://x.example/a.mp4' });
+  assert.match(validateDefinition(def).join(' | '), /needs a youtubeId or an https videoUrl/);
 });

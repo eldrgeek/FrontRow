@@ -12,6 +12,7 @@
     "backend": "cd server && npm run dev",
     "backend:test": "cd server && npm run dev:test",
     "test:tickets": "node scripts/tickets-selftest.mjs",
+    "test:performances": "node scripts/performances-selftest.mjs",
     "backend:prod": "cd server && npm start",
     "install-all": "cd server && npm install && cd ../front-row-vite && npm install --legacy-peer-deps",
     "build": "cd front-row-vite && npm run build",

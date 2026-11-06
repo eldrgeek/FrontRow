@@ -1,7 +1,7 @@
 // Behind the side doors: Songs of the Revolution and the Performance Library.
 import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { fill, screensInOrder, ShelfVideo, TheaterDefinition } from './definition';
+import { fill, screensInOrder, shelfKey, ShelfVideo, TheaterDefinition } from './definition';
 import { useCurrentTheater } from './blueprints';
 import { HouseProvider } from './houseContext';
 import { WithTicket } from './FrontOfHouse';
@@ -12,7 +12,9 @@ function VideoCard({ v, playing, onPlay }: { v: ShelfVideo; playing: boolean; on
   return (
     <article className="fr-video">
       <div className="frame">
-        {playing ? (
+        {playing && !v.youtubeId && v.videoUrl ? (
+          <video src={v.videoUrl} title={v.title} controls autoPlay playsInline />
+        ) : playing ? (
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${v.youtubeId}?autoplay=1&rel=0`}
             title={v.title}
@@ -21,7 +23,7 @@ function VideoCard({ v, playing, onPlay }: { v: ShelfVideo; playing: boolean; on
           />
         ) : (
           <button type="button" className="poster" onClick={onPlay} aria-label={`Play ${v.title}`}>
-            <img src={`https://i.ytimg.com/vi/${v.youtubeId}/hqdefault.jpg`} alt="" loading="lazy" />
+            {v.youtubeId ? <img src={`https://i.ytimg.com/vi/${v.youtubeId}/hqdefault.jpg`} alt="" loading="lazy" /> : null}
             <span className="play" aria-hidden="true">▶</span>
           </button>
         )}
@@ -73,7 +75,7 @@ export function ShelfPage({ which }: { which?: string }): JSX.Element {
             </header>
             <div className="grid">
               {videos.map((v) => (
-                <VideoCard key={v.youtubeId} v={v} playing={playing === v.youtubeId} onPlay={() => setPlaying(v.youtubeId)} />
+                <VideoCard key={shelfKey(v)} v={v} playing={playing === shelfKey(v)} onPlay={() => setPlaying(shelfKey(v))} />
               ))}
               {videos.length === 0 && (
                 <div className="soon">
