@@ -2,7 +2,8 @@ import { AccessToken } from 'livekit-server-sdk'
 
 // LiveKit keys are not scoped to rooms, so a token minted here could join any
 // room on the server. FrontRow only uses frontrow-* rooms.
-const ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,60}$/
+// Kit rooms are frontrow-<venue>--<room> (src/lib/roomScope.ts), up to 91 characters.
+const ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,100}$/
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
