@@ -14,7 +14,7 @@
 // startLibraryJob() runs it on a timer inside frontrow-server when FRONTROW_LIBRARY_JOB_MS is
 // set; nothing runs it until someone turns that on.
 
-import { makeRpc } from './tickets.mjs';
+import { makeRpc, callerAuthority, isCode, isDevice, isSlug, sha256 } from './tickets.mjs';
 
 // frontrow-server's onStatus hook (server/rooms.js, PR #9) builds its caller from here.
 export { makeRpc };
@@ -101,6 +101,86 @@ export async function followRoom(rpc, house, _from, to) {
   if (!cur || !cur.ok) return null;
   if (ORDER.indexOf(cur.performance.status) >= ORDER.indexOf(status)) return null;
   return setStatus(rpc, { theater: house.venue, slug: cur.performance.slug, status });
+}
+
+// ── Attaching a recording over HTTP (netlify/functions/performance-recording.ts) ──
+//
+// Front Row's recordings live on YouTube (Mike, 2026-11-06). The team, the performer, or
+// the performer's own AI uploads to the performer's channel (or the team's) and then hands
+// Front Row the link. Front Row never holds anyone's YouTube credentials.
+//
+// POST {theater, performance, url, note?, publish?}
+//   with a performer or manager ticket that covers the night (X-Frontrow-Ticket and
+//   X-Frontrow-Device, or ticket/device in the body), or a signed-in admin or manager.
+// publish: true is the performer's yes to the Library; once the night is over, the
+// recording is shelved at once.
+
+const YT = /^https:\/\/(?:www\.|m\.)?(?:youtu\.be\/|youtube\.com\/watch\?(?:[^#\s]*&)?v=|youtube\.com\/live\/|youtube\.com\/shorts\/)([A-Za-z0-9_-]{6,20})(?:[?&#][^\s<>"]*)?$/;
+export const youtubeIdOf = (url) => {
+  const m = YT.exec(String(url || '').trim());
+  return m ? m[1] : null;
+};
+
+const out = (status, body) => ({ status, body });
+
+export async function handleAttachRecording(req, deps) {
+  if (!deps.rpc) return out(503, { error: 'Performances are not configured on this server' });
+  const b = req.body && typeof req.body === 'object' ? req.body : {};
+  if (!isSlug(b.theater, 40) || !isSlug(b.performance, 60)) return out(400, { error: 'theater and performance must be slugs' });
+  const id = youtubeIdOf(b.url);
+  if (!id) return out(400, { error: 'url must be a YouTube video link' });
+  if (b.note !== undefined && (typeof b.note !== 'string' || b.note.length > 200)) return out(400, { error: 'note is at most 200 characters' });
+  if (b.publish !== undefined && typeof b.publish !== 'boolean') return out(400, { error: 'publish must be true or false' });
+
+  const cur = await getPerformance(deps.rpc, b.theater, b.performance);
+  if (!cur || !cur.ok) return out(404, { error: 'No such performance' });
+  const perf = cur.performance;
+
+  // Who is asking.
+  let actor = null;
+  let who = null;
+  if (req.ticket) {
+    if (!isCode(req.ticket) || !isDevice(req.device)) return out(400, { error: 'Bad ticket' });
+    const r = await deps.rpc('frontrow_ticket_redeem', {
+      code_hash: sha256(req.ticket), device_hash: sha256(req.device), purpose: 'check',
+    });
+    const t = r && r.ok ? r.ticket : null;
+    const covers = t && t.venue_id === b.theater
+      && (!t.room_id || t.room_id === perf.screen)
+      && (!t.performance_id || t.performance_id === perf.slug);
+    if (!covers || !['performer', 'manager'].includes(t.role)) {
+      return out(403, { error: 'This ticket cannot attach a recording to that performance', reason: (r && r.reason) || 'not-covered' });
+    }
+    who = `ticket:${t.id}`;
+  } else {
+    const auth = await callerAuthority(req, deps);
+    if (!auth || !auth.user) return out(401, { error: 'Sign in, or bring a performer or manager ticket' });
+    if (!auth.any) actor = auth.user.id; // the database checks this user manages the screen
+    who = auth.who;
+  }
+
+  const url = `https://youtu.be/${id}`;
+  const r = await attachRecording(deps.rpc, { theater: b.theater, slug: b.performance, url, note: b.note, actor });
+  if (!r || !r.ok) {
+    const reason = (r && r.reason) || 'error';
+    const status = reason === 'not-allowed' ? 403 : reason === 'closed' || reason === 'already-shelved' ? 409 : 400;
+    return out(status, { error: `Could not attach the recording (${reason})`, reason });
+  }
+  let result = r;
+  if (b.publish !== undefined && b.publish !== r.performance.publish_recording) {
+    const p = await savePerformance(deps.rpc, b.theater, b.performance, { publish_recording: b.publish }, actor);
+    if (!p || !p.ok) return out(400, { error: `Recording attached; publish not changed (${p && p.reason})`, reason: p && p.reason });
+    result = p;
+    if (p.performance.status === 'after' && p.performance.publish_recording && p.performance.recording_status === 'ready') {
+      result = { ...p, shelve: await deps.rpc('frontrow_performance_shelve', { id: p.performance.id }) };
+    }
+  }
+  const shelved = !!(result.shelve && result.shelve.shelved && result.shelve.shelved.length);
+  const now = shelved ? ((await getPerformance(deps.rpc, b.theater, b.performance)) || {}).performance || result.performance : result.performance;
+  return out(200, {
+    ok: true, by: who, youtubeId: id,
+    status: now.status, recording: now.recording_status, publish: now.publish_recording, shelved,
+  });
 }
 
 /** The Library job: shelve every finished, published recording. */
