@@ -91,4 +91,64 @@ test.describe('The show', () => {
     await expect(page.getByTestId('fr-chat-lines')).toContainText('Ruth');
     await expect(page.getByTestId('fr-chat-lines')).toContainText('What a night <3');
   });
+
+});
+
+test.describe('The theater record', () => {
+  // The theater as a record (src/theater/definition.ts, migrations/003).
+  async function ticket(page: import('@playwright/test').Page, name = 'Rec Tester') {
+    await page.goto('/show/jess-wayne');
+    await page.getByTestId('fr-take-seat').click();
+    await page.getByTestId('fr-name').fill(name);
+    await page.getByTestId('fr-get-ticket').click();
+    await expect(page).toHaveURL(/\/ticket$/);
+  }
+
+  test('a shelf screen opens by id, and an unknown one goes back to the lobby', async ({ page }) => {
+    await ticket(page);
+    await page.goto('/show/jess-wayne/shelf/library');
+    await expect(page.getByTestId('fr-shelf-library')).toContainText('Jess Wayne Trio');
+    await expect(page.getByTestId('fr-shelf-library')).toContainText('Right door');
+    await page.goto('/show/jess-wayne/revolution');
+    await expect(page.getByTestId('fr-shelf-revolution')).toContainText('Left door');
+    await page.goto('/show/jess-wayne/shelf/no-such-screen');
+    await expect(page).toHaveURL(/\/show\/jess-wayne\/lobby$/);
+    // The live screen is not a shelf.
+    await page.goto('/show/jess-wayne/shelf/live');
+    await expect(page).toHaveURL(/\/show\/jess-wayne\/lobby$/);
+  });
+
+  test('a stored definition replaces the built-in one; a broken one is ignored', async ({ page }) => {
+    let stored: unknown = null;
+    await page.route(/\/rest\/v1\/venues\?/, (route) => {
+      const url = route.request().url();
+      const body = url.includes('super_venue_id=eq.')
+        ? [{ id: 'c1', screen_key: 'library' }]
+        : { id: 'a0000000-0000-4000-8000-000000000001', slug: 'front-row', screen_key: null, super_venue_id: null };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    });
+    await page.route(/\/rest\/v1\/venue_settings\?/, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ config: { definition: stored }, version: 4 }) }));
+
+    const base = {
+      schema: 1, slug: 'front-row', name: 'Front Row Theater', hostedBy: 'Noel Paul Stookey',
+      theme: { palette: { wall: '#2a0812', marquee: '#12050a', marqueeText: '#fff4d2', accent: '#d4af37', seat: '#9b1529' }, curtain: 'velvet-red' },
+      screens: [
+        { id: 'live', kind: 'live', template: 'proscenium', order: 1, marquee: ['Live'], title: 'Live', blurb: '', seats: { count: 12, arrangement: 'semicircle' } },
+        { id: 'library', kind: 'shelf', template: 'cabaret', order: 2, marquee: ['Stacks'], title: 'The Stacks', blurb: 'Renamed in the record.', shelf: [] },
+      ],
+    };
+
+    stored = base;
+    await ticket(page);
+    await page.goto('/show/jess-wayne/library');
+    await expect(page.getByTestId('fr-shelf-library')).toContainText('The Stacks');
+
+    stored = { ...base, screens: 'not a list' };
+    const settingsRead = page.waitForResponse(/\/rest\/v1\/venue_settings\?/);
+    await page.goto('/show/jess-wayne/library');
+    await settingsRead;
+    await page.waitForTimeout(300);
+    await expect(page.getByTestId('fr-shelf-library')).toContainText('The Performance Library');
+  });
 });

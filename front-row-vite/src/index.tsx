@@ -68,6 +68,7 @@ function AppRoutes() {
       <Route path="/show/:slug/lobby" element={<LobbyPage />} />
       <Route path="/show/:slug/revolution" element={<ShelfPage which="revolution" />} />
       <Route path="/show/:slug/library" element={<ShelfPage which="library" />} />
+      <Route path="/show/:slug/shelf/:screenId" element={<ShelfPage />} />
       <Route path="/show/:slug/house" element={<HousePage />} />
       <Route path="/show/:slug/green-room" element={<GreenRoomPage />} />
 

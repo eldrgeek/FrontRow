@@ -4,14 +4,11 @@
 // here, so a new night is a new entry in SHOWS, not a code change elsewhere.
 // Dates are display strings until a real schedule exists (ROADMAP.md §6).
 
-export type DoorId = 'revolution' | 'live' | 'library';
+import { fill, frontRowTheater, screensInOrder, ShelfVideo } from './definition';
 
-export interface ShelfVideo {
-  title: string;
-  artist: string;
-  youtubeId: string;
-  note?: string;
-}
+export type { ShelfVideo };
+
+export type DoorId = 'revolution' | 'live' | 'library';
 
 export interface Door {
   id: DoorId;
@@ -58,42 +55,23 @@ export function getShow(slug?: string): Show | null {
   return SHOWS[slug || CURRENT_SHOW_SLUG] || null;
 }
 
+/**
+ * Front Row's three doors, now read from its theater definition
+ * (definition.ts, record 1). Kept for callers that predate the record.
+ */
 export function doorsFor(show: Show): Door[] {
-  return [
-    {
-      id: 'revolution',
-      side: 'left',
-      marquee: ['Songs of the', 'Revolution'],
-      title: 'Songs of the Revolution',
-      blurb: 'Three-to-five-minute music videos. Short, urgent songs, playing all the time.',
-    },
-    {
-      id: 'live',
-      side: 'center',
-      marquee: ['Live tonight', show.artist],
-      title: `${show.artist}, live`,
-      blurb: `${show.when}. ${show.setLength}. Twelve seats, close to the stage.`,
-    },
-    {
-      id: 'library',
-      side: 'right',
-      marquee: ['Performance', 'Library'],
-      title: 'The Performance Library',
-      blurb: 'Full concerts and past shows, ready whenever you want a front row seat.',
-    },
-  ];
+  const sides: Door['side'][] = ['left', 'center', 'right'];
+  return screensInOrder(frontRowTheater).map((screen, i) => ({
+    id: screen.id as DoorId,
+    side: sides[i],
+    marquee: screen.marquee.map((line) => fill(line, show, screen)),
+    title: fill(screen.title, show, screen),
+    blurb: fill(screen.blurb, show, screen),
+  }));
 }
 
-// What plays behind the side doors. Placeholder shelves until Noel and Jess
-// send the real lists (plan: "What I need").
+/** What plays behind the side doors; also from the definition. */
 export const SHELVES: Record<Exclude<DoorId, 'live'>, ShelfVideo[]> = {
-  revolution: [],
-  library: [
-    {
-      title: 'Jess Wayne Trio, Part III',
-      artist: 'Jess Wayne Trio',
-      youtubeId: 'K6ZeroIZd5g',
-      note: 'A full set, 25 minutes.',
-    },
-  ],
+  revolution: frontRowTheater.screens.find((s) => s.id === 'revolution')?.shelf ?? [],
+  library: frontRowTheater.screens.find((s) => s.id === 'library')?.shelf ?? [],
 };

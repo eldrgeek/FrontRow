@@ -27,6 +27,7 @@ export function Lobby() {
         .from('venues')
         .select('*, room_template:room_templates(*)')
         .eq('active', true)
+        .is('super_venue_id', null) // theaters only; screens are child venues
         .order('name');
 
       if (error) throw error;
