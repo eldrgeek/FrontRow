@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { boxOffice, type BoxList, type DoorCard, type Preview, type Scope } from '../lib/boxOffice';
+import { listUpcoming, type PerformanceRow } from '../theater/schedule';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 function localInput(d: Date) {
@@ -53,6 +54,24 @@ export function BoxOffice() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  // Tickets are sold only for a scheduled night (006 refuses any other), so the
+  // show comes from the schedule; free text only when the schedule is empty.
+  const [nights, setNights] = useState<PerformanceRow[]>([]);
+  useEffect(() => {
+    let live = true;
+    listUpcoming(scope.venue).then((rows) => { if (live) setNights(rows); });
+    return () => { live = false; };
+  }, [scope.venue]);
+  const screenNights = nights.filter((n) => !n.screen || n.screen.screen_key === scope.room);
+  const pickNight = (slug: string) => {
+    setScope((sc) => ({ ...sc, performance: slug }));
+    const n = nights.find((x) => x.slug === slug);
+    if (!n) return;
+    setShowTitle(n.artist || n.title);
+    const doors = n.doors_at || n.starts_at;
+    if (doors) setFrom(localInput(new Date(doors)));
+    if (n.starts_at) setUntil(localInput(new Date(new Date(n.starts_at).getTime() + 4 * 3600e3)));
+  };
 
   const window_ = () => ({ validFrom: new Date(from).toISOString(), validUntil: new Date(until).toISOString() });
   const letterFields = () => ({ ...window_(), role: 'audience', maxDevices: devices, theaterTitle, showTitle, timeZone, guests });
@@ -127,11 +146,26 @@ export function BoxOffice() {
               </select>
             : <input style={input} value={scope.room} onChange={(e) => setScope({ ...scope, room: e.target.value.trim() })} />}
         </label>
-        <label style={field}>Show<input style={input} placeholder="show slug, e.g. jess-wayne" value={scope.performance} onChange={(e) => setScope({ ...scope, performance: e.target.value.trim() })} /></label>
+        <label style={field}>Performance
+          {screenNights.length
+            ? <select style={input} value={scope.performance} onChange={(e) => pickNight(e.target.value)}>
+                <option value="">Choose a night</option>
+                {screenNights.map((n) => (
+                  <option key={n.slug} value={n.slug}>
+                    {n.artist || n.title}{n.starts_at ? `, ${fmt(n.starts_at)}` : ''} ({n.status})
+                  </option>
+                ))}
+              </select>
+            : <input style={input} placeholder="show slug, e.g. jess-wayne" value={scope.performance} onChange={(e) => setScope({ ...scope, performance: e.target.value.trim() })} />}
+        </label>
+        {data?.performance === null && scope.performance && screenNights.length === 0 && (
+          <p style={{ color: '#a00' }}>No such night is scheduled on this screen; schedule it before selling tickets.</p>
+        )}
         <label style={field}>Doors open<input style={input} type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label style={field}>Tickets work until<input style={input} type="datetime-local" value={until} onChange={(e) => setUntil(e.target.value)} /></label>
         {data && (
           <p>
+            {data.performance && <>Night: <b>{data.performance.artist || data.performance.title}</b> ({data.performance.status}). </>}
             {s.seats !== undefined && <>Seats promised: <b>{s.seatsPromised} of {s.seats}</b>. </>}
             Sent: {s.sent} ({s.delivered} delivered, {s.waiting} waiting, {s.notSent} not sent). Door cards: {s.door} ({s.doorSold} handed out). In the house at least once: {s.used}.
           </p>

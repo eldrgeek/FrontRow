@@ -1,8 +1,9 @@
 -- FrontRow box office (theater kit gap 3, 2026-11-05; Mike: "Some tickets are
 -- sent out; some might be bought at the door"). NOT YET APPLIED. Applying it is
 -- a production data change: Mike's yes first. Idempotent: safe to re-run.
--- Runs after 004_frontrow_tickets.sql (it needs public.tickets). It changes
--- none of 004's functions.
+-- Runs after 004_frontrow_tickets.sql (it needs public.tickets) and, in the
+-- release order, after 006_performances.sql, whose performances it reads when
+-- the table is there. It changes none of 004's or 006's functions.
 --
 -- What it adds:
 --   tickets.label              "Door 7": the name printed on a door card
@@ -247,12 +248,36 @@ BEGIN
   RETURN jsonb_build_object('ok', FOUND);
 END $$;
 
+-- frontrow_box_office_performance(p): p = {venue_id, room_id, slug}. The night
+-- the box office is selling for (006's performances), so it can refuse a night
+-- that does not exist or is over before minting anything, and use the night's
+-- own seat count. {ok:true, found:false} when 006 is not applied.
+CREATE OR REPLACE FUNCTION public.frontrow_box_office_performance(p jsonb)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE r jsonb;
+BEGIN
+  IF to_regclass('public.performances') IS NULL THEN
+    RETURN jsonb_build_object('ok', true, 'found', false, 'table', false);
+  END IF;
+  EXECUTE $q$
+    SELECT jsonb_build_object('ok', true, 'found', true, 'table', true,
+      'slug', x.slug, 'title', x.title, 'artist', x.artist, 'status', x.status,
+      'seats', x.seats, 'starts_at', x.starts_at, 'doors_at', x.doors_at, 'ends_at', x.ends_at)
+    FROM public.performances x
+    JOIN public.venues t ON t.id = x.theater_id AND t.slug = $1
+    JOIN public.venues s ON s.id = x.screen_id AND s.screen_key = $2
+    WHERE x.slug = $3 $q$
+    INTO r USING p->>'venue_id', p->>'room_id', p->>'slug';
+  RETURN coalesce(r, jsonb_build_object('ok', true, 'found', false, 'table', true));
+END $$;
+
 DO $$
 DECLARE f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY['frontrow_box_office_issue', 'frontrow_box_office_list', 'frontrow_box_office_sold',
                            'frontrow_mail_get', 'frontrow_mail_retry', 'frontrow_mail_claim',
-                           'frontrow_mail_report'] LOOP
+                           'frontrow_mail_report', 'frontrow_box_office_performance'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION public.%I(jsonb) FROM PUBLIC, anon, authenticated', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION public.%I(jsonb) TO service_role', f);
   END LOOP;

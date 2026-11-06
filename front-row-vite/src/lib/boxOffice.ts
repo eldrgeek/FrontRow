@@ -26,6 +26,7 @@ export interface BoxList {
   sender: { email: string; display: string };
   mailReady: boolean;
   screens: string[] | null;
+  performance: { slug: string; title: string; artist: string; status: string; seats: number | null; startsAt: string | null; doorsAt: string | null; endsAt: string | null } | null;
   worker: { host: string; armed: boolean; lastSeenAt: string; connected: boolean } | null;
 }
 

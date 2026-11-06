@@ -127,7 +127,20 @@ psql(`
   INSERT INTO public.venues (name, room_template_id, theater_manager_id, active, created_by, slug)
     VALUES ('Manager House', (SELECT id FROM public.room_templates WHERE name = 'proscenium'), '${MGR}', true, '${MGR}', 'mgr-house');
   INSERT INTO public.frontrow_admins (user_id, email) VALUES ('${MIKE}', 'mw@mike-wolf.com') ON CONFLICT DO NOTHING;
+  INSERT INTO public.venues (super_venue_id, screen_key, name, room_template_id, theater_manager_id, active, created_by)
+    SELECT id, 'main', 'Main', room_template_id, '${MGR}', true, '${MGR}' FROM public.venues WHERE slug = 'mgr-house';
 `);
+// The nights the box office sells for (006). jess-wayne is 006's own seed.
+const NIGHTS = [['front-row', 'live', 'other-show'], ['front-row', 'live', 'late-show'], ['front-row', 'live', 'third-show'],
+  ['front-row', 'live', 'fourth-show'], ['front-row', 'live', 'small-show'], ['front-row', 'live', 'gone-show'], ['mgr-house', 'main', 'p1']];
+for (const [theater, screen, slug] of NIGHTS) {
+  const r = JSON.parse(psql(`SET ROLE service_role; SELECT public.frontrow_performance_save(:'p'::jsonb);`,
+    { p: JSON.stringify({ theater, slug, screen, title: slug.replace(/-/g, ' '), artist: 'Test Artist', ...(slug === 'small-show' ? { seats: 2 } : {}) }) }));
+  if (!r.ok) throw new Error(`could not schedule ${slug}: ${JSON.stringify(r)}`);
+}
+psql(`SET ROLE service_role; SELECT public.frontrow_performance_save('{"theater":"front-row","slug":"gone-show","status":"cancelled"}'::jsonb);`);
+// Door cards for late-show are used in the test, so its doors are open (audience enter from doors).
+psql(`SET ROLE service_role; SELECT public.frontrow_performance_save('{"theater":"front-row","slug":"late-show","status":"doors"}'::jsonb);`);
 
 // ── Deps ────────────────────────────────────────────────────────────────────
 const USERS = {
@@ -264,6 +277,15 @@ console.log('seats');
   check('another performance has its own seats', big.status === 200, big);
   const ob = await door({ count: 1, overbook: true });
   check('an admin may overbook', ob.status === 200, ob);
+  const two = await door({ count: 3, performance: 'small-show' });
+  check('a night with its own seat count (2) is held to it', two.status === 409 && two.body.seats === 2, two);
+  const before = count();
+  const ghost = await door({ count: 1, performance: 'never-booked' });
+  check('a performance that is not scheduled sells nothing', ghost.status === 400 && ghost.body.reason === 'no-performance' && count() === before, ghost);
+  const ghostMail = await send({ guests: 'q@example.com', shown: ['q@example.com'], performance: 'never-booked' });
+  check('  ...by mail either', ghostMail.status === 400 && count() === before, ghostMail);
+  const gone = await door({ count: 1, performance: 'gone-show' });
+  check('a cancelled night sells nothing', gone.status === 409 && gone.body.reason === 'performance-closed', gone);
 }
 
 // ── 6. Door cards ───────────────────────────────────────────────────────────
@@ -304,6 +326,7 @@ console.log('sold marks and the list');
   const u = await B.handleSold({ authorization: ADMIN, body: { id: cards[1].id, sold: false } }, deps());
   check('the mark can be taken back', u.status === 200 && q1(`SELECT sold_at IS NULL FROM public.tickets WHERE id = '${cards[1].id}';`) === 't', u);
   const m = await list();
+  check('the list names the night from the schedule', m.body.performance && m.body.performance.slug === 'jess-wayne' && m.body.performance.status === 'doors', m.body.performance);
   check('the main show is 12 promised of 12, plus 1 overbooked', m.body.summary.seats === 12 && m.body.summary.seatsPromised === 13, m.body.summary);
   check('two letters waiting', m.body.summary.waiting === 2, m.body.summary);
   check('no worker has checked in yet', m.body.worker === null, m.body.worker);
@@ -314,7 +337,7 @@ console.log('managers');
 {
   const own = await door({ venue: 'mgr-house', room: 'main', performance: 'p1', count: 1 }, MGR_H);
   check('a theater manager makes door cards for their theater', own.status === 200, own);
-  const notMine = await door({ count: 1, performance: 'p9' }, MGR_H);
+  const notMine = await door({ count: 1, performance: 'other-show' }, MGR_H);
   check('but not for another theater', notMine.status === 403, notMine);
   const ob = await door({ venue: 'mgr-house', room: 'main', performance: 'p1', count: 12, overbook: true }, MGR_H);
   check('and a manager may not overbook', ob.status === 409, ob);
@@ -484,7 +507,7 @@ console.log('the queue\'s clocks');
 // ── 12. Nothing reaches a browser ───────────────────────────────────────────
 console.log('nothing reaches a browser');
 for (const role of ['anon', 'authenticated']) {
-  for (const fn of ['frontrow_box_office_issue', 'frontrow_box_office_list', 'frontrow_mail_claim', 'frontrow_mail_report', 'frontrow_mail_retry', 'frontrow_box_office_sold', 'frontrow_mail_get']) {
+  for (const fn of ['frontrow_box_office_performance', 'frontrow_box_office_issue', 'frontrow_box_office_list', 'frontrow_mail_claim', 'frontrow_mail_report', 'frontrow_mail_retry', 'frontrow_box_office_sold', 'frontrow_mail_get']) {
     let refused = false;
     try { psql(`SELECT public.${fn}('{}'::jsonb);`, {}, { role }); } catch (e) { refused = /permission denied/.test(e.message); }
     check(`${role} cannot call ${fn}`, refused);

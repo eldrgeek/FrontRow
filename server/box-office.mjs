@@ -21,7 +21,8 @@
 //     the buyer's name; no payment is taken here) and which were used.
 //
 // Door sales stop at the seat count: audience tickets for one performance may
-// not hold more devices than the room has seats, unless an admin overbooks.
+// not hold more devices than the night (006) or the room has seats, unless an
+// admin overbooks. A performance must be scheduled (006) and not over.
 //
 // Payment is out of scope until Mike decides how (free, pay-what-you-want, a
 // tip to the artist, or a Stripe checkout). "Sold" only records a hand-over.
@@ -211,9 +212,27 @@ function seatsTaken(tickets, scope) {
     .reduce((n, t) => n + (Number(t.max_devices) || 1), 0);
 }
 
-async function checkSeats(scope, specs, auth, body, deps) {
+/** The night being sold (006's performances): refuse one that does not exist
+ *  or is over, before anything is minted. Returns {fail} or {night}. */
+async function nightFor(scope, deps) {
+  if (!scope.performance) return { night: null };
+  const r = await deps.rpc('frontrow_box_office_performance', { venue_id: scope.venue, room_id: scope.room, slug: scope.performance });
+  if (!r || !r.table) return { night: null }; // 006 not applied: nothing to check against
+  if (!r.found) return { fail: res(400, { error: `There is no performance "${scope.performance}" on that screen. Schedule it first.`, reason: 'no-performance' }) };
+  if (['after', 'library', 'cancelled'].includes(r.status)) {
+    return { fail: res(409, { error: `That performance is ${r.status === 'after' ? 'over' : r.status}; no more tickets.`, reason: 'performance-closed', status: r.status }) };
+  }
+  return { night: r };
+}
+
+async function seatCount(scope, deps, night) {
+  if (night && Number.isInteger(night.seats)) return night.seats;
+  return deps.seatsFor ? deps.seatsFor(scope) : DEFAULT_SEATS;
+}
+
+async function checkSeats(scope, specs, auth, body, deps, night) {
   if (!scope.performance || specs[0].role !== 'audience') return null;
-  const seats = deps.seatsFor ? await deps.seatsFor(scope) : DEFAULT_SEATS;
+  const seats = await seatCount(scope, deps, night);
   const r = await deps.rpc('frontrow_box_office_list', { venue_id: scope.venue, room_id: scope.room, performance_id: scope.performance });
   const taken = seatsTaken((r && r.tickets) || [], scope);
   const asked = specs.reduce((n, s) => n + s.max_devices, 0);
@@ -269,7 +288,9 @@ async function prepareLetters(req, deps) {
   if (noScreen) return { fail: noScreen };
   const ok = await mayManage(auth, parsed.scope, deps, { role: parsed.specs[0].role, validUntil: parsed.validUntil });
   if (!ok) return { fail: res(403, { error: 'You do not manage that venue, room or performance' }) };
-  const full = await checkSeats(parsed.scope, parsed.specs, auth, body, deps);
+  const { night, fail: noNight } = await nightFor(parsed.scope, deps);
+  if (noNight) return { fail: noNight };
+  const full = await checkSeats(parsed.scope, parsed.specs, auth, body, deps, night);
   if (full) return { fail: full };
   return { body, recipients, refused, parsed, payload: letter.payload, auth };
 }
@@ -350,7 +371,9 @@ export async function handleDoor(req, deps) {
   if (!(await mayManage(auth, parsed.scope, deps, { role: parsed.specs[0].role, validUntil: parsed.validUntil }))) {
     return res(403, { error: 'You do not manage that venue, room or performance' });
   }
-  const full = await checkSeats(parsed.scope, parsed.specs, auth, body, deps);
+  const { night, fail: noNight } = await nightFor(parsed.scope, deps);
+  if (noNight) return noNight;
+  const full = await checkSeats(parsed.scope, parsed.specs, auth, body, deps, night);
   if (full) return full;
   const existing = await deps.rpc('frontrow_box_office_list', {
     venue_id: parsed.scope.venue, room_id: parsed.scope.room, performance_id: parsed.scope.performance,
@@ -405,13 +428,16 @@ export async function handleBoxList(req, deps) {
     doorSold: live.filter((t) => t.channel === 'door' && t.sold_at).length,
     used: live.filter((t) => Number(t.claimed) > 0).length,
   };
+  let night = null;
   if (scope.room && scope.performance) {
-    summary.seats = deps.seatsFor ? await deps.seatsFor(scope) : DEFAULT_SEATS;
+    night = (await nightFor(scope, deps)).night || null;
+    summary.seats = await seatCount(scope, deps, night);
     summary.seatsPromised = seatsTaken(tickets, scope);
   }
   return res(200, {
     ok: true, tickets, summary, sender: sender(deps), mailReady: !!deps.mailPublicKey,
     screens: deps.screensFor ? await deps.screensFor(scope.venue).catch(() => null) : null,
+    performance: night ? { slug: night.slug, title: night.title, artist: night.artist, status: night.status, seats: night.seats, startsAt: night.starts_at, doorsAt: night.doors_at, endsAt: night.ends_at } : null,
     worker: w ? {
       host: w.host, armed: !!w.armed, lastSeenAt: w.last_seen_at,
       // The worker polls every 30 s; three missed polls = not connected.
