@@ -32,6 +32,9 @@ import { HouseHud } from './theater/HouseHud';
 import { GreenRoom } from './theater/GreenRoom';
 import { PostShow } from './theater/PostShow';
 import { socketChat } from './theater/postShowChat';
+import { HouseProvider } from './theater/houseContext';
+import { useHouse } from './theater/useHouse';
+import { useCurrentTheater } from './theater/blueprints';
 
 // Phase 2 types
 interface VenueConfig {
@@ -72,10 +75,14 @@ export interface AppEntry {
   room?: string;
 }
 
-function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
+function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const entryShow = entry ? getShow(entry.showSlug) : null;
+  const house = useHouse();
   // Which house this is: its own seats and show on frontrow-server, its own LiveKit room.
-  const scope = useMemo(() => resolveScope({ venue: entry?.venue, room: entry?.room }), [entry?.venue, entry?.room]);
+  // A ticketed house with no explicit scope is the current theater's live screen.
+  const houseVenue = entry ? entry.venue ?? house.definition.slug : undefined;
+  const houseRoom = entry ? entry.room ?? house.screen?.id : undefined;
+  const scope = useMemo(() => resolveScope({ venue: houseVenue, room: houseRoom }), [houseVenue, houseRoom]);
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const [ownFace, setOwnFace] = useState<boolean>(() => !!sessionStorage.getItem('frontrow_user_image'));
@@ -351,7 +358,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   // --- Socket.IO Setup ---
   useEffect(() => {
     console.log('Connecting to backend:', config.socketUrl);
-    socketRef.current = io(config.socketUrl, { query: socketQueryFor(scopeRef.current, entryShow?.seats) });
+    socketRef.current = io(config.socketUrl, { query: socketQueryFor(scopeRef.current, entry ? house.seats.length : undefined) });
     socketRef.current.on('house:refused', (data: { reason?: string }) => {
       console.warn('frontrow-server refused this house:', data?.reason, scopeRef.current);
     });
@@ -1158,7 +1165,7 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               performerStageX={performerStageX}
               performerOpacity={performerOpacity}
               curtainOpen={curtainOpen || (!!entryShow && showState === 'live')}
-              curtainStyle={curtainStyle}
+              curtainStyle={entry ? house.palette.curtain : curtainStyle}
               reactionLevel={reactionLevel}
               spotlightActive={spotlightActive || (!!entryShow && showState === 'live')}
               holdFallbackUntilLive={!!entryShow}
@@ -1529,6 +1536,20 @@ function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The ticketed house reads its seats and colors from the theater definition
+ * (src/theater/house.tsx); master's own routes (no entry) keep Front Row's.
+ */
+function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
+  const theater = useCurrentTheater();
+  if (!entry) return <TheaterApp />;
+  return (
+    <HouseProvider definition={theater}>
+      <TheaterApp entry={entry} />
+    </HouseProvider>
   );
 }
 

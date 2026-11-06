@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from 'three-stdlib';
 import * as THREE from 'three';
-import { seatLayout } from '../lib/seatLayout';
+import { useHouse } from '../theater/useHouse';
 
 interface CameraControllerProps {
   currentView: 'eye-in-the-sky' | 'performer' | 'user';
@@ -47,7 +47,8 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
     return ctrl && typeof ctrl.target !== 'undefined' && typeof ctrl.update === 'function';
   };
 
-  const getSeatsData = (): SeatData[] => seatLayout(0.5);
+  const house = useHouse();
+  const getSeatsData = (): SeatData[] => house.seatsAt(0.5);
 
   // Update camera position when view changes
   // Handle custom camera control events

@@ -5,7 +5,7 @@
   left: 14px;
   max-width: calc(100% - 28px);
   padding: 10px 16px;
-  background: rgba(20, 5, 8, 0.82);
+  background: color-mix(in srgb, var(--house-black, var(--t-house-black, #140508)) 82%, transparent);
   border: 1px solid #d4af37;
   border-radius: 6px;
   color: #f4ead3;
@@ -21,7 +21,7 @@
   pointer-events: auto;
   appearance: none;
   border: 1px solid #d4af37;
-  background: rgba(20, 5, 8, 0.82);
+  background: color-mix(in srgb, var(--house-black, var(--t-house-black, #140508)) 82%, transparent);
   color: #f6e3a1;
   padding: 9px 16px;
   border-radius: 999px;

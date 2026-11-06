@@ -3,7 +3,7 @@
 // there too, so the people beside you know who they're sitting with").
 import React, { useState } from 'react';
 import CameraCapture from '../components/CameraCapture';
-import { seatLabel } from '../lib/seatLayout';
+import { useHouse } from './useHouse';
 import { Show } from './show';
 import './hud.css';
 
@@ -25,6 +25,7 @@ interface Props {
 }
 
 export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, ended, connected = true, live = false, onLive, liveError }: Props): JSX.Element {
+  const { label: seatLabel, seats: houseSeats } = useHouse();
   const [capturing, setCapturing] = useState(false);
   return (
     <div className="fr-hud" data-testid="fr-hud">
@@ -33,7 +34,7 @@ export function HouseHud({ show, name, seatId, seatedCount, hasPhoto, onFace, en
         <div className="t">{show.artist}</div>
         <div className="s">
           {seatId ? <>Seat <b data-testid="fr-hud-seat">{seatLabel(seatId)}</b> · {name}</> : connected ? <>{name}, pick any red seat</> : <span data-testid="fr-hud-offline">{name}, the box office isn&apos;t answering yet, so seats can&apos;t be taken</span>}
-          {' · '}{ended ? 'the show has ended' : `${seatedCount} of ${show.seats} seated`}
+          {' · '}{ended ? 'the show has ended' : `${seatedCount} of ${houseSeats.length} seated`}
         </div>
       </div>
       {!ended && <div className="face">

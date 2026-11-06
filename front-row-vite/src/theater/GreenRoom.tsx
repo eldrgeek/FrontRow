@@ -3,7 +3,7 @@
 // of the house filling up, and Places. When the countdown ends the existing
 // performer pipeline takes the show live (App.tsx 'countdown-finished').
 import React, { useEffect, useRef, useState } from 'react';
-import { seatLabel } from '../lib/seatLayout';
+import { useHouse } from './useHouse';
 import { Show } from './show';
 import './green.css';
 
@@ -77,6 +77,7 @@ function fmt(s: number): string {
 }
 
 export function GreenRoom(p: Props): JSX.Element {
+  const { label: seatLabel, seats: houseSeats } = useHouse();
   const videoRef = useRef<HTMLVideoElement>(null);
   const level = useMicLevel(p.stream);
   const [call, setCall] = useState<string>('');
@@ -122,7 +123,7 @@ export function GreenRoom(p: Props): JSX.Element {
           <div className={`cd ${places ? 'places' : ''}`} data-testid="fr-green-countdown">
             {p.isCountdownActive ? fmt(p.countdownTime) : '—:—'}
           </div>
-          <div className="sub">House: {seated.length} of {p.show.seats} seated</div>
+          <div className="sub">House: {seated.length} of {houseSeats.length} seated</div>
           {places && <div className="callout" data-testid="fr-places">PLACES, PLEASE</div>}
           {!places && call && <div className="callout soft">{call}</div>}
           <div className="ctl">

@@ -3,7 +3,7 @@ import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { Box, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { seatLayout } from '../lib/seatLayout';
+import { useHouse } from '../theater/useHouse';
 import PhotoCube from './PhotoCube';
 
 interface AudienceSeat {
@@ -31,7 +31,8 @@ function UserView({ selectedSeat, audienceSeats }: UserViewProps): JSX.Element {
   const target = useRef(new THREE.Vector3(0, 2.5, -8)); // Center of stage screen
   const up = useRef(new THREE.Vector3(0, 1, 0));
 
-  const seatsData: SeatData[] = seatLayout(0.5);
+  const house = useHouse();
+  const seatsData: SeatData[] = house.seatsAt(0.5);
 
   // Find the position of the selected seat
   const currentSeat = seatsData.find(s => s.id === selectedSeat);
