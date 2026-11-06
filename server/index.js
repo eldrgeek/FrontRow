@@ -129,49 +129,59 @@ function cleanChat(v, max) {
 
 // --- API Routes ---
 
-// LiveKit keys are not scoped to rooms, so a token minted here could join any
-// room on the server. FrontRow only uses frontrow-* rooms.
-// Kit rooms are frontrow-<venue>--<room> (server/rooms.js), up to 91 characters.
-const LIVEKIT_ROOM_PATTERN = /^frontrow-[a-z0-9-]{1,100}$/;
-
-// LiveKit token endpoint (mirrors Netlify function for local dev)
-app.get('/api/livekit-token', async (req, res) => {
-  const identity = (req.query.identity || 'Guest').toString().slice(0, 40);
-  const role = (req.query.role || 'audience').toString();
-  const room = (req.query.room || 'frontrow-main').toString();
-
-  if (!LIVEKIT_ROOM_PATTERN.test(room)) {
-    return res.status(403).json({ error: 'Room not allowed' });
+// LiveKit token endpoint. Same rules as the Netlify function: both call
+// handleToken in tickets.mjs (a ticket sets the role; without one, only a
+// FrontRow admin may join as the performer). Deploy tickets.mjs beside index.js.
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://omfwcodoimjmbrhssvfl.supabase.co';
+let ticketDepsPromise = null;
+function ticketDeps() {
+  if (!ticketDepsPromise) {
+    ticketDepsPromise = import('./tickets.mjs').then((t) => {
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const rpc = t.makeRpc({ url: SUPABASE_URL, serviceKey });
+      const { AccessToken, TrackSource } = require('livekit-server-sdk');
+      return {
+        t,
+        deps: {
+          rpc,
+          // The service key may call /auth/v1/user to resolve a user's bearer.
+          getUser: t.makeGetUser({ url: SUPABASE_URL, anonKey: serviceKey }),
+          isAdmin: t.makeIsAdmin(rpc),
+          AccessToken,
+          TrackSource,
+          livekitKey: process.env.LIVEKIT_API_KEY,
+          livekitSecret: process.env.LIVEKIT_API_SECRET,
+          mode: process.env.FRONTROW_TICKETS === 'all' ? 'all' : 'stage',
+        },
+      };
+    });
   }
+  return ticketDepsPromise;
+}
 
-  const apiKey = process.env.LIVEKIT_API_KEY;
-  const apiSecret = process.env.LIVEKIT_API_SECRET;
-
-  if (!apiKey || !apiSecret) {
-    return res.status(500).json({ error: 'Server misconfigured: missing LiveKit credentials' });
-  }
-
+async function livekitToken(req, res) {
   try {
-    const { AccessToken } = require('livekit-server-sdk');
-    const at = new AccessToken(apiKey, apiSecret, {
-      identity,
-      name: identity,
-      ttl: '2h',
-    });
-    at.addGrant({
-      roomJoin: true,
-      room,
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    });
-    const token = await at.toJwt();
-    res.json({ token });
+    const { t, deps } = await ticketDeps();
+    const body = req.method === 'POST' && req.body && typeof req.body === 'object' ? req.body : {};
+    const query = { ...req.query };
+    for (const k of ['identity', 'role', 'room', 'performance']) {
+      if (typeof body[k] === 'string') query[k] = body[k];
+    }
+    const r = await t.handleToken({
+      authorization: req.headers.authorization,
+      ticket: req.get('x-frontrow-ticket') || (typeof body.ticket === 'string' ? body.ticket : undefined),
+      device: req.get('x-frontrow-device') || (typeof body.device === 'string' ? body.device : undefined),
+      query,
+    }, deps);
+    res.set('Cache-Control', 'no-store, private');
+    res.status(r.status).json(r.body);
   } catch (err) {
-    console.error('LiveKit token error:', err);
+    console.error('LiveKit token error:', err && err.message);
     res.status(500).json({ error: 'Failed to generate token' });
   }
-});
+}
+app.get('/api/livekit-token', livekitToken);
+app.post('/api/livekit-token', livekitToken);
 
 // Health check endpoint for monitoring
 app.get('/health', (req, res) => {
