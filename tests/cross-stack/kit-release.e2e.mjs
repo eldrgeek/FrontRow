@@ -135,7 +135,13 @@ const MIGRATIONS = fs.readdirSync(path.join(ROOT, 'migrations')).filter((f) => /
 for (const need of ['003_', '004_']) {
   if (!MIGRATIONS.some((m) => m.startsWith(need))) skip(`no migrations/${need}*.sql: run this on a branch with PRs #4, #5 and #6 merged`);
 }
+// The production project (Soma Auth) is shared: another app already owns a
+// public.tickets table (invites: app, token, inviter...). The kit must not touch it.
+psql(`CREATE TABLE public.tickets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), app text, token text, invitee_email text);
+      INSERT INTO public.tickets (app, token) VALUES ('another-app', 'keep-me');`);
 for (const m of MIGRATIONS) psql(fs.readFileSync(path.join(ROOT, 'migrations', m), 'utf8'));
+check('another app\'s public.tickets is untouched by the migrations',
+  psql(`SELECT count(*) || ',' || (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tickets') FROM public.tickets WHERE token = 'keep-me'`).trim() === '1,4');
 psql(`INSERT INTO public.frontrow_admins (user_id, email) VALUES (${lit(MIKE.id)}, ${lit(MIKE.email)}) ON CONFLICT DO NOTHING;`);
 check('the release\'s migrations apply in order on a fresh database', true, MIGRATIONS.map((m) => m.slice(0, 3)).join(' → '));
 check('003 seeds Front Row as a theater with a stored definition',

@@ -224,8 +224,8 @@ const A = one.body.tickets[0];
 check('  ...code shape frt_ + 24', /^frt_[A-Za-z0-9_-]{24}$/.test(A.code), A);
 check('  ...link carries the code in the fragment', A.link === `https://frontrowtheater.netlify.app/#ticket=${A.code}`, A);
 check('  ...the database holds only its sha256',
-  psql(`SELECT count(*) FROM public.tickets WHERE code_hash = '${T.sha256 ? T.sha256(A.code) : ''}'`) === '1'
-  && psql(`SELECT count(*) FROM public.tickets t WHERE row_to_json(t)::text LIKE '%${A.code}%'`) === '0');
+  psql(`SELECT count(*) FROM public.frontrow_tickets WHERE code_hash = '${T.sha256 ? T.sha256(A.code) : ''}'`) === '1'
+  && psql(`SELECT count(*) FROM public.frontrow_tickets t WHERE row_to_json(t)::text LIKE '%${A.code}%'`) === '0');
 check('the theater manager issues for their own venue',
   (await issue({ ...base, venue: 'mgr-house', room: null }, { authorization: 'Bearer mgr-token' })).status === 200);
 check('no ticket for a theater that does not exist', (await issue({ ...base, venue: 'no-such-house' }, { authorization: ADMIN })).status === 400);
@@ -307,7 +307,7 @@ check('a missing device is a 400', (await token({}, { ticket: A.code })).status 
 }
 {
   const t = (await issue(base, { authorization: ADMIN })).body.tickets[0];
-  psql(`UPDATE public.tickets SET valid_from = now() - interval '2 hours', valid_until = now() - interval '1 second' WHERE id = '${t.id}'`);
+  psql(`UPDATE public.frontrow_tickets SET valid_from = now() - interval '2 hours', valid_until = now() - interval '1 second' WHERE id = '${t.id}'`);
   const r = await withTicket(t.code, dev(7));
   check('after the window: closed', r.status === 403 && r.body.reason === 'closed', r);
 }
@@ -369,7 +369,7 @@ console.log('manager tickets');
   check('  ...nor in another venue', (await issue({ ...base, venue: 'mgr-house' }, as)).status === 403);
   check('  ...and is bound to its device', (await issue(base, { ticket: m.code, device: dev(31) })).status === 401);
   check('an audience ticket cannot issue', (await issue(base, { ticket: (await issue(base, { authorization: ADMIN })).body.tickets[0].code, device: dev(32) })).status === 401);
-  const rows = psql(`SELECT count(*) FROM public.tickets WHERE issued_by = 'ticket:${m.id}'`);
+  const rows = psql(`SELECT count(*) FROM public.frontrow_tickets WHERE issued_by = 'ticket:${m.id}'`);
   check('  ...issued_by names the manager ticket', rows === '2', rows);
 }
 
@@ -380,7 +380,7 @@ for (const role of ['anon', 'authenticated']) {
   try { psql(`SELECT public.frontrow_ticket_redeem('{}'::jsonb);`, {}, { role }); } catch (e) { refused = /permission denied/.test(e.message); }
   check(`${role} cannot call the redeem function`, refused);
   refused = false;
-  try { psql('SELECT count(*) FROM public.tickets;', {}, { role }); } catch (e) { refused = /permission denied/.test(e.message); }
+  try { psql('SELECT count(*) FROM public.frontrow_tickets;', {}, { role }); } catch (e) { refused = /permission denied/.test(e.message); }
   check(`${role} cannot read tickets`, refused);
 }
 

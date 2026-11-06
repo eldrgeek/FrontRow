@@ -218,7 +218,7 @@ check('audience at doors: in', redeem('a2').ok);
 check('check purpose works too', redeem('a2', 'check').ok);
 step('late-show', 'after');
 check('audience after the show: still in (post-show chat)', redeem('a2').ok);
-psql(`UPDATE public.tickets SET revoked_at = now() WHERE code_hash = '${hash('b2')}'`);
+psql(`UPDATE public.frontrow_tickets SET revoked_at = now() WHERE code_hash = '${hash('b2')}'`);
 check('revoked stays revoked', redeem('b2').reason === 'revoked');
 step('late-show', 'library');
 check('filed night: over', redeem('a2').reason === 'over');

@@ -30,7 +30,7 @@
 ALTER TABLE public.venues ADD COLUMN IF NOT EXISTS slug text;
 CREATE UNIQUE INDEX IF NOT EXISTS venues_slug_key ON public.venues (slug) WHERE slug IS NOT NULL;
 
-CREATE TABLE IF NOT EXISTS public.tickets (
+CREATE TABLE IF NOT EXISTS public.frontrow_tickets (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   code_hash text NOT NULL UNIQUE CHECK (code_hash ~ '^[0-9a-f]{64}$'),
   venue_id text NOT NULL CHECK (venue_id ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND char_length(venue_id) <= 40),
@@ -51,12 +51,12 @@ CREATE TABLE IF NOT EXISTS public.tickets (
   CHECK (valid_until - valid_from <= interval '400 days'),
   CHECK (performance_id IS NULL OR room_id IS NOT NULL)
 );
-CREATE INDEX IF NOT EXISTS tickets_scope_idx ON public.tickets (venue_id, room_id, performance_id);
-ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
-COMMENT ON TABLE public.tickets IS 'Revocable entry grants for a venue, room or performance. Bearer code stored only as sha256. Service role only.';
+CREATE INDEX IF NOT EXISTS tickets_scope_idx ON public.frontrow_tickets (venue_id, room_id, performance_id);
+ALTER TABLE public.frontrow_tickets ENABLE ROW LEVEL SECURITY;
+COMMENT ON TABLE public.frontrow_tickets IS 'Revocable entry grants for a venue, room or performance. Bearer code stored only as sha256. Service role only.';
 
 CREATE TABLE IF NOT EXISTS public.ticket_claims (
-  ticket_id uuid NOT NULL REFERENCES public.tickets(id) ON DELETE CASCADE,
+  ticket_id uuid NOT NULL REFERENCES public.frontrow_tickets(id) ON DELETE CASCADE,
   device_hash text NOT NULL CHECK (device_hash ~ '^[0-9a-f]{64}$'),
   claimed_at timestamptz NOT NULL DEFAULT now(),
   last_seen_at timestamptz NOT NULL DEFAULT now(),
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS public.audience_attendance (
 );
 ALTER TABLE public.audience_attendance ALTER COLUMN session_id DROP NOT NULL;
 ALTER TABLE public.audience_attendance ALTER COLUMN user_id DROP NOT NULL;
-ALTER TABLE public.audience_attendance ADD COLUMN IF NOT EXISTS ticket_id uuid REFERENCES public.tickets(id);
+ALTER TABLE public.audience_attendance ADD COLUMN IF NOT EXISTS ticket_id uuid REFERENCES public.frontrow_tickets(id);
 ALTER TABLE public.audience_attendance ADD COLUMN IF NOT EXISTS device_hash text;
 ALTER TABLE public.audience_attendance ADD COLUMN IF NOT EXISTS venue_id text;
 ALTER TABLE public.audience_attendance ADD COLUMN IF NOT EXISTS room_id text;
@@ -114,7 +114,7 @@ CREATE OR REPLACE FUNCTION public.frontrow_ticket_redeem(p jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
-  t public.tickets%ROWTYPE;
+  t public.frontrow_tickets%ROWTYPE;
   purpose text := coalesce(p->>'purpose', 'enter');
   dev text := p->>'device_hash';
   claimed boolean;
@@ -129,7 +129,7 @@ BEGIN
   END IF;
 
   -- FOR UPDATE: two devices racing for the last use of a ticket serialize here.
-  SELECT * INTO t FROM public.tickets WHERE code_hash = p->>'code_hash'
+  SELECT * INTO t FROM public.frontrow_tickets WHERE code_hash = p->>'code_hash'
     FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'unknown'); END IF;
   IF t.revoked_at IS NOT NULL THEN RETURN jsonb_build_object('ok', false, 'reason', 'revoked'); END IF;
@@ -187,7 +187,7 @@ DECLARE
 BEGIN
   IF coalesce(p->>'issued_by', '') = '' THEN RAISE EXCEPTION 'issued_by required'; END IF;
   WITH ins AS (
-    INSERT INTO public.tickets (code_hash, venue_id, room_id, performance_id, role,
+    INSERT INTO public.frontrow_tickets (code_hash, venue_id, room_id, performance_id, role,
       valid_from, valid_until, max_devices, holder, seat, channel, issued_by)
     SELECT x->>'code_hash', x->>'venue_id', x->>'room_id', x->>'performance_id', x->>'role',
       (x->>'valid_from')::timestamptz, (x->>'valid_until')::timestamptz,
@@ -215,7 +215,7 @@ AS $$
       'max_devices', t.max_devices, 'holder', t.holder, 'seat', t.seat, 'channel', t.channel,
       'issued_by', t.issued_by, 'issued_at', t.issued_at, 'revoked_at', t.revoked_at,
       'claimed', (SELECT count(*) FROM public.ticket_claims c WHERE c.ticket_id = t.id)) AS row
-    FROM public.tickets t
+    FROM public.frontrow_tickets t
     WHERE t.venue_id = p->>'venue_id'
       AND (p->>'room_id' IS NULL OR t.room_id = p->>'room_id')
       AND (p->>'performance_id' IS NULL OR t.performance_id = p->>'performance_id')
@@ -230,7 +230,7 @@ AS $$
     (SELECT jsonb_build_object('ok', true, 'ticket', jsonb_build_object(
        'id', t.id, 'venue_id', t.venue_id, 'room_id', t.room_id, 'performance_id', t.performance_id,
        'role', t.role, 'revoked_at', t.revoked_at))
-     FROM public.tickets t WHERE t.id::text = p->>'id'),
+     FROM public.frontrow_tickets t WHERE t.id::text = p->>'id'),
     jsonb_build_object('ok', false, 'reason', 'unknown'))
 $$;
 
@@ -239,7 +239,7 @@ CREATE OR REPLACE FUNCTION public.frontrow_ticket_revoke(p jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 BEGIN
-  UPDATE public.tickets SET revoked_at = now(), revoked_by = p->>'revoked_by'
+  UPDATE public.frontrow_tickets SET revoked_at = now(), revoked_by = p->>'revoked_by'
     WHERE id::text = p->>'id' AND revoked_at IS NULL;
   RETURN jsonb_build_object('ok', true);
 END $$;
@@ -303,5 +303,5 @@ BEGIN
   END LOOP;
 END $$;
 
-REVOKE ALL ON public.tickets, public.ticket_claims FROM anon, authenticated;
-GRANT ALL ON public.tickets, public.ticket_claims, public.audience_attendance TO service_role;
+REVOKE ALL ON public.frontrow_tickets, public.ticket_claims FROM anon, authenticated;
+GRANT ALL ON public.frontrow_tickets, public.ticket_claims, public.audience_attendance TO service_role;

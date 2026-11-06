@@ -173,7 +173,7 @@ function check(name, cond, detail) {
 const hour = 3600e3;
 const now = Date.now();
 const iso = (ms) => new Date(ms).toISOString();
-const count = (where = 'true') => Number(q1(`SELECT count(*) FROM public.tickets WHERE ${where};`));
+const count = (where = 'true') => Number(q1(`SELECT count(*) FROM public.frontrow_tickets WHERE ${where};`));
 const base = {
   venue: 'front-row', room: 'live', performance: 'jess-wayne', role: 'audience',
   validFrom: iso(now - 60e3), validUntil: iso(now + 3 * hour),
@@ -297,7 +297,7 @@ let cards;
   check('labeled Door 1 and Door 2 for a new show', r.status === 200 && cards.map((c) => c.label).join(',') === 'Door 1,Door 2', r);
   const r2 = await door({ count: 2, performance: 'late-show' });
   check('the next batch carries on at Door 3', r2.body.cards.map((c) => c.label).join(',') === 'Door 3,Door 4', r2.body);
-  const row = q1(`SELECT role || ',' || max_devices || ',' || channel FROM public.tickets WHERE id = '${cards[0].id}';`);
+  const row = q1(`SELECT role || ',' || max_devices || ',' || channel FROM public.frontrow_tickets WHERE id = '${cards[0].id}';`);
   check('a door card is always audience, one device, channel door', row === 'audience,1,door', row);
   check('the card carries a fragment link', cards[0].link === `${SITE}/#ticket=${cards[0].code}`, cards[0]);
   const e = await enter(cards[0].code, 1);
@@ -324,7 +324,7 @@ console.log('sold marks and the list');
   check('the summary counts door, sold and used', l.body.summary.door === 4 && l.body.summary.doorSold === 1 && l.body.summary.used === 1, l.body.summary);
   check('the list names the screens and holds no codes', JSON.stringify(l.body.screens) === '["revolution","live","library"]' && !JSON.stringify(l.body).includes('frt_'), l.body.screens);
   const u = await B.handleSold({ authorization: ADMIN, body: { id: cards[1].id, sold: false } }, deps());
-  check('the mark can be taken back', u.status === 200 && q1(`SELECT sold_at IS NULL FROM public.tickets WHERE id = '${cards[1].id}';`) === 't', u);
+  check('the mark can be taken back', u.status === 200 && q1(`SELECT sold_at IS NULL FROM public.frontrow_tickets WHERE id = '${cards[1].id}';`) === 't', u);
   const m = await list();
   check('the list names the night from the schedule', m.body.performance && m.body.performance.slug === 'jess-wayne' && m.body.performance.status === 'doors', m.body.performance);
   check('the main show is 12 promised of 12, plus 1 overbooked', m.body.summary.seats === 12 && m.body.summary.seatsPromised === 13, m.body.summary);
@@ -499,7 +499,7 @@ console.log('the queue\'s clocks');
   check('a letter the Mac never reported on fails with a warning to check', /^failed:.*never said whether it was sent/.test(stale), stale);
   const late = await report({ id, ok: true });
   check('a report on a letter no longer out with the worker changes nothing', late.body.ok === false && q1(`SELECT state FROM public.ticket_mail WHERE id = '${id}';`) === 'failed', late);
-  q1(`UPDATE public.tickets SET valid_until = now() - interval '1 minute', valid_from = now() - interval '2 hours' WHERE id = (SELECT ticket_id FROM public.ticket_mail WHERE id = '${id}');`);
+  q1(`UPDATE public.frontrow_tickets SET valid_until = now() - interval '1 minute', valid_from = now() - interval '2 hours' WHERE id = (SELECT ticket_id FROM public.ticket_mail WHERE id = '${id}');`);
   await claim({ armed: '1', limit: '0', host: 'mac' });
   check('once the window closes the sealed copy is wiped', q1(`SELECT sealed IS NULL FROM public.ticket_mail WHERE id = '${id}';`) === 't');
 }

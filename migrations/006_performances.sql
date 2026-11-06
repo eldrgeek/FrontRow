@@ -444,8 +444,8 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS tickets_check_performance ON public.tickets;
-CREATE TRIGGER tickets_check_performance BEFORE INSERT ON public.tickets
+DROP TRIGGER IF EXISTS tickets_check_performance ON public.frontrow_tickets;
+CREATE TRIGGER tickets_check_performance BEFORE INSERT ON public.frontrow_tickets
   FOR EACH ROW EXECUTE FUNCTION public.frontrow_ticket_check_performance();
 
 -- Redeeming: 004's frontrow_ticket_redeem keeps all its rules and becomes
@@ -464,11 +464,11 @@ END $$;
 CREATE OR REPLACE FUNCTION public.frontrow_ticket_redeem(p jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  t public.tickets%ROWTYPE;
+  t public.frontrow_tickets%ROWTYPE;
   x public.performances%ROWTYPE;
   step integer;
 BEGIN
-  SELECT * INTO t FROM public.tickets WHERE code_hash = p->>'code_hash';
+  SELECT * INTO t FROM public.frontrow_tickets WHERE code_hash = p->>'code_hash';
   IF FOUND AND t.performance_id IS NOT NULL AND t.revoked_at IS NULL
      AND now() >= t.valid_from AND now() < t.valid_until THEN
     SELECT perf.* INTO x

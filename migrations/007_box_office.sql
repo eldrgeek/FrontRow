@@ -1,7 +1,7 @@
 -- FrontRow box office (theater kit gap 3, 2026-11-05; Mike: "Some tickets are
 -- sent out; some might be bought at the door"). NOT YET APPLIED. Applying it is
 -- a production data change: Mike's yes first. Idempotent: safe to re-run.
--- Runs after 004_frontrow_tickets.sql (it needs public.tickets) and, in the
+-- Runs after 004_frontrow_tickets.sql (it needs public.frontrow_tickets) and, in the
 -- release order, after 006_performances.sql, whose performances it reads when
 -- the table is there. It changes none of 004's or 006's functions.
 --
@@ -21,21 +21,21 @@
 -- As in 004: every function is SECURITY DEFINER and callable only by
 -- service_role; the tables have RLS on with no policies.
 
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS label text;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sold_at timestamptz;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sold_by text;
-ALTER TABLE public.tickets ADD COLUMN IF NOT EXISTS sold_note text;
+ALTER TABLE public.frontrow_tickets ADD COLUMN IF NOT EXISTS label text;
+ALTER TABLE public.frontrow_tickets ADD COLUMN IF NOT EXISTS sold_at timestamptz;
+ALTER TABLE public.frontrow_tickets ADD COLUMN IF NOT EXISTS sold_by text;
+ALTER TABLE public.frontrow_tickets ADD COLUMN IF NOT EXISTS sold_note text;
 DO $$ BEGIN
-  ALTER TABLE public.tickets ADD CONSTRAINT tickets_label_len CHECK (char_length(label) <= 40);
+  ALTER TABLE public.frontrow_tickets ADD CONSTRAINT tickets_label_len CHECK (char_length(label) <= 40);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
-  ALTER TABLE public.tickets ADD CONSTRAINT tickets_sold_note_len CHECK (char_length(sold_note) <= 80);
+  ALTER TABLE public.frontrow_tickets ADD CONSTRAINT tickets_sold_note_len CHECK (char_length(sold_note) <= 80);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS public.ticket_mail (
   id uuid PRIMARY KEY,
   batch_id uuid NOT NULL,
-  ticket_id uuid NOT NULL REFERENCES public.tickets(id) ON DELETE CASCADE,
+  ticket_id uuid NOT NULL REFERENCES public.frontrow_tickets(id) ON DELETE CASCADE,
   email text NOT NULL CHECK (char_length(email) <= 120 AND email ~ '^[a-z0-9][a-z0-9._%+''-]*@[a-z0-9-]+(\.[a-z0-9-]+)+$'),
   name text CHECK (char_length(name) <= 80),
   -- v1.<ephemeral pub>.<iv>.<ciphertext+tag>, base64url; NULL once sent or expired
@@ -80,7 +80,7 @@ DECLARE
 BEGIN
   IF coalesce(p->>'issued_by', '') = '' THEN RAISE EXCEPTION 'issued_by required'; END IF;
   WITH ins AS (
-    INSERT INTO public.tickets (code_hash, venue_id, room_id, performance_id, role,
+    INSERT INTO public.frontrow_tickets (code_hash, venue_id, room_id, performance_id, role,
       valid_from, valid_until, max_devices, holder, seat, channel, issued_by, label)
     SELECT x->>'code_hash', x->>'venue_id', x->>'room_id', x->>'performance_id', x->>'role',
       (x->>'valid_from')::timestamptz, (x->>'valid_until')::timestamptz,
@@ -97,7 +97,7 @@ BEGIN
   SELECT (m->>'id')::uuid, (m->>'batch_id')::uuid, t.id, m->>'email', m->>'name', m->>'sealed',
          m->'payload', p->>'issued_by'
   FROM jsonb_array_elements(coalesce(p->'mail', '[]'::jsonb)) AS b(m)
-  JOIN public.tickets t
+  JOIN public.frontrow_tickets t
     ON t.code_hash = (p->'tickets'->((m->>'index')::integer))->>'code_hash';
 
   IF (SELECT count(*) FROM jsonb_array_elements(coalesce(p->'mail', '[]'::jsonb)))
@@ -130,7 +130,7 @@ AS $$
                  'retryable', m.sealed IS NOT NULL AND m.state = 'failed')
                FROM public.ticket_mail m WHERE m.ticket_id = t.id
                ORDER BY m.created_at DESC LIMIT 1)) AS row
-    FROM public.tickets t
+    FROM public.frontrow_tickets t
     WHERE t.venue_id = p->>'venue_id'
       AND (p->>'room_id' IS NULL OR t.room_id = p->>'room_id')
       AND (p->>'performance_id' IS NULL OR t.performance_id = p->>'performance_id')
@@ -141,16 +141,16 @@ $$;
 CREATE OR REPLACE FUNCTION public.frontrow_box_office_sold(p jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
-DECLARE t public.tickets%ROWTYPE;
+DECLARE t public.frontrow_tickets%ROWTYPE;
 BEGIN
-  SELECT * INTO t FROM public.tickets WHERE id::text = p->>'id' FOR UPDATE;
+  SELECT * INTO t FROM public.frontrow_tickets WHERE id::text = p->>'id' FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'unknown'); END IF;
   IF t.channel <> 'door' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not-door'); END IF;
   IF (p->>'sold')::boolean THEN
-    UPDATE public.tickets SET sold_at = coalesce(sold_at, now()), sold_by = p->>'by',
+    UPDATE public.frontrow_tickets SET sold_at = coalesce(sold_at, now()), sold_by = p->>'by',
       sold_note = nullif(p->>'note', '') WHERE id = t.id;
   ELSE
-    UPDATE public.tickets SET sold_at = NULL, sold_by = NULL, sold_note = NULL WHERE id = t.id;
+    UPDATE public.frontrow_tickets SET sold_at = NULL, sold_by = NULL, sold_note = NULL WHERE id = t.id;
   END IF;
   RETURN jsonb_build_object('ok', true);
 END $$;
@@ -163,7 +163,7 @@ AS $$
     (SELECT jsonb_build_object('ok', true, 'mail', jsonb_build_object('id', m.id, 'state', m.state),
        'ticket', jsonb_build_object('id', t.id, 'venue_id', t.venue_id, 'room_id', t.room_id,
          'performance_id', t.performance_id))
-     FROM public.ticket_mail m JOIN public.tickets t ON t.id = m.ticket_id WHERE m.id::text = p->>'id'),
+     FROM public.ticket_mail m JOIN public.frontrow_tickets t ON t.id = m.ticket_id WHERE m.id::text = p->>'id'),
     jsonb_build_object('ok', false, 'reason', 'unknown'))
 $$;
 
@@ -172,11 +172,11 @@ $$;
 CREATE OR REPLACE FUNCTION public.frontrow_mail_retry(p jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
-DECLARE m public.ticket_mail%ROWTYPE; t public.tickets%ROWTYPE;
+DECLARE m public.ticket_mail%ROWTYPE; t public.frontrow_tickets%ROWTYPE;
 BEGIN
   SELECT * INTO m FROM public.ticket_mail WHERE id::text = p->>'id' FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'unknown'); END IF;
-  SELECT * INTO t FROM public.tickets WHERE id = m.ticket_id;
+  SELECT * INTO t FROM public.frontrow_tickets WHERE id = m.ticket_id;
   IF m.state <> 'failed' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not-failed'); END IF;
   IF t.revoked_at IS NOT NULL THEN RETURN jsonb_build_object('ok', false, 'reason', 'revoked'); END IF;
   IF t.valid_until <= now() OR m.sealed IS NULL THEN RETURN jsonb_build_object('ok', false, 'reason', 'closed'); END IF;
@@ -203,7 +203,7 @@ BEGIN
 
   -- The sealed code goes as soon as its ticket can no longer be used.
   UPDATE public.ticket_mail m SET sealed = NULL
-    FROM public.tickets t
+    FROM public.frontrow_tickets t
     WHERE t.id = m.ticket_id AND m.sealed IS NOT NULL
       AND (t.valid_until <= now() OR t.revoked_at IS NOT NULL);
   UPDATE public.ticket_mail SET state = 'failed', finished_at = now(),
