@@ -15,7 +15,7 @@ export function AdminDashboard() {
 
   useEffect(() => {
     if (!user || !isSuperAdmin) {
-      navigate('/');
+      navigate('/venues');
       return;
     }
 
@@ -74,7 +74,7 @@ export function AdminDashboard() {
           <button onClick={() => navigate('/admin/feedback')} className="btn-back">
             Feedback queue →
           </button>
-          <button onClick={() => navigate('/')} className="btn-back">
+          <button onClick={() => navigate('/venues')} className="btn-back">
             ← Back to Lobby
           </button>
         </div>

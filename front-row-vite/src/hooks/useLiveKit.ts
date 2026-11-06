@@ -5,21 +5,34 @@ import {
   Track,
   LocalVideoTrack,
 } from 'livekit-client';
+import { supabase } from '../lib/supabase';
 
 export interface LiveKitHook {
   connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<MediaStream | null>;
-  connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void, localStream?: MediaStream) => Promise<void>;
+  /** onAudienceStream: other guests' seat cameras (the house sees each other). */
+  connectAsAudience: (livekitUrl: string, tokenUrl: string, identity: string, onPerformerStream: (stream: MediaStream | null) => void, localStream?: MediaStream, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<void>;
   disconnect: () => Promise<void>;
   getLocalStream: () => MediaStream | null;
 }
 
-export function useLiveKit(): LiveKitHook {
+/** livekitRoom: the house's LiveKit room (src/lib/roomScope.ts livekitRoomFor). */
+export function useLiveKit(livekitRoom: string = 'frontrow-main'): LiveKitHook {
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  // Read at call time: the connect callbacks below are memoized.
+  const livekitRoomRef = useRef(livekitRoom);
+  livekitRoomRef.current = livekitRoom;
 
   const getToken = async (tokenUrl: string, identity: string, role: 'performer' | 'audience'): Promise<string> => {
-    const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=frontrow-main`;
-    const response = await fetch(url);
+    const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=${encodeURIComponent(livekitRoomRef.current)}`;
+    // The performer token is admin-only (netlify/functions/get-livekit-token.ts),
+    // so the green room sends the signed-in session with it.
+    const headers: Record<string, string> = {};
+    if (role === 'performer') {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
+    }
+    const response = await fetch(url, { headers });
     if (!response.ok) {
       throw new Error(`Token fetch failed: ${response.statusText}`);
     }
@@ -103,7 +116,8 @@ export function useLiveKit(): LiveKitHook {
     tokenUrl: string,
     identity: string,
     onPerformerStream: (stream: MediaStream | null) => void,
-    localStream?: MediaStream
+    localStream?: MediaStream,
+    onAudienceStream?: (identity: string, stream: MediaStream | null) => void
   ): Promise<void> => {
     try {
       if (roomRef.current) {
@@ -129,6 +143,8 @@ export function useLiveKit(): LiveKitHook {
           }
           console.log('🎬 LiveKit: Setting performer stream from LiveKit track');
           onPerformerStream(stream);
+        } else if (onAudienceStream && track.kind === Track.Kind.Video && track.source === Track.Source.Camera) {
+          onAudienceStream(participant.identity, new MediaStream([track.mediaStreamTrack]));
         }
       });
 
@@ -136,6 +152,8 @@ export function useLiveKit(): LiveKitHook {
         console.log(`🎬 LiveKit: Track unsubscribed from ${participant.identity}`);
         if (track.kind === Track.Kind.Video && participant.identity === 'performer') {
           onPerformerStream(null);
+        } else if (onAudienceStream && track.kind === Track.Kind.Video) {
+          onAudienceStream(participant.identity, null);
         }
       });
 
@@ -174,6 +192,9 @@ export function useLiveKit(): LiveKitHook {
             }
             console.log('🎬 LiveKit: Found existing performer stream on connect');
             onPerformerStream(stream);
+          } else if (onAudienceStream && publication.track && publication.kind === Track.Kind.Video &&
+              publication.source === Track.Source.Camera) {
+            onAudienceStream(participant.identity, new MediaStream([publication.track.mediaStreamTrack]));
           }
         });
       });

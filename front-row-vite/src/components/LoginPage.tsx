@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './LoginPage.css';
+import { rememberAfterLogin, takeAfterLogin } from '../lib/afterLogin';
 
 type Mode = 'signin' | 'signup';
 type Method = 'password' | 'magic';
@@ -15,11 +16,16 @@ export function LoginPage() {
     signUpWithPassword,
   } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get('next');
+  useEffect(() => {
+    rememberAfterLogin(next);
+  }, [next]);
 
   // Once authenticated (password sign-in, or landing here already signed in),
   // leave the login page. Magic-link/OAuth returns route through /auth/callback.
   useEffect(() => {
-    if (session) navigate('/', { replace: true });
+    if (session) navigate(takeAfterLogin() || '/venues', { replace: true });
   }, [session, navigate]);
 
   const [mode, setMode] = useState<Mode>('signin');

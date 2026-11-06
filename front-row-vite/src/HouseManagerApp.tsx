@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import HouseManagerPanel from './components/HouseManagerPanel';
 import config from './config';
+import { resolveScope, socketQueryFor } from './lib/roomScope';
 
 export interface VenueConfig {
   seatCount: number;
@@ -29,7 +30,7 @@ export default function HouseManagerApp(): JSX.Element {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    socketRef.current = io(config.socketUrl);
+    socketRef.current = io(config.socketUrl, { query: socketQueryFor(resolveScope()) }); // ?theater=&screen= picks the house
     socketRef.current.on('connect', () => setConnected(true));
     socketRef.current.on('disconnect', () => setConnected(false));
     socketRef.current.on('show-status-update', (data) => {

@@ -39,6 +39,7 @@ function PerformerView({ localStream }: PerformerViewProps): JSX.Element {
           position={[-9, 1, 5]}
           transform
           occlude="blending"
+          zIndexRange={[50, 0]}
           style={{
             width: '220px',
             height: '140px',

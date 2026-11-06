@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect, useRef, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, useRef, Suspense, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment, Text } from '@react-three/drei';
+import { OrbitControls, Text } from '@react-three/drei';
 import { io, Socket } from 'socket.io-client';
 import Stage from './components/Stage';
+import HouseRoom from './components/HouseRoom';
+import HouseLights from './components/HouseLights';
 import SeatSelection from './components/SeatSelection';
 import UserInputForm from './components/UserInputForm';
 import CanvasErrorBoundary from './components/CanvasErrorBoundary';
@@ -20,9 +22,16 @@ import SceneTestExposer from './components/SceneTestExposer';
 import { DiagnosticsPanel } from './components/DiagnosticsPanel';
 import AudienceMonitor from './components/AudienceMonitor';
 import { useLiveKit } from './hooks/useLiveKit';
+import { livekitRoomFor, resolveScope, socketQueryFor } from './lib/roomScope';
 import config from './config';
 import './App.css';
 import { createPortal } from 'react-dom';
+import { getShow } from './theater/show';
+import { initialsFace } from './theater/faces';
+import { HouseHud } from './theater/HouseHud';
+import { GreenRoom } from './theater/GreenRoom';
+import { PostShow } from './theater/PostShow';
+import { socketChat } from './theater/postShowChat';
 
 // Phase 2 types
 interface VenueConfig {
@@ -51,7 +60,25 @@ interface AudienceSeats {
 type ShowState = 'idle' | 'pre-show' | 'live' | 'post-show';
 type ViewState = 'eye-in-the-sky' | 'performer' | 'user';
 
-function App(): JSX.Element {
+export interface AppEntry {
+  /** The guest's name from their Front Row ticket (src/theater/ticket.ts). */
+  name: string;
+  showSlug: string;
+  /** 'performer' comes from the green room (src/theater/GreenRoomPage.tsx). */
+  role?: 'audience' | 'performer';
+  /** The theater and screen this house is (src/lib/roomScope.ts). Missing
+   *  means ?theater=&screen= on the URL, else Front Row's live screen. */
+  venue?: string;
+  room?: string;
+}
+
+function App({ entry }: { entry?: AppEntry } = {}): JSX.Element {
+  const entryShow = entry ? getShow(entry.showSlug) : null;
+  // Which house this is: its own seats and show on frontrow-server, its own LiveKit room.
+  const scope = useMemo(() => resolveScope({ venue: entry?.venue, room: entry?.room }), [entry?.venue, entry?.room]);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const [ownFace, setOwnFace] = useState<boolean>(() => !!sessionStorage.getItem('frontrow_user_image'));
   // Initialize state from sessionStorage (per-tab isolation)
   const [userName, setUserName] = useState<string>(() => {
     return sessionStorage.getItem('frontrow_user_name') || '';
@@ -111,7 +138,10 @@ function App(): JSX.Element {
     'eye-in-the-sky': { position: [number, number, number]; target: [number, number, number] };
     'user': { position: [number, number, number]; target: [number, number, number] };
   }>({
-    'eye-in-the-sky': { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
+    // A ticket holder arrives at the back of a small room, close enough to read names.
+    'eye-in-the-sky': entry
+      ? { position: [0, 8.5, 13.5], target: [0, 1.5, -6] }
+      : { position: [-0.57, 6.69, 20.30], target: [0, 3, -10] },
     'user': { position: [0, 1.7, 0], target: [0, 3, -10] },
   });
 
@@ -142,10 +172,34 @@ function App(): JSX.Element {
 
   // Helper function to check if current user is the artist
   const [isArtist, setIsArtist] = useState(() => {
+    // From the front of house, the role comes from the door used, never from a
+    // flag left in this tab by an earlier visit.
+    if (entry) return entry.role === 'performer';
     return sessionStorage.getItem('frontrow_is_artist') === 'true';
   });
 
   const isArtistRef = useRef(isArtist);
+
+  // Applause for the audience only: when the curtain goes up and when the
+  // set ends. The artist never hears it (CLAUDE.md, audio system).
+  const prevShowState = useRef<ShowState>('idle');
+  // The post-show panel stays open after the server resets the house to idle.
+  const [afterShow, setAfterShow] = useState(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the socket is a ref; re-read it each time the panel opens
+  const postShowChannel = useMemo(() => socketChat(socketRef.current), [afterShow]);
+  useEffect(() => {
+    const was = prevShowState.current;
+    prevShowState.current = showState;
+    if (showState === 'post-show') setAfterShow(true);
+    if (showState === 'live') setAfterShow(false);
+    if (!entry || isArtistRef.current || was === showState) return;
+    if (showState === 'live' || (showState === 'post-show' && was === 'live')) {
+      const a = new Audio('/audio/applause.mp3');
+      a.volume = 0.8;
+      a.play().catch(() => undefined);
+    }
+  }, [showState, entry]);
+
   useEffect(() => { isArtistRef.current = isArtist; }, [isArtist]);
 
   // Expose state globally for Playwright E2E tests
@@ -188,7 +242,7 @@ function App(): JSX.Element {
   };
 
   // LiveKit hook
-  const liveKit = useLiveKit();
+  const liveKit = useLiveKit(livekitRoomFor(scope));
 
   const handleAudienceStream = useCallback((identity: string, stream: MediaStream | null) => {
     setAudienceStreams(prev => {
@@ -270,10 +324,37 @@ function App(): JSX.Element {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Arriving from the front of house with a ticket: the name is known, so skip
+  // the old name-and-photo form and seat the guest as audience. A face is
+  // offered at the seat instead (stage 3 of the rebuild plan).
+  useEffect(() => {
+    if (!entry) return;
+    if (entry.role === 'performer') {
+      sessionStorage.setItem('frontrow_user_name', entry.name);
+      sessionStorage.setItem('frontrow_is_artist', 'true');
+      setUserName(entry.name);
+      setIsLoggedIn(true);
+      return;
+    }
+    sessionStorage.removeItem('frontrow_is_artist');
+    sessionStorage.setItem('frontrow_user_name', entry.name);
+    sessionStorage.setItem('frontrow_capture_mode', 'photo');
+    setUserName(entry.name);
+    setUserCaptureMode('photo');
+    if (!sessionStorage.getItem('frontrow_user_image')) {
+      const face = initialsFace(entry.name);
+      if (face) setUserImage(face);
+    }
+    setIsLoggedIn(true);
+  }, [entry?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // --- Socket.IO Setup ---
   useEffect(() => {
     console.log('Connecting to backend:', config.socketUrl);
-    socketRef.current = io(config.socketUrl);
+    socketRef.current = io(config.socketUrl, { query: socketQueryFor(scopeRef.current, entryShow?.seats) });
+    socketRef.current.on('house:refused', (data: { reason?: string }) => {
+      console.warn('frontrow-server refused this house:', data?.reason, scopeRef.current);
+    });
     socketRef.current.on('connect', () => {
       console.log('Socket connected. ID:', socketRef.current?.id, 'IsPerformer:', isPerformer());
       setMySocketId(socketRef.current?.id || '');
@@ -303,7 +384,9 @@ function App(): JSX.Element {
       if (data.status === 'live') {
         console.log('🔴 SHOW IS NOW LIVE!');
 
-        if (!isArtistRef.current) {
+        if (!isArtistRef.current && houseMediaRef.current) {
+          // Ticketed house: already in the media room since the guest sat down.
+        } else if (!isArtistRef.current) {
           // Connect audience to LiveKit
           const name = sessionStorage.getItem('frontrow_user_name') || 'audience';
           try {
@@ -638,7 +721,7 @@ function App(): JSX.Element {
 
         // Connect to LiveKit if show is already live
         const currentShowState = sessionStorage.getItem('frontrow_show_state') || showState;
-        if (currentShowState === 'live') {
+        if (currentShowState === 'live' && !houseMediaRef.current) {
           const name = sessionStorage.getItem('frontrow_user_name') || userName || 'audience';
           liveKit.connectAsAudience(
             config.livekitUrl,
@@ -657,6 +740,88 @@ function App(): JSX.Element {
     };
     socketRef.current.on('seat-selected', handleSeatSelectedResponse);
   };
+
+  // A ticket holder chose a face for their seat (a photo), or went back to
+  // just their name (the initials card). Re-seat them so neighbours see it.
+  const handleFace = (photo: string | null) => {
+    const face = photo || initialsFace(userName);
+    setUserImage(face);
+    setOwnFace(!!photo);
+    if (photo) sessionStorage.setItem('frontrow_user_image', photo);
+    else sessionStorage.removeItem('frontrow_user_image');
+    if (selectedSeat && socketRef.current) {
+      socketRef.current.emit('release-seat', { seatId: selectedSeat });
+      socketRef.current.emit('select-seat', {
+        seatId: selectedSeat,
+        userName,
+        userImage: face,
+        captureMode: 'photo',
+        hasVideoStream: false,
+      });
+    }
+  };
+
+  // Ticketed house: every guest joins the show's media room when they sit, so
+  // they see the performer and anyone who chose to be live in their seat.
+  // Identity is the socket id, so two guests with the same name don't collide.
+  const houseMediaRef = useRef(false);
+  const joinHouseMedia = useCallback(async (cam: MediaStream | null) => {
+    const id = socketRef.current?.id;
+    if (!id) return;
+    houseMediaRef.current = true;
+    try {
+      await liveKit.connectAsAudience(
+        config.livekitUrl,
+        config.tokenUrl,
+        `a-${id}`,
+        (stream) => setPerformerStream(stream),
+        cam || undefined,
+        handleAudienceStream
+      );
+    } catch (err) {
+      houseMediaRef.current = false;
+      console.error('Could not join the house media room:', err);
+    }
+  }, [liveKit, handleAudienceStream]);
+
+  const [liveSeatError, setLiveSeatError] = useState('');
+  const handleLiveSeat = async (on: boolean) => {
+    setLiveSeatError('');
+    let cam: MediaStream | null = null;
+    if (on) {
+      try {
+        // Camera only: a dozen open mics would drown the set.
+        cam = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' }, audio: false });
+      } catch {
+        setLiveSeatError("Your camera didn't open. Check the browser's camera permission.");
+        return;
+      }
+    } else {
+      userVideoStreamRef.current?.getTracks().forEach((t) => t.stop());
+    }
+    setUserVideoStream(cam);
+    userVideoStreamRef.current = cam;
+    const mode = cam ? 'video' : 'photo';
+    setUserCaptureMode(mode);
+    sessionStorage.setItem('frontrow_capture_mode', mode);
+    if (selectedSeat && socketRef.current) {
+      socketRef.current.emit('release-seat', { seatId: selectedSeat });
+      socketRef.current.emit('select-seat', {
+        seatId: selectedSeat,
+        userName,
+        userImage,
+        captureMode: mode,
+        hasVideoStream: !!cam,
+      });
+    }
+    await joinHouseMedia(cam);
+  };
+
+  useEffect(() => {
+    if (entry && socketConnected && selectedSeat && isLoggedIn && !isArtistRef.current && !houseMediaRef.current) {
+      joinHouseMedia(userVideoStreamRef.current);
+    }
+  }, [entry, socketConnected, selectedSeat, isLoggedIn, joinHouseMedia]);
 
   const handleViewChange = (view) => {
     setCurrentView(view);
@@ -813,7 +978,7 @@ function App(): JSX.Element {
     setIsCameraPreview(false);
   };
 
-  const startPerformerStream = async () => {
+  const startPerformerStream = async (onStage = false) => {
     try {
       console.log('🎭 Starting performer stream via LiveKit...');
       const stream = await liveKit.connectAsPerformer(
@@ -826,7 +991,9 @@ function App(): JSX.Element {
         localStreamRef.current = stream;
         setPerformerStream(stream);
       }
-      socketRef.current?.emit('artist-go-live');
+      // On the big screen ('artist-go-live'), or standing on the stage itself
+      // ('performer:goLive': the video becomes a figure that walks downstage).
+      socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
       console.log('🎭 LiveKit: Performer stream started');
     } catch (err) {
       console.error('Error starting performer stream:', err);
@@ -952,7 +1119,7 @@ function App(): JSX.Element {
         <Suspense fallback={<LoadingScreen />}>
           <CanvasErrorBoundary>
           <Canvas
-            camera={{ position: [-0.57, 6.69, 20.30], fov: 50 }}
+            camera={{ position: entry ? [0, 8.5, 13.5] : [-0.57, 6.69, 20.30], fov: 50 }}
             style={{ width: '100%', height: '100%' }}
             resize={{ offsetSize: true }}
             onCreated={({ gl }) => {
@@ -963,11 +1130,12 @@ function App(): JSX.Element {
               setWebglSupported(false);
             }}
           >
-            <Environment preset="city" />
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} />
+            {/* House lights down for the set, up before and after it. */}
+            <HouseLights level={showState === 'live' ? 0.18 : 1} />
 
-            <OrbitControls makeDefault enablePan={true} enableZoom={true} enableRotate={true} />
+            <HouseRoom />
+
+            <OrbitControls makeDefault target={entry ? [0, 1.5, -6] : undefined} enablePan={true} enableZoom={true} enableRotate={true} />
 
             <CameraController
               currentView={currentView}
@@ -977,9 +1145,9 @@ function App(): JSX.Element {
             />
 
             <Stage
-              config={config}
+              config={entryShow ? { ...config, artistName: entryShow.stageName } : config}
               showState={showState}
-              fallbackVideoUrl="https://youtu.be/K6ZeroIZd5g"
+              fallbackVideoUrl={entryShow?.fallbackVideoUrl || 'https://youtu.be/K6ZeroIZd5g'}
               performerStream={performerStream}
               countdownTime={countdownTime}
               isCountdownActive={isCountdownActive}
@@ -989,10 +1157,11 @@ function App(): JSX.Element {
               performerStageZ={performerStageZ}
               performerStageX={performerStageX}
               performerOpacity={performerOpacity}
-              curtainOpen={curtainOpen}
+              curtainOpen={curtainOpen || (!!entryShow && showState === 'live')}
               curtainStyle={curtainStyle}
               reactionLevel={reactionLevel}
-              spotlightActive={spotlightActive}
+              spotlightActive={spotlightActive || (!!entryShow && showState === 'live')}
+              holdFallbackUntilLive={!!entryShow}
             />
             <SeatSelection
               selectedSeat={selectedSeat}
@@ -1159,7 +1328,7 @@ function App(): JSX.Element {
           {isLoggedIn && isPerformer() && (
             <ArtistControls
               performerStream={performerStream}
-              onStartStream={startPerformerStream}
+              onStartStream={() => startPerformerStream()}
               onStopStream={stopPerformerStream}
               onResetArtistStatus={resetArtistStatus}
               userName={userName}
@@ -1189,8 +1358,47 @@ function App(): JSX.Element {
               }}
             />
           )}
+          {entryShow && entry?.role === 'performer' && isPerformer() && showState !== 'live' && (
+            <GreenRoom
+              show={entryShow}
+              stream={performerStream}
+              countdownTime={countdownTime}
+              isCountdownActive={isCountdownActive}
+              audienceSeats={audienceSeats}
+              onStartCountdown={startCountdown}
+              onStopCountdown={stopCountdown}
+              onStartCamera={startCameraPreview}
+              onGoLive={(onStage) => {
+                if (localStreamRef.current) socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
+                else startPerformerStream(onStage);
+              }}
+            />
+          )}
+          {entryShow && isLoggedIn && !isPerformer() && (
+            <HouseHud
+              show={entryShow}
+              name={userName}
+              seatId={selectedSeat}
+              seatedCount={Object.keys(audienceSeats).length}
+              hasPhoto={ownFace}
+              onFace={handleFace}
+              ended={afterShow}
+              connected={socketConnected}
+              live={!!userVideoStream}
+              onLive={handleLiveSeat}
+              liveError={liveSeatError}
+            />
+          )}
+          {entryShow && afterShow && (
+            <PostShow
+              show={entryShow}
+              name={isPerformer() ? entryShow.artist : userName}
+              channel={postShowChannel}
+              onClose={() => setAfterShow(false)}
+            />
+          )}
           {/* Phase 2: Reaction buttons — audience only in user ViewState */}
-          {isLoggedIn && !isPerformer() && currentView === 'user' && selectedSeat && (
+          {isLoggedIn && !isPerformer() && currentView === 'user' && selectedSeat && !(entryShow && afterShow) && (
             <div
               data-testid="reaction-buttons"
               style={{

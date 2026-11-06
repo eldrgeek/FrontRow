@@ -3,6 +3,7 @@ import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { Box, Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { seatLayout } from '../lib/seatLayout';
 import PhotoCube from './PhotoCube';
 
 interface AudienceSeat {
@@ -30,20 +31,7 @@ function UserView({ selectedSeat, audienceSeats }: UserViewProps): JSX.Element {
   const target = useRef(new THREE.Vector3(0, 2.5, -8)); // Center of stage screen
   const up = useRef(new THREE.Vector3(0, 1, 0));
 
-  const seatsData: SeatData[] = [];
-  const frontRowRadius = 10; // Increased radius for better spacing
-  const stageZOffset = -8; // Stage position in Z
-
-  // Generate 9 seat positions (same logic as SeatSelection)
-  const startAngle = 0; // Start from front (0 degrees)
-  const endAngle = Math.PI; // End at back (180 degrees)
-  const totalSeats = 9;
-  for (let i = 0; i < totalSeats; i++) {
-    const angle = startAngle + (i / (totalSeats - 1)) * (endAngle - startAngle);
-    const x = frontRowRadius * Math.cos(angle);
-    const z = frontRowRadius * Math.sin(angle) + stageZOffset; // Align with stage
-    seatsData.push({ id: `seat-${i}`, position: [x, 0.5, z] });
-  }
+  const seatsData: SeatData[] = seatLayout(0.5);
 
   // Find the position of the selected seat
   const currentSeat = seatsData.find(s => s.id === selectedSeat);
