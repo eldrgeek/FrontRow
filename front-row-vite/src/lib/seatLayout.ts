@@ -6,18 +6,20 @@
 // array: an id, the label a guest reads, a position and the way the seat
 // faces. Front Row's live screen is twelve seats in a close half-circle around
 // the stage (Noel's spec: "a dozen seats, curved close around the stage").
-// frontrow-server caps how many are taken at once (MAX_SEATS there, 12) and
-// accepts ids up to two digits (MAX_LAYOUT_SEATS below).
+// Each screen is its own house on frontrow-server (server/rooms.js), which
+// takes the house's seat count from the socket handshake (pinned to 12 for
+// Front Row's live screen) and accepts ids up to two digits.
 import type { ScreenTemplate, SeatArrangement, SeatLayout } from '../theater/definition';
+import { HOUSE_SEAT_CAP } from './roomScope';
 
 export const SEAT_COUNT = 12;
 /**
  * The most seats a layout may hold: the one place this number lives. Seat ids
  * run seat-0 … seat-98, inside the seat-\d{1,2} pattern the server and the
- * definition validator accept. Seats above the server's taken-at-once cap
- * (MAX_SEATS, 12) render but cannot be taken until that cap moves per room.
+ * definition validator accept; it is roomScope.ts's HOUSE_SEAT_CAP, which
+ * frontrow-server (server/rooms.js SEAT_CAP) enforces per house.
  */
-export const MAX_LAYOUT_SEATS = 99;
+export const MAX_LAYOUT_SEATS = HOUSE_SEAT_CAP;
 
 /** The stage: a half-disc of radius 8 centered here, front edge at z = 0. */
 const STAGE_Z = -8;

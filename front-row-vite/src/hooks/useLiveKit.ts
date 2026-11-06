@@ -14,12 +14,16 @@ export interface LiveKitHook {
   getLocalStream: () => MediaStream | null;
 }
 
-export function useLiveKit(): LiveKitHook {
+/** livekitRoom: the house's LiveKit room (src/lib/roomScope.ts livekitRoomFor). */
+export function useLiveKit(livekitRoom: string = 'frontrow-main'): LiveKitHook {
   const roomRef = useRef<Room | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  // Read at call time: the connect callbacks below are memoized.
+  const livekitRoomRef = useRef(livekitRoom);
+  livekitRoomRef.current = livekitRoom;
 
   const getToken = async (tokenUrl: string, identity: string, role: 'performer' | 'audience'): Promise<string> => {
-    const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=frontrow-main`;
+    const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=${encodeURIComponent(livekitRoomRef.current)}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Token fetch failed: ${response.statusText}`);
