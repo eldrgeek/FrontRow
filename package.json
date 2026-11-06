@@ -21,7 +21,8 @@
     "build-test": "npm run build && echo 'Build test completed successfully!'",
     "test:rooms": "node scripts/rooms-selftest.mjs",
     "test:livekit-token": "node scripts/livekit-token-selftest.mjs",
-    "test:box-office": "node scripts/box-office-selftest.mjs"
+    "test:box-office": "node scripts/box-office-selftest.mjs",
+    "test:kit-release": "node tests/cross-stack/kit-release.e2e.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
