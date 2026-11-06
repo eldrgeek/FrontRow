@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'; // useCallback used by startCamera/stopCamera
 import { io, Socket } from 'socket.io-client';
 import config from './config';
+import { resolveScope, socketQueryFor } from './lib/roomScope';
 
 export default function BackstageRoom(): JSX.Element {
   const socketRef = useRef<Socket | null>(null);
@@ -79,7 +80,7 @@ export default function BackstageRoom(): JSX.Element {
 
   // Socket setup
   useEffect(() => {
-    socketRef.current = io(config.socketUrl);
+    socketRef.current = io(config.socketUrl, { query: socketQueryFor(resolveScope()) }); // ?theater=&screen= picks the house
     socketRef.current.on('connect', () => {
       setConnected(true);
       socketRef.current?.emit('backstage:join', { role: 'performer' });
