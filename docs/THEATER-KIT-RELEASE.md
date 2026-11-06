@@ -25,12 +25,12 @@ Not part of the release: #12 (CI and Claude auto-merge). See "Auto-merge" below 
 
 ## Order, and why
 
-**Merge order: #4, #5, #8, #7, #6, #11, #13, then this PR.** #9 is already inside #4. #5 is stacked on #4, #8 on #5, #7 on #8. #6 is off master; #11 sits on #7 with #6 merged in; #13 is stacked on #6. Rehearsed on 2026-11-06 at #4 e7291b8, #5 484df19, #8 0f19fb0, #7 7a359bb, #6 c21aaef, #11 1c2013b, #13 4519999. Three merges need hand resolution, all mechanical:
-- **#8** after #5: `App.tsx`, keep both sides (#8's `useHouse()` and #9's room scope, which now arrives with #4).
-- **#6** after #7: `server/index.js`, take #6's token block. Keep #6's deletion of `netlify/functions/get-livekit-token.mjs`. In `useLiveKit.ts`, take #6's `getToken` with `&room=${encodeURIComponent(livekitRoomRef.current)}` in place of `&room=frontrow-main`.
-- **#13** after #11: root `package.json`, keep both scripts (`test:rooms` and `test:box-office`).
+**Merge order: #4, #5, #8, #7, #6, #11, #13, then this PR.** #9 is already inside #4. Done on 2026-11-06 as one series of merge commits pushed to master (this PR's branch), at #4 ce94618, #5 47563f7, #8 6be75ce, #7 aee1d2d, #6 c21aaef, #11 1c2013b, #13 1a242d3. Hand resolutions, all mechanical:
+- **#6** after #7: `server/index.js`, take #6's token block. `netlify/functions/get-livekit-token.ts`: take #6's (it delegates to `server/tickets.mjs` `handleToken`, which already limits performers to a ticket or a signed-in admin, the gate #4 ce94618 added). In `useLiveKit.ts`, take #6's `getToken` with `&room=${encodeURIComponent(livekitRoomRef.current)}`; #6's `tokenRequestHeaders` sends the Supabase session, so the admin's Bearer still goes with a performer request.
+- **#13** after #11: root `package.json`, keep both scripts.
+- After #6, #4's `scripts/livekit-token-selftest.mjs` expected the identity `performer`; #6 mints `performer-<id>` and reserves every performer name. The test now expects `performer-<id>`.
 
-#11 merges cleanly. On the result, tsc, the functions typecheck, `test:builder` (19), `test:tickets` (83), `test:rooms` (63), `test:performances` (85) and the cross-stack e2e (22, migrations 002 to 007) all pass. **`test:box-office` fails** once 006 is in: 006's `tickets_check_performance` trigger refuses a ticket whose `performance_id` has no `performances` row, and #13's selftest sells for one that doesn't exist. The box office thread is rebasing #13 on #11 to sell only for scheduled performances. #13 does not merge until that is green.
+On the result: tsc, the build, the functions typecheck, `test:builder` (19), `test:tickets` (83), `test:rooms` (63), `test:performances` (85), `test:box-office` (117), `test:livekit-token` (9) and the cross-stack e2e (22, migrations 002 to 007) all pass. `npm run lint` reports 65 problems, the same 65 as master.
 
 **Migration order: 003, 004, 005, 006, 007.** 004 needs 003's slugs. 005 replaces 004's `frontrow_ticket_can_manage` and room-mode hooks, so it must follow 004. 006 renames `frontrow_ticket_redeem` to `frontrow_ticket_redeem_base` and wraps it, so **re-run 006 after any re-run of 004 or 005**. 007 (box office) adds functions and changes none of 004's. Apply 003 only once #5's venue-list filter is live, or master's `/venues` lists the three screens as venues. Everything from 003 on is additive and idempotent (run twice in tests).
 
