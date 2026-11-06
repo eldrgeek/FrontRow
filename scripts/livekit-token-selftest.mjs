@@ -67,9 +67,10 @@ check('signed-in non-admin performer is refused', r.statusCode === 403, String(r
 r = await call({ identity: 'performer', role: 'performer', room: 'frontrow-main' }, 'tok-bogus');
 check('bad session is refused', r.statusCode === 403, String(r.statusCode));
 r = await call({ identity: 'performer', role: 'performer', room: 'frontrow-main' }, 'tok-admin');
-check('admin gets a performer token', r.statusCode === 200 && sub(r) === 'performer', r.body);
+// #6 (server/tickets.mjs) names a performer performer-<id>; nobody else may take a performer name.
+check('admin gets a performer token', r.statusCode === 200 && /^performer-[a-z0-9]+$/.test(sub(r)), r.body);
 r = await call({ identity: 'Jess', role: 'performer', room: 'frontrow-main' }, 'tok-admin');
-check('admin performer token always carries identity "performer"', r.statusCode === 200 && sub(r) === 'performer', r.body);
+check('admin performer token always carries a performer identity', r.statusCode === 200 && /^performer-[a-z0-9]+$/.test(sub(r)), r.body);
 r = await call({ identity: 'x', role: 'audience', room: 'other-room' });
 check('non-frontrow room is refused', r.statusCode === 403, String(r.statusCode));
 r = await handler({ httpMethod: 'OPTIONS', headers: {} });
