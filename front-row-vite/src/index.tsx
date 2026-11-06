@@ -11,6 +11,7 @@ import { Room } from './components/Room';
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
 import { FeedbackQueue } from './components/FeedbackQueue';
+import { BoxOffice } from './components/BoxOffice';
 import { installSomaFeedbackIdentityHook } from './lib/somaFeedbackIdentity';
 import { installSomaFeedbackAuthHook } from './lib/somaFeedbackAuth';
 import { installGlobalErrorHandlers } from './lib/errorReport';
@@ -83,6 +84,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Lobby />
+          </ProtectedRoute>
+        }
+      />
+      {/* Box office: the server decides who may manage which theater */}
+      <Route
+        path="/box-office"
+        element={
+          <ProtectedRoute>
+            <BoxOffice />
           </ProtectedRoute>
         }
       />
