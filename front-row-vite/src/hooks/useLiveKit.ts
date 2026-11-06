@@ -5,6 +5,7 @@ import {
   Track,
   LocalVideoTrack,
 } from 'livekit-client';
+import { supabase } from '../lib/supabase';
 
 export interface LiveKitHook {
   connectAsPerformer: (livekitUrl: string, tokenUrl: string, identity: string, onAudienceStream?: (identity: string, stream: MediaStream | null) => void) => Promise<MediaStream | null>;
@@ -24,7 +25,14 @@ export function useLiveKit(livekitRoom: string = 'frontrow-main'): LiveKitHook {
 
   const getToken = async (tokenUrl: string, identity: string, role: 'performer' | 'audience'): Promise<string> => {
     const url = `${tokenUrl}?identity=${encodeURIComponent(identity)}&role=${role}&room=${encodeURIComponent(livekitRoomRef.current)}`;
-    const response = await fetch(url);
+    // The performer token is admin-only (netlify/functions/get-livekit-token.ts),
+    // so the green room sends the signed-in session with it.
+    const headers: Record<string, string> = {};
+    if (role === 'performer') {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
+    }
+    const response = await fetch(url, { headers });
     if (!response.ok) {
       throw new Error(`Token fetch failed: ${response.statusText}`);
     }
