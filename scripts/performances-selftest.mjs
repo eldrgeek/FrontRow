@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const P = await import(path.join(ROOT, 'server/performances.mjs'));
+const T = await import(path.join(ROOT, 'server/tickets.mjs'));
 
 // ── Postgres ────────────────────────────────────────────────────────────────
 let PG = process.env.PERF_PG_URL;
@@ -308,6 +309,54 @@ check('followRoom: a repeat moves nothing', (await P.followRoom(rpc, { venue: 'j
 r = await P.followRoom(rpc, { venue: 'joe-house', room: 'main' }, 'live', 'post-show');
 check('followRoom: post-show -> after', r?.performance?.status === 'after', r);
 check('followRoom: no performance, no call', (await P.followRoom(rpc, { venue: 'front-row', room: 'library' }, 'idle', 'live')) === null);
+
+// ── Attaching a YouTube recording over HTTP (handleAttachRecording) ─────────
+{
+  const USERS = {
+    'Bearer admin': { id: MIKE, email: 'mw@mike-wolf.com', token: 'admin' },
+    'Bearer joe': { id: JOE, email: 'joe@example.com', token: 'joe' },
+    'Bearer mgr': { id: MGR, email: 'mgr@example.com', token: 'mgr' },
+  };
+  const deps = { rpc, getUser: async (h) => USERS[h] || null, isAdmin: async (u) => u.id === MIKE };
+  const ticketFor = (role, performance) => {
+    const code = T.newCode();
+    svc('frontrow_ticket_issue', { issued_by: 'test', tickets: [{ code_hash: T.sha256(code), venue_id: 'front-row', room_id: 'live', performance_id: performance,
+      role, valid_from: '2026-01-01T00:00:00Z', valid_until: '2026-12-31T00:00:00Z', max_devices: 3, channel: 'comp' }] });
+    return code;
+  };
+  const DEV = 'device-for-attach-test-0001';
+  svc('frontrow_performance_save', { theater: 'front-row', slug: 'yt-night', screen: 'live', title: 'YouTube night', artist: 'Noel Paul Stookey', status: 'curtain' });
+  const body = (over = {}) => ({ theater: 'front-row', performance: 'yt-night', url: 'https://www.youtube.com/watch?v=YtNight1234&t=10', ...over });
+  const att = (req) => P.handleAttachRecording({ body: body(), ...req, body: { ...body(), ...(req.body || {}) } }, deps);
+
+  check('attach: nobody', (await att({})).status === 401);
+  check('attach: not a YouTube link', (await att({ authorization: 'Bearer admin', body: { url: 'https://media.example.org/a.mp4' } })).status === 400);
+  check('attach: youtubeIdOf reads watch, youtu.be, live and shorts links',
+    ['https://youtu.be/YtNight1234', 'https://www.youtube.com/live/YtNight1234?si=x', 'https://youtube.com/shorts/YtNight1234'].every((u) => P.youtubeIdOf(u) === 'YtNight1234')
+    && P.youtubeIdOf('https://evil.example/watch?v=YtNight1234') === null);
+  check('attach: no such performance', (await att({ authorization: 'Bearer admin', body: { performance: 'nope' } })).status === 404);
+  const aud = ticketFor('audience', 'yt-night');
+  check('attach: an audience ticket cannot', (await att({ ticket: aud, device: DEV })).status === 403);
+  svc('frontrow_performance_save', { theater: 'front-row', slug: 'other-night', screen: 'live', title: 'Other night' });
+  const otherPerf = ticketFor('performer', 'other-night');
+  check('attach: a performer ticket for another night cannot', (await att({ ticket: otherPerf, device: DEV })).status === 403);
+  check('attach: a signed-in user who manages nothing cannot', (await att({ authorization: 'Bearer joe' })).status === 403);
+  const perf = ticketFor('performer', 'yt-night');
+  let r = await att({ ticket: perf, device: DEV, body: { publish: true } });
+  check('attach: the performer, during the show: attached and agreed, not shelved yet', r.status === 200 && r.body.recording === 'ready' && r.body.publish === true && !r.body.shelved, r);
+  check('attach: stored as a short youtu.be link', svc('frontrow_performance_get', { theater: 'front-row', slug: 'yt-night' }).performance.recording_url === 'https://youtu.be/YtNight1234');
+  const s0 = shelf().length;
+  r = await P.setStatus(rpc, { theater: 'front-row', slug: 'yt-night', status: 'after' });
+  check('attach: lights up shelves it', r.shelve?.shelved?.length === 1 && shelf().length === s0 + 1 && shelf().at(-1).youtubeId === 'YtNight1234', r);
+  r = await att({ authorization: 'Bearer mgr', body: { url: 'https://youtu.be/Another1234' } });
+  check('attach: a filed night refuses a new link', r.status === 409, r);
+
+  svc('frontrow_performance_save', { theater: 'front-row', slug: 'mgr-night', screen: 'live', title: 'Manager night', status: 'after' });
+  r = await att({ authorization: 'Bearer mgr', body: { performance: 'mgr-night', url: 'https://youtu.be/MgrNight123' } });
+  check('attach: the theater manager, no publish yet: waits for the performer', r.status === 200 && r.body.recording === 'ready' && !r.body.shelved, r);
+  r = await att({ authorization: 'Bearer admin', body: { performance: 'mgr-night', url: 'https://youtu.be/MgrNight123', publish: true } });
+  check('attach: publish after the show shelves at once', r.status === 200 && r.body.shelved && r.body.status === 'library', r);
+}
 
 // ── Module bits that need no database ───────────────────────────────────────
 check('toShow maps a performance to a Show', (() => {
