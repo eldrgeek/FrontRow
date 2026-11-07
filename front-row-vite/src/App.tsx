@@ -9,10 +9,11 @@ import HouseLights from './components/HouseLights';
 import SeatSelection from './components/SeatSelection';
 import UserInputForm from './components/UserInputForm';
 import CanvasErrorBoundary from './components/CanvasErrorBoundary';
-import PerformerView from './components/PerformerView';
+import { PerformerMonitor } from './components/PerformerView';
 import UserView from './components/UserView';
 import LoadingScreen from './components/LoadingScreen';
 import CameraController from './components/CameraController';
+import { PERFORMER_EYE } from './lib/seatLayout';
 import CameraControls from './components/CameraControls';
 import ViewControls from './components/ViewControls';
 import ArtistControls from './components/ArtistControls';
@@ -30,6 +31,8 @@ import { getShow } from './theater/show';
 import { initialsFace } from './theater/faces';
 import { HouseHud } from './theater/HouseHud';
 import { GreenRoom } from './theater/GreenRoom';
+import { StageCameraLink } from './theater/StageCamera';
+import { PerformerAudio } from './components/PerformerAudio';
 import { PostShow } from './theater/PostShow';
 import { socketChat } from './theater/postShowChat';
 import { HouseProvider } from './theater/houseContext';
@@ -62,6 +65,8 @@ interface AudienceSeats {
 
 type ShowState = 'idle' | 'pre-show' | 'live' | 'post-show';
 type ViewState = 'eye-in-the-sky' | 'performer' | 'user';
+/** Where a ticket holder's camera looks on arrival (a constant, so a re-render doesn't re-aim it). */
+const ENTRY_TARGET: [number, number, number] = [0, 1.5, -6];
 
 export interface AppEntry {
   /** The guest's name from their Front Row ticket (src/theater/ticket.ts). */
@@ -101,6 +106,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const [showState, setShowState] = useState<ShowState>('idle');
   const [currentView, setCurrentView] = useState<ViewState>('eye-in-the-sky');
   const [performerStream, setPerformerStream] = useState<MediaStream | null>(null);
+  // A performer's second camera (a phone on the boards): the stage figure's feed.
+  const [stageStream, setStageStream] = useState<MediaStream | null>(null);
   const [audienceStreams, setAudienceStreams] = useState<Map<string, MediaStream>>(new Map());
   const [audienceSeats, setAudienceSeats] = useState<AudienceSeats>({});
 
@@ -208,6 +215,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   }, [showState, entry]);
 
   useEffect(() => { isArtistRef.current = isArtist; }, [isArtist]);
+  // The performer sees the house from the stage, not from the back of the room.
+  useEffect(() => { if (isArtist) setCurrentView('performer'); }, [isArtist]);
 
   // Expose state globally for Playwright E2E tests
   useEffect(() => {
@@ -230,13 +239,15 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
           name: user?.name || null,
           captureMode: user?.captureMode || null,
           socketId: user?.socketId || null,
-          hasLiveStream: audienceStreams.has(user?.name || ''),
+          hasLiveStream: audienceStreams.has(`a-${user?.socketId}`) || audienceStreams.has(user?.name || ''),
         })),
         audienceStreamCount: audienceStreams.size,
+        hasStageStream: !!stageStream,
+        currentView,
         timestamp: Date.now(),
       };
     }
-  }, [socketConnected, mySocketId, showState, selectedSeat, performerStream, userVideoStream, audienceSeats, audienceStreams, venueConfig, curtainOpen, performerOnStage]);
+  }, [socketConnected, mySocketId, showState, selectedSeat, performerStream, userVideoStream, audienceSeats, audienceStreams, venueConfig, curtainOpen, performerOnStage, stageStream, currentView]);
 
   const isPerformer = () => {
     return isArtist;
@@ -402,7 +413,9 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               config.tokenUrl,
               name,
               (stream) => setPerformerStream(stream),
-              userVideoStreamRef.current || undefined
+              userVideoStreamRef.current || undefined,
+              undefined,
+              setStageStream
             );
           } catch (err) {
             console.error('Failed to connect to LiveKit as audience:', err);
@@ -735,7 +748,9 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
             config.tokenUrl,
             name,
             (stream) => setPerformerStream(stream),
-            userVideoStreamRef.current || undefined
+            userVideoStreamRef.current || undefined,
+            undefined,
+            setStageStream
           ).catch(err => console.error('LiveKit connect failed on seat select:', err));
         }
 
@@ -783,7 +798,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         `a-${id}`,
         (stream) => setPerformerStream(stream),
         cam || undefined,
-        handleAudienceStream
+        handleAudienceStream,
+        setStageStream
       );
     } catch (err) {
       houseMediaRef.current = false;
@@ -962,7 +978,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         config.livekitUrl,
         config.tokenUrl,
         sessionStorage.getItem('frontrow_user_name') || 'performer',
-        handleAudienceStream
+        handleAudienceStream,
+        setStageStream
       );
       if (stream) {
         localStreamRef.current = stream;
@@ -992,7 +1009,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         config.livekitUrl,
         config.tokenUrl,
         sessionStorage.getItem('frontrow_user_name') || 'performer',
-        handleAudienceStream
+        handleAudienceStream,
+        setStageStream
       );
       if (stream) {
         localStreamRef.current = stream;
@@ -1142,7 +1160,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
 
             <HouseRoom />
 
-            <OrbitControls makeDefault target={entry ? [0, 1.5, -6] : undefined} enablePan={true} enableZoom={true} enableRotate={true} />
+            <OrbitControls makeDefault target={isArtist ? PERFORMER_EYE.target : entry ? ENTRY_TARGET : undefined} enablePan={true} enableZoom={true} enableRotate={true} />
 
             <CameraController
               currentView={currentView}
@@ -1156,6 +1174,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               showState={showState}
               fallbackVideoUrl={entryShow?.fallbackVideoUrl || 'https://youtu.be/K6ZeroIZd5g'}
               performerStream={performerStream}
+              stageStream={stageStream}
               countdownTime={countdownTime}
               isCountdownActive={isCountdownActive}
               isPerformer={isPerformer()}
@@ -1181,9 +1200,6 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               audienceStreams={audienceStreams}
             />
 
-            {isPerformer() && (
-              <PerformerView localStream={localStreamRef.current} />
-            )}
             {!isPerformer() && currentView === 'user' && (
               <UserView selectedSeat={selectedSeat} audienceSeats={audienceSeats} />
             )}
@@ -1227,6 +1243,9 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
 
             {(import.meta.env.MODE === 'development' || import.meta.env.VITE_ENABLE_TEST_MODE === 'true') && <SceneTestExposer />}
           </Canvas>
+          {isArtist && <PerformerMonitor localStream={performerStream} stageStream={stageStream} />}
+          {/* The performer's sound, for everyone but the performer (whose own would echo). */}
+          {!isArtist && <PerformerAudio stream={performerStream} />}
           </CanvasErrorBoundary>
         </Suspense>
       ) : showStreamChoice ? (
@@ -1375,6 +1394,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               onStartCountdown={startCountdown}
               onStopCountdown={stopCountdown}
               onStartCamera={startCameraPreview}
+              stageCamera={<StageCameraLink slug={entryShow.slug} artist={entryShow.artist} scope={scope} stageStream={stageStream} />}
               onGoLive={(onStage) => {
                 if (localStreamRef.current) socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
                 else startPerformerStream(onStage);

@@ -26,6 +26,12 @@ const STAGE_Z = -8;
 /** Where seats that face the stage look. */
 const STAGE_FOCUS: [number, number] = [0, -5];
 
+/** Where the performer sees the house from: upstage center, eye height, facing the seats. */
+export const PERFORMER_EYE: { position: [number, number, number]; target: [number, number, number] } = {
+  position: [0, 3, -9.5],
+  target: [0, 1.2, 1],
+};
+
 export interface SeatSpot {
   id: string;
   /** What a guest reads: A1 at house left. */
