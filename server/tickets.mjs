@@ -16,8 +16,12 @@ import crypto from 'node:crypto';
 export const ADMIN_EMAILS = [
   'mw@mike-wolf.com',
   'mike@embeddedsystemsresearch.org',
-  'dwjessop@gmail.com',
+  // The Hootnet group (Mike, 2026-11-07: "The Hootnet guys should all be admins").
+  'npstookey@gmail.com',
   'gtcoveney@gmail.com',
+  'majorpeabody@gmail.com',
+  'dwjessop@gmail.com',
+  'neale.eckstein@gmail.com',
 ];
 
 export const ROLES = ['audience', 'performer', 'crew', 'manager'];

@@ -141,3 +141,30 @@ export function useScheduledShow(slug: string, theater: string = DEFAULT_THEATER
   const show = (fresh && state.show) || compiled;
   return { show, loading: !show && !(fresh && state.done) };
 }
+
+const RUNNING: PerformanceStatus[] = ['doors', 'green-room', 'curtain', 'after'];
+
+/**
+ * Tonight's night on a screen, by the same rule as frontrow_performance_get
+ * (current): one the room is running (doors through after), else the next one
+ * by start time. Rows already exclude filed and cancelled nights.
+ */
+export function pickCurrent(rows: PerformanceRow[], screen = 'live'): PerformanceRow | null {
+  const on = rows.filter((r) => !r.screen?.screen_key || r.screen.screen_key === screen);
+  const t = (r: PerformanceRow) => (r.starts_at ? Date.parse(r.starts_at) : Number.POSITIVE_INFINITY);
+  const sorted = on.slice().sort((a, b) => Number(RUNNING.includes(b.status)) - Number(RUNNING.includes(a.status)) || t(a) - t(b));
+  return sorted[0] ?? null;
+}
+
+/** The slug the front door (/) shows: pickCurrent from the schedule, else `fallback` until (or unless) the schedule answers. */
+export function useCurrentShowSlug(fallback: string, theater: string = DEFAULT_THEATER_SLUG): string {
+  const [slug, setSlug] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    listUpcoming(theater).then((rows) => {
+      if (live) setSlug(pickCurrent(rows)?.slug ?? null);
+    });
+    return () => { live = false; };
+  }, [theater]);
+  return slug ?? fallback;
+}

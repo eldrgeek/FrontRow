@@ -247,3 +247,30 @@ test('validateDefinition: a shelf item needs a YouTube id or an https file', () 
   def.screens[2].shelf.push({ title: 'Bad', artist: 'x', videoUrl: 'http://x.example/a.mp4' });
   assert.match(validateDefinition(def).join(' | '), /needs a youtubeId or an https videoUrl/);
 });
+
+const shows = await load('src/builder/shows.ts');
+const schedule = await load('src/theater/schedule.ts').catch((e) => ({ loadError: e }));
+
+test('shows: slugFor makes a URL-safe slug with the day', () => {
+  assert.equal(shows.slugFor('Jess Wayne', '2026-12-04T20:00'), 'jess-wayne-2026-12-04');
+  assert.equal(shows.slugFor('Noël & Friends!', '2027-01-02T19:30'), 'noel-friends-2027-01-02');
+  assert.equal(shows.slugFor('***', ''), 'show');
+});
+
+test('shows: each step offers only the next one', () => {
+  assert.equal(shows.NEXT_STEP.scheduled.to, 'tickets-out');
+  assert.equal(shows.NEXT_STEP.curtain.to, 'after');
+  assert.equal(shows.NEXT_STEP.after, undefined);
+  assert.match(shows.reasonWords('not-allowed'), /admin/);
+});
+
+test('schedule: pickCurrent prefers the running night, else the soonest', { skip: !!schedule.loadError }, () => {
+  const row = (slug, status, starts_at, screen = 'live') => ({ slug, status, starts_at, screen: { screen_key: screen } });
+  const jess = row('jess-wayne', 'doors', null);
+  const next = row('noel', 'scheduled', '2026-12-04T20:00:00Z');
+  const later = row('harold', 'tickets-out', '2026-12-10T20:00:00Z');
+  assert.equal(schedule.pickCurrent([next, later, jess]).slug, 'jess-wayne');
+  assert.equal(schedule.pickCurrent([later, next]).slug, 'noel');
+  assert.equal(schedule.pickCurrent([row('x', 'scheduled', '2026-12-01T00:00:00Z', 'library')]), null);
+  assert.equal(schedule.pickCurrent([]), null);
+});
