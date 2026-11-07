@@ -1,4 +1,4 @@
--- FrontRow 008: pay-what-you-want ticket sales through Stripe (theater kit,
+-- FrontRow 009: pay-what-you-want ticket sales through Stripe (theater kit,
 -- box office, 2026-11-07). Mike: ticket money goes to Minds Aligned, LLC
 -- (the Stripe account inthefutureof.work already uses), "pay what you want
 -- for now". Rules: server/box-office-pay.mjs.

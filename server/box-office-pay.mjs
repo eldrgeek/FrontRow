@@ -2,7 +2,7 @@
 // (box office, 2026-11-07). Mike: "Payment should be to minds-aligned LLC",
 // "Pay what you want for now". The money goes to Minds Aligned, LLC's Stripe
 // account (the one inthefutureof.work already uses); stored by
-// migrations/008_ticket_sales.sql.
+// migrations/009_ticket_sales.sql.
 //
 // The path a buyer takes:
 //
