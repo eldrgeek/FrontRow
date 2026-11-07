@@ -50,6 +50,8 @@ interface Fake {
   saves: any[];
   roomSaves: any[];
   ticketBodies: any[];
+  nights: any[];
+  perfSaves: any[];
 }
 
 function fakeJwt(): string {
@@ -67,6 +69,8 @@ async function open(page: Page, opts: Partial<Fake> & { signedIn?: boolean; path
     saves: [],
     roomSaves: [],
     ticketBodies: [],
+    nights: [],
+    perfSaves: [],
     ...opts,
   };
 
@@ -111,6 +115,16 @@ async function open(page: Page, opts: Partial<Fake> & { signedIn?: boolean; path
       return rows(fake.stored ? [{ config: { definition: fake.stored.definition }, version: fake.stored.version }] : []);
     }
     if (p === '/rest/v1/theater_changes') return rows(fake.changes);
+    if (p === '/rest/v1/performances') return rows(fake.nights);
+    if (p === '/rest/v1/rpc/save_performance') {
+      const q = body.p;
+      fake.perfSaves.push(q);
+      const had = fake.nights.find((n) => n.slug === q.slug);
+      if (had) { Object.assign(had, q); return json(route, 200, { ok: true, created: false, performance: had }); }
+      const row = { slug: q.slug, title: q.title, artist: q.artist, billing: q.billing, status: 'scheduled', starts_at: q.starts_at, doors_at: q.doors_at, seats: q.seats, screen: { screen_key: q.screen } };
+      fake.nights.push(row);
+      return json(route, 200, { ok: true, created: true, performance: row });
+    }
     if (p.startsWith('/auth/v1/')) return json(route, 200, { id: 'u1', email: 'builder@example.com', aud: 'authenticated' });
     return rows([]);
   });
@@ -294,6 +308,46 @@ test.describe('Theater builder', () => {
     expect(notes.join(' ')).not.toContain('frt_');
     // a ticket request changes no version
     await expect(page.getByTestId('bp-version')).toHaveText('Version 1');
+  });
+
+  test('Shows: schedule a night with a stage video, then move it along', async ({ page }) => {
+    const fake = await open(page, { stored: stored() });
+    await expect(page.getByTestId('bp-shows')).toContainText('Nothing scheduled');
+    await page.getByTestId('bp-show-artist').fill('Noel Paul Stookey');
+    await page.getByTestId('bp-show-night').fill('2030-12-04T20:00');
+    await page.getByTestId('bp-show-video').fill('https://youtu.be/K6ZeroIZd5g');
+    await page.getByTestId('bp-show-schedule').click();
+    await expect(page.getByTestId('bp-show-msg')).toContainText('/show/noel-paul-stookey-2030-12-04');
+    const q = fake.perfSaves[0];
+    expect(q).toMatchObject({ theater: 'front-row', slug: 'noel-paul-stookey-2030-12-04', screen: 'live', title: 'Noel Paul Stookey', artist: 'Noel Paul Stookey', seats: 12 });
+    expect(q.billing).toMatchObject({ stageName: 'NOEL PAUL STOOKEY', fallbackVideoUrl: 'https://youtu.be/K6ZeroIZd5g' });
+    expect(Date.parse(q.starts_at) - Date.parse(q.doors_at)).toBe(15 * 60 * 1000);
+    await page.getByTestId('bp-night-next-noel-paul-stookey-2030-12-04').click();
+    await expect.poll(() => fake.perfSaves[1]).toEqual({ theater: 'front-row', slug: 'noel-paul-stookey-2030-12-04', status: 'tickets-out' });
+    await expect(page.getByTestId('bp-night-next-noel-paul-stookey-2030-12-04')).toHaveText('Open doors');
+  });
+
+  test('Videos: a shelf screen takes a YouTube link and a file link, and gives one back', async ({ page }) => {
+    const fake = await open(page, { stored: stored() });
+    await page.getByTestId('bp-door-library').click();
+    await page.getByTestId('bp-video-title').fill('Jess Wayne Trio, Part III');
+    await page.getByTestId('bp-video-artist').fill('Jess Wayne Trio');
+    await page.getByTestId('bp-video-link').fill('https://www.youtube.com/watch?v=K6ZeroIZd5g');
+    await page.getByTestId('bp-video-add').click();
+    await expect(page.getByTestId('bp-version')).toHaveText('Version 2');
+    await page.getByTestId('bp-video-title').fill('Basement tape');
+    await page.getByTestId('bp-video-artist').fill('Hootnet');
+    await page.getByTestId('bp-video-link').fill('https://example.com/tape.mp4');
+    await page.getByTestId('bp-video-add').click();
+    await expect(page.getByTestId('bp-version')).toHaveText('Version 3');
+    const shelf = fake.stored!.definition.screens.find((s: any) => s.id === 'library').shelf;
+    expect(shelf).toEqual([
+      { title: 'Jess Wayne Trio, Part III', artist: 'Jess Wayne Trio', youtubeId: 'K6ZeroIZd5g' },
+      { title: 'Basement tape', artist: 'Hootnet', videoUrl: 'https://example.com/tape.mp4' },
+    ]);
+    await page.getByTestId('bp-videos').getByRole('button', { name: 'Remove' }).first().click();
+    await expect(page.getByTestId('bp-version')).toHaveText('Version 4');
+    expect(fake.stored!.definition.screens.find((s: any) => s.id === 'library').shelf.map((v: any) => v.title)).toEqual(['Basement tape']);
   });
 
   test('without the room script the builder still works', async ({ page }) => {

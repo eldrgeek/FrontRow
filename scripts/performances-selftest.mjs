@@ -358,6 +358,28 @@ check('followRoom: no performance, no call', (await P.followRoom(rpc, { venue: '
   check('attach: publish after the show shelves at once', r.status === 200 && r.body.shelved && r.body.status === 'library', r);
 }
 
+// ── 008: admins by email ────────────────────────────────────────────────────
+{
+  const NOEL = '80080080-0000-4000-8000-000000000001';
+  const FAKE = '80080080-0000-4000-8000-000000000002';
+  psql(`ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz;
+        UPDATE auth.users SET email_confirmed_at = now() WHERE id = '${MIKE}';
+        INSERT INTO auth.users (id, email, email_confirmed_at) VALUES
+          ('${NOEL}', 'NPStookey@gmail.com', now()), ('${FAKE}', 'majorpeabody@gmail.com', NULL)
+          ON CONFLICT DO NOTHING;`);
+  const night8 = { theater: 'front-row', slug: 'noel-night', screen: 'live', title: 'Noel night' };
+  check('008: before it, an email-only admin is refused', save(NOEL, night8).reason === 'not-allowed');
+  const M008 = mig('008');
+  psql(M008);
+  psql(M008); // idempotent
+  check('008: the Hootnet rows are in, email only', psql(`SELECT count(*) FROM public.frontrow_admins WHERE user_id IS NULL`) === '5');
+  { const r8 = save(NOEL, night8); check('008: a confirmed address matches, any case', r8.ok === true, r8); }
+  check('008: an unconfirmed address claiming an admin email is refused', save(FAKE, { ...night8, slug: 'fake-night' }).reason === 'not-allowed');
+  check('008: a user_id admin still is one', psql(`SELECT public.is_frontrow_admin('${MIKE}')`) === 't');
+  check('008: nobody signed out', psql(`SELECT public.is_frontrow_admin(NULL)`) === 'f');
+  check('008: JOE is not', psql(`SELECT public.is_frontrow_admin('${JOE}')`) === 'f');
+}
+
 // ── Module bits that need no database ───────────────────────────────────────
 check('toShow maps a performance to a Show', (() => {
   const s = P.toShow(seed.performance);
