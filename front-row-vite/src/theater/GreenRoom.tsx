@@ -20,6 +20,8 @@ interface Props {
   /** onStage: stand on the stage as a figure instead of filling the big screen. */
   onGoLive: (onStage: boolean) => void;
   onStartCamera: () => void;
+  /** The stage camera panel (StageCamera.tsx StageCameraLink). */
+  stageCamera?: React.ReactNode;
 }
 
 function useMicLevel(stream: MediaStream | null): number {
@@ -117,6 +119,7 @@ export function GreenRoom(p: Props): JSX.Element {
             Performing from your phone? Open <b>{location.host}{location.pathname}</b> on it, sign in, and prop it up where you'll stand.
             &ldquo;Step onto the stage&rdquo; puts you on the boards as a figure; &ldquo;big screen&rdquo; fills the screen behind the stage.
           </div>
+          {p.stageCamera}
         </section>
         <section className="live">
           <div className="sub">{p.isCountdownActive ? "You're live in" : 'Countdown'}</div>

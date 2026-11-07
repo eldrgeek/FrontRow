@@ -3,6 +3,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from 'three-stdlib';
 import * as THREE from 'three';
 import { useHouse } from '../theater/useHouse';
+import { PERFORMER_EYE } from '../lib/seatLayout';
 
 interface CameraControllerProps {
   currentView: 'eye-in-the-sky' | 'performer' | 'user';
@@ -24,7 +25,9 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
   const targetRef = useRef(new THREE.Vector3());
   const positionRef = useRef(new THREE.Vector3());
   const isTransitioning = useRef(false);
-  const lastView = useRef(currentView);
+  // A performer's page can mount already in 'performer' view: start as "no
+  // view yet" so the first effect still flies the camera onto the stage.
+  const lastView = useRef<CameraControllerProps['currentView'] | null>(currentView === 'performer' ? null : currentView);
   const lastSeatRef = useRef<string | null>(selectedSeat);
   const transitionProgress = useRef(0);
   const transitionDuration = 3.6; // seconds - 3x slower transitions for smoother camera movement
@@ -176,6 +179,11 @@ function CameraController({ currentView, selectedSeat, savedPositions, onPositio
           newPosition = savedPositions['user'].position;
           newTarget = savedPositions['user'].target;
         }
+      } else if (currentView === 'performer') {
+        // The performer stands at the back of the boards and looks out at the
+        // house; the big screen is behind them.
+        newPosition = PERFORMER_EYE.position;
+        newTarget = PERFORMER_EYE.target;
       } else {
         newPosition = savedPositions['eye-in-the-sky'].position;
         newTarget = savedPositions['eye-in-the-sky'].target;

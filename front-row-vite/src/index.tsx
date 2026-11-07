@@ -24,6 +24,7 @@ import { LobbyPage } from './theater/Lobby';
 import { HallwayPage } from './theater/Hallway';
 import { ShelfPage } from './theater/Shelf';
 import { HousePage } from './theater/House';
+import { StageCameraPage } from './theater/StageCamera';
 import { GreenRoomPage } from './theater/GreenRoomPage';
 import { BuilderPage } from './builder/BuilderPage';
 
@@ -75,6 +76,8 @@ function AppRoutes() {
       <Route path="/show/:slug/shelf/:screenId" element={<ShelfPage />} />
       <Route path="/show/:slug/house" element={<HousePage />} />
       <Route path="/show/:slug/green-room" element={<GreenRoomPage />} />
+      {/* A performer's second camera (a phone on the boards), from the green room's QR code. */}
+      <Route path="/show/:slug/stage-camera" element={<StageCameraPage />} />
       {/* Theater kit: the builder, with a SOMA room for the people and AIs designing it. */}
       <Route path="/build/:theater" element={<BuilderPage />} />
 
