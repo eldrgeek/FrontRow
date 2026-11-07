@@ -24,8 +24,8 @@
 // not hold more devices than the night (006) or the room has seats, unless an
 // admin overbooks. A performance must be scheduled (006) and not over.
 //
-// Payment is out of scope until Mike decides how (free, pay-what-you-want, a
-// tip to the artist, or a Stripe checkout). "Sold" only records a hand-over.
+// "Sold" only records a door hand-over. Online sales (pay what you want, paid
+// to Minds Aligned, LLC through Stripe, Mike 2026-11-07) are in box-office-pay.mjs.
 
 import crypto from 'node:crypto';
 import {

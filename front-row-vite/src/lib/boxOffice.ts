@@ -17,7 +17,7 @@ export interface BoxTicket {
   id: string; role: string; channel: 'sent' | 'door' | 'comp'; holder: string | null; label: string | null;
   room_id: string | null; performance_id: string | null; valid_from: string; valid_until: string;
   max_devices: number; claimed: number; revoked_at: string | null;
-  sold_at: string | null; sold_note: string | null;
+  sold_at: string | null; sold_by: string | null; sold_note: string | null;
   mail: { id: string; email: string; state: 'queued' | 'sending' | 'sent' | 'failed'; error: string | null; retryable: boolean } | null;
 }
 export interface BoxList {

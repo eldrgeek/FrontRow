@@ -8,7 +8,8 @@
 // changed. Letters go out from Mike's Mac, which may be asleep or switched
 // off: each one shows Waiting for Mike's Mac, Sent, or Not sent with why.
 //
-// Payment is not taken here. "Sold" records that a door card was handed over.
+// "Sold" records that a door card was handed over; no money changes hands here.
+// Online, pay-what-you-want sales run from the night's /buy link (BuyPage.tsx).
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import qrcode from 'qrcode-generator';
 import { boxOffice, type BoxList, type DoorCard, type Preview, type Scope } from '../lib/boxOffice';
@@ -73,6 +74,7 @@ export function BoxOffice() {
     if (n.starts_at) setUntil(localInput(new Date(new Date(n.starts_at).getTime() + 4 * 3600e3)));
   };
 
+  const buyLink = `${window.location.origin}/buy/${scope.venue}/${scope.room}/${scope.performance}`;
   const window_ = () => ({ validFrom: new Date(from).toISOString(), validUntil: new Date(until).toISOString() });
   const letterFields = () => ({ ...window_(), role: 'audience', maxDevices: devices, theaterTitle, showTitle, timeZone, guests });
 
@@ -170,6 +172,13 @@ export function BoxOffice() {
             Sent: {s.sent} ({s.delivered} delivered, {s.waiting} waiting, {s.notSent} not sent). Door cards: {s.door} ({s.doorSold} handed out). In the house at least once: {s.used}.
           </p>
         )}
+        {data?.performance && scope.performance && (
+          <p>
+            Online sales (pay what you want, paid to Minds Aligned, LLC):{' '}
+            <a href={buyLink} target="_blank" rel="noreferrer">{buyLink}</a>{' '}
+            <button type="button" onClick={() => { navigator.clipboard?.writeText(buyLink); setMsg({ kind: 'ok', text: 'Sales link copied.' }); }}>Copy</button>
+          </p>
+        )}
       </section>
 
       <section className="no-print">
@@ -237,8 +246,8 @@ export function BoxOffice() {
           <tbody>
             {(data?.tickets || []).map((t) => (
               <tr key={t.id} style={t.revoked_at ? { color: '#999', textDecoration: 'line-through' } : undefined}>
-                <td>{t.label || t.holder || 'unnamed'}{t.sold_note ? ` (to ${t.sold_note})` : ''}</td>
-                <td>{t.channel === 'sent' ? 'email' : t.channel}</td>
+                <td>{t.sold_by === 'stripe' ? t.holder : <>{t.label || t.holder || 'unnamed'}{t.sold_note ? ` (to ${t.sold_note})` : ''}</>}</td>
+                <td>{t.sold_by === 'stripe' ? (t.sold_note || 'paid online').toLowerCase() : t.channel === 'sent' ? 'email' : t.channel}</td>
                 <td>
                   {t.revoked_at ? 'revoked'
                     : t.mail ? <>{MAIL_STATE[t.mail.state]}{t.mail.error ? `: ${t.mail.error}` : ''}</>

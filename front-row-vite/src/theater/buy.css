@@ -1,0 +1,19 @@
+/* Buy a ticket (pay what you want). Built on the invitation card in theater.css. */
+.fr-buy .amounts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.fr-buy .amounts button {
+  appearance: none;
+  min-width: 72px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--brass-lo);
+  background: #fffaf0;
+  color: var(--ink);
+  font: 600 17px var(--sans);
+  cursor: pointer;
+}
+.fr-buy .amounts button[aria-pressed='true'] { background: var(--door); color: var(--marquee); border-color: var(--door); }
+.fr-buy .amounts button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.fr-buy .own { display: flex; align-items: center; gap: 6px; font: 22px var(--serif); }
+.fr-buy .own input { width: 120px; }
+.fr-buy .err { color: #8d1426; font-size: 14px; max-width: 360px; }
+.fr-buy .code { font: 15px ui-monospace, Menlo, monospace; word-break: break-all; background: #fffaf0; border: 1px dashed var(--brass-lo); padding: 10px 12px; border-radius: 4px; }
