@@ -140,3 +140,6 @@
 .bp-issued ol { margin: 0 0 8px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .bp-issued li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; align-items: center; font-size: 13px; }
 .bp-issued input { font: 12px ui-monospace, monospace; color: var(--ink); background: #00000050; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; min-width: 0; }
+.bp-error { color: var(--bad); font-size: 13px; }
+.bp-subform { display: grid; gap: 6px; margin-top: 6px; }
+.bp-group h4 { margin: 10px 0 4px; font-size: 13px; }

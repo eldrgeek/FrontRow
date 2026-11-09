@@ -28,6 +28,7 @@ import { builderTicketIssuer, IssuedTicket } from './tickets';
 import { BuilderAccess, loadBuilderAccess, saveBuilderRoom } from './access';
 import { attachRoom, Bridge, BridgeState, loadSomaRoomScript, RoomProposal, SomaRoomElement } from './roomBridge';
 import { TheaterPreview } from './TheaterPreview';
+import { ShowsPanel, VideoList } from './ShowsPanel';
 import { resolvePalette } from '../theater/theme';
 import './builder.css';
 
@@ -494,7 +495,15 @@ function Panel({ def, show, sel, onSelect, edit }: {
         <button type="button" onClick={addScreen} disabled={screens.length >= MAX_SCREENS} data-testid="bp-add-screen">Add a screen</button>
       </div>
 
+      <ShowsPanel
+        theater={def.slug}
+        liveScreen={screens.find((x) => x.kind === 'live')?.id ?? 'live'}
+        defaultSeats={screens.find((x) => x.kind === 'live')?.seats?.count ?? 12}
+      />
       {s ? <RoomForm key={`${s.id}-${JSON.stringify(s)}`} s={s} heading={fill(s.title, show, s)} edit={edit} /> : null}
+      {s && s.kind === 'shelf' ? (
+        <div className="bp-group"><VideoList key={`v-${s.id}-${(s.shelf ?? []).length}`} screen={s.id} shelf={s.shelf ?? []} edit={edit} /></div>
+      ) : null}
       <ThemeForm key={JSON.stringify(def.theme)} def={def} edit={edit} />
       <TicketForm screens={screens.map((x) => x.id)} defaultShow={def.currentShowSlug} edit={edit} />
     </section>
