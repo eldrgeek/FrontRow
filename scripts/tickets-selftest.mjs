@@ -109,6 +109,7 @@ psql(`
   CREATE SCHEMA IF NOT EXISTS auth;
   GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
   CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text);
+  ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz; -- 008 reads it
   CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $f$ SELECT NULL::uuid $f$;
   CREATE TABLE IF NOT EXISTS public.profiles (id uuid PRIMARY KEY);
   INSERT INTO auth.users VALUES ('${MIKE}', 'mw@mike-wolf.com'), ('${MGR}', 'mgr@example.com'), ('${JOE}', 'joe@example.com')
