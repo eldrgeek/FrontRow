@@ -18,6 +18,9 @@ interface StageProps {
   fallbackVideoUrl?: string;
   screenPosition?: [number, number, number];
   performerStream?: MediaStream | null;
+  /** A performer's second camera (a phone on the boards). When there is one,
+   *  the stage figure uses it and the big screen keeps the main camera. */
+  stageStream?: MediaStream | null;
   countdownTime?: number;
   isCountdownActive?: boolean;
   isPerformer?: boolean;
@@ -179,6 +182,7 @@ function Stage({
   fallbackVideoUrl = 'https://youtu.be/K6ZeroIZd5g',
   screenPosition = [0, 7.30, -12],
   performerStream,
+  stageStream = null,
   countdownTime = 0,
   isCountdownActive = false,
   isPerformer = false,
@@ -219,14 +223,15 @@ function Stage({
         screenPosition={screenPosition}
         showState={showState}
         isPerformer={isPerformer}
-        hidden={performerOnStage}
+        hidden={isPerformer || (performerOnStage && !stageStream)}
         holdUntilLive={holdFallbackUntilLive}
       />
 
-      {/* Phase 2: Performer mesh on stage floor */}
-      {performerOnStage && performerStream && (
+      {/* Phase 2: Performer mesh on stage floor. The performer is looking out
+          from where the figure stands, so they don't see it. */}
+      {performerOnStage && !isPerformer && (stageStream || performerStream) && (
         <PerformerMesh
-          stream={performerStream}
+          stream={stageStream || performerStream || null}
           stageZ={performerStageZ}
           stageX={performerStageX}
           opacity={performerOpacity}
@@ -267,8 +272,8 @@ function Stage({
         {config.artistName}
       </Text>
 
-      {/* Countdown Display */}
-      {isCountdownActive && (
+      {/* Countdown Display (the performer has the green room's) */}
+      {isCountdownActive && !isPerformer && (
         <group>
           <Plane args={[8, 3]} position={[0, 4, -10]} rotation-x={0}>
             <meshBasicMaterial color="#000000" opacity={0.8} transparent />
@@ -282,14 +287,14 @@ function Stage({
         </group>
       )}
 
-      {/* 3D Status Text */}
-      {showState === 'pre-show' && !isCountdownActive && (
+      {/* 3D Status Text: on the screen wall, which the performer has behind them */}
+      {!isPerformer && showState === 'pre-show' && !isCountdownActive && (
         <Text position={[0, 5, -11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">SHOW STARTS SOON!</Text>
       )}
-      {showState === 'live' && (
+      {!isPerformer && showState === 'live' && (
         <Text position={[0, 5, -11]} fontSize={0.8} color="#ff3b3b" anchorX="center" anchorY="middle">LIVE</Text>
       )}
-      {showState === 'post-show' && (
+      {!isPerformer && showState === 'post-show' && (
         <Text position={[0, 5, -11]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">THANK YOU!</Text>
       )}
     </group>

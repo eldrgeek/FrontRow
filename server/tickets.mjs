@@ -78,6 +78,8 @@ function publishSources(TrackSource, role) {
   if (!TrackSource) throw new Error('TrackSource missing from deps');
   return (PUBLISH_SOURCES[role] || PUBLISH_SOURCES.audience).map((n) => TrackSource[SOURCE_ENUM[n]]);
 }
+/** A performer device name: short lowercase letters and digits. */
+const CAM = /^[a-z0-9]{1,12}$/;
 const performerIdentity = (id) => `performer-${String(id).replace(/[^a-z0-9]/gi, '').slice(0, 12).toLowerCase()}`;
 
 /** What each role may publish. Audience publish only their seat camera (the
@@ -398,7 +400,9 @@ export async function handleToken(req, deps) {
   }
 
   // Performers are performer-<id>; nobody else may take a performer name.
-  if (role === 'performer') identity = performerIdentity(performerId);
+  // A performer's second device (cam=stage: a phone on the boards) is
+  // performer-<id>-<cam>, so it joins beside the first instead of evicting it.
+  if (role === 'performer') identity = performerIdentity(performerId) + (CAM.test(q.cam || '') ? `-${q.cam}` : '');
   else if (isReservedIdentity(identity)) identity = 'Guest';
 
   const ttl = Math.max(60, Math.floor((until - now) / 1000));

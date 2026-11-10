@@ -71,6 +71,13 @@ r = await call({ identity: 'performer', role: 'performer', room: 'frontrow-main'
 check('admin gets a performer token', r.statusCode === 200 && /^performer-[a-z0-9]+$/.test(sub(r)), r.body);
 r = await call({ identity: 'Jess', role: 'performer', room: 'frontrow-main' }, 'tok-admin');
 check('admin performer token always carries a performer identity', r.statusCode === 200 && /^performer-[a-z0-9]+$/.test(sub(r)), r.body);
+r = await call({ identity: 'performer', role: 'performer', room: 'frontrow-main', cam: 'stage' }, 'tok-admin');
+const mainId = sub(await call({ identity: 'performer', role: 'performer', room: 'frontrow-main' }, 'tok-admin'));
+check('a second performer camera joins beside the first (cam=stage)', r.statusCode === 200 && sub(r) === `${mainId}-stage`, r.body);
+r = await call({ identity: 'performer', role: 'performer', room: 'frontrow-main', cam: 'Stage/../x' }, 'tok-admin');
+check('a malformed cam name is ignored', r.statusCode === 200 && sub(r) === mainId, r.body);
+r = await call({ identity: 'Guest', role: 'audience', room: 'frontrow-main', cam: 'stage' });
+check('cam does not make an audience identity a performer one', r.statusCode === 200 && sub(r) === 'Guest', r.body);
 r = await call({ identity: 'x', role: 'audience', room: 'other-room' });
 check('non-frontrow room is refused', r.statusCode === 403, String(r.statusCode));
 r = await handler({ httpMethod: 'OPTIONS', headers: {} });

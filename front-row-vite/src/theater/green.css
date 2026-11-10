@@ -51,3 +51,8 @@
 @media (prefers-reduced-motion: reduce) { .fr-green .cd.places { animation: none; } }
 .fr-green .note.phone { margin-top: 14px; line-height: 1.45; color: #c7d4ca; }
 .fr-green .note.phone b { color: #fff4d2; overflow-wrap: anywhere; }
+.fr-green .stagecam { margin-top: 18px; padding-top: 14px; border-top: 1px solid #2a3b31; }
+.fr-green .stagecam .qr { width: 180px; margin: 10px 0; background: #fff; padding: 6px; border-radius: 6px; }
+.fr-green .stagecam .qr svg { display: block; width: 100%; height: auto; }
+.fr-green .stagecam-pv { display: block; width: 180px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 6px; background: #000; margin: 8px 0; }
+.fr-stagecam .pv { max-width: 560px; }
