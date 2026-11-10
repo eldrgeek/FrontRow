@@ -109,6 +109,7 @@ psql(`
   CREATE SCHEMA IF NOT EXISTS auth;
   GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
   CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY, email text);
+  ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz; -- 008 reads it
   CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $f$ SELECT NULL::uuid $f$;
   CREATE TABLE IF NOT EXISTS public.profiles (id uuid PRIMARY KEY);
   INSERT INTO auth.users VALUES ('${MIKE}', 'mw@mike-wolf.com'), ('${MGR}', 'mgr@example.com'), ('${JOE}', 'joe@example.com')
@@ -504,15 +505,142 @@ console.log('the queue\'s clocks');
   check('once the window closes the sealed copy is wiped', q1(`SELECT sealed IS NULL FROM public.ticket_mail WHERE id = '${id}';`) === 't');
 }
 
-// ── 12. Nothing reaches a browser ───────────────────────────────────────────
+// ── 12. Pay what you want (Stripe stubbed) ──────────────────────────────────
+console.log('pay what you want');
+{
+  const P = await import(path.join(ROOT, 'server/box-office-pay.mjs'));
+  const WHSEC = 'whsec_' + 'x'.repeat(32);
+  for (const [slug, extra] of [['paid-show', { seats: 2 }], ['untimed-show', {}], ['over-show', {}]]) {
+    const times = slug === 'untimed-show' ? {} : slug === 'over-show'
+      ? { starts_at: iso(now - 6 * hour), ends_at: iso(now - 3 * hour) }
+      : { starts_at: iso(now + 2 * hour), doors_at: iso(now + hour), ends_at: iso(now + 4 * hour) };
+    const r = JSON.parse(psql(`SET ROLE service_role; SELECT public.frontrow_performance_save(:'p'::jsonb);`,
+      { p: JSON.stringify({ theater: 'front-row', slug, screen: 'live', title: 'Paid Night', artist: 'Jess Wayne', ...extra, ...times }) }));
+    if (!r.ok) throw new Error(`could not schedule ${slug}: ${JSON.stringify(r)}`);
+  }
+  // A Stripe stand-in: sessions it made, which the test marks paid.
+  const sessions = new Map();
+  let made = 0;
+  let calls = [];
+  const stripe = {
+    createCheckout: async (params) => {
+      calls.push(params);
+      const id = `cs_test_${String(++made).padStart(12, 'a')}`;
+      const meta = {};
+      for (const [k, v] of Object.entries(params)) { const m = /^metadata\[(\w+)\]$/.exec(k); if (m) meta[m[1]] = v; }
+      sessions.set(id, { id, mode: params.mode, payment_status: 'unpaid', metadata: meta, amount_total: Number(params['line_items[0][price_data][unit_amount]']), currency: 'usd', livemode: false, created: Math.floor(now / 1000) });
+      return { id, url: `https://checkout.stripe.com/c/pay/${id}` };
+    },
+    getSession: async (id) => {
+      const s = sessions.get(id);
+      if (!s) throw Object.assign(new Error('no such'), { status: 404 });
+      return JSON.parse(JSON.stringify(s));
+    },
+  };
+  const pdeps = (over = {}) => deps({ stripe, stripeWebhookSecret: WHSEC, ...over });
+  const night = { venue: 'front-row', room: 'live', performance: 'paid-show' };
+  const buyer = { ...night, email: 'Pat@Example.com', name: 'Pat Doe', amount: 1500, timeZone: 'America/Chicago' };
+
+  const info = await P.handleBuyInfo({ query: night }, pdeps());
+  check('the buy page shows the night, the theater and seats left', info.status === 200 && info.body.onSale && info.body.show.title === 'Paid Night'
+    && info.body.show.theater && info.body.seatsLeft === 2 && info.body.payee === 'Minds Aligned, LLC', info.body);
+  const closedInfo = await P.handleBuyInfo({ query: night }, deps());
+  check('without Stripe set up, the page says sales are not open', closedInfo.body.onSale === false && closedInfo.body.closed.reason === 'not-set-up', closedInfo.body);
+  check('...and a checkout is refused', (await P.handleCheckout({ body: buyer }, deps())).status === 503);
+  check('an untimed night is not on sale', (await P.handleBuyInfo({ query: { ...night, performance: 'untimed-show' } }, pdeps())).body.closed.reason === 'no-time');
+  check('a night that is over is not on sale', (await P.handleCheckout({ body: { ...buyer, performance: 'over-show' } }, pdeps())).status === 409);
+  check('a night that does not exist is 404', (await P.handleBuyInfo({ query: { ...night, performance: 'nope' } }, pdeps())).status === 404);
+  check('a cancelled night is not on sale', (await P.handleBuyInfo({ query: { ...night, performance: 'gone-show' } }, pdeps())).body.closed.reason === 'cancelled');
+  for (const [why, b] of [['under $1', { amount: 50 }], ['over $500', { amount: 50001 }], ['a fraction', { amount: 150.5 }], ['no email', { email: 'nope' }], ['an agent inbox', { email: 'claude@mike-wolf.com' }]]) {
+    const r = await P.handleCheckout({ body: { ...buyer, ...b } }, pdeps());
+    check(`a checkout with ${why} is refused`, r.status === 400, r.body);
+  }
+  const before = count();
+  calls = [];
+  const co = await P.handleCheckout({ body: buyer, origin: 'https://evil.example' }, pdeps());
+  const sent = calls[0] || {};
+  check('a checkout opens a Stripe page and issues nothing', co.status === 200 && /^https:\/\/checkout\.stripe\.com\//.test(co.body.url) && count() === before, co.body);
+  check('  ...for the amount the buyer chose, in dollars, one ticket', sent['line_items[0][price_data][unit_amount]'] === '1500' && sent['line_items[0][price_data][currency]'] === 'usd' && sent['line_items[0][quantity]'] === '1', sent);
+  check('  ...named from the database, not the buyer', sent['line_items[0][price_data][product_data][name]'] === 'Ticket: Paid Night', sent);
+  check('  ...returning to this site, not the request host', sent.success_url === `${SITE}/buy/thanks?session_id={CHECKOUT_SESSION_ID}` && sent.cancel_url.startsWith(SITE), sent);
+  check('  ...with the email locked and lowercased', sent.customer_email === 'pat@example.com' && sent['metadata[email]'] === 'pat@example.com', sent);
+  const sid = co.body.id;
+
+  const pending = await P.handleClaim({ body: { session_id: sid } }, pdeps());
+  check('before payment the thank-you page waits and makes nothing', pending.body.state === 'pending' && count() === before, pending.body);
+  check('a made-up session id is 404', (await P.handleClaim({ body: { session_id: 'cs_test_zzzzzzzzzzzzzzzz' } }, pdeps())).status === 404);
+  check('a malformed one is 400', (await P.handleClaim({ body: { session_id: 'x' } }, pdeps())).status === 400);
+
+  sessions.get(sid).payment_status = 'paid';
+  const [c1, c2] = await Promise.all([
+    P.handleClaim({ body: { session_id: sid } }, pdeps()),
+    P.handleClaim({ body: { session_id: sid } }, pdeps()),
+  ]);
+  check('paid: the thank-you page shows the ticket', c1.status === 200 && c1.body.state === 'paid' && T.isCode(c1.body.code) && c1.body.link === `${SITE}/#ticket=${c1.body.code}`, c1.body);
+  check('  ...two at once make one ticket, same code', count() === before + 1 && c2.body.code === c1.body.code, { n: count() - before, c2: c2.body });
+  check('  ...and an email copy is queued', c1.body.emailed === true && q1(`SELECT count(*) FROM public.ticket_mail WHERE email = 'pat@example.com';`) === '1', c1.body);
+  const row = q1(`SELECT channel || '|' || role || '|' || max_devices || '|' || holder || '|' || sold_note || '|' || label || '|' || valid_from || '|' || valid_until FROM public.frontrow_tickets WHERE holder = 'pat@example.com';`);
+  check('the ticket: one audience device, paid online, doors to an hour after the end', row.startsWith('sent|audience|1|pat@example.com|Paid 15.00 USD online|Paid online|')
+    && Date.parse(row.split('|')[6]) === now + hour - (now % 1000) + (now % 1000) && true, row);
+  const win = row.split('|');
+  check('  ...window is doors to ends + 1h', Math.abs(Date.parse(win[6]) - (now + hour)) < 1000 && Math.abs(Date.parse(win[7]) - (now + 5 * hour)) < 1000, win.slice(6));
+  check('the sale is recorded once', q1(`SELECT count(*) || ':' || max(amount) FROM public.frontrow_ticket_sales WHERE session_id = '${sid}';`) === '1:1500');
+  const dev = 'd'.repeat(32);
+  const ck = await T.handleCheck({ ticket: c1.body.code, device: dev }, deps());
+  check('the shown code is the ticket (known, opens at doors)', ck.body.reason === 'not-open' && Math.abs(Date.parse(ck.body.validFrom) - (now + hour)) < 1000, ck.body);
+
+  // The webhook: signed, and it asks Stripe rather than trusting its body.
+  const sign = (body, secret = WHSEC, t = Math.floor(Date.now() / 1000)) =>
+    `t=${t},v1=${crypto.createHmac('sha256', secret).update(`${t}.${body}`).digest('hex')}`;
+  const hook = (event, sig) => { const raw = JSON.stringify(event); return P.handleWebhook({ rawBody: raw, signature: sig === undefined ? sign(raw) : sig }, pdeps()); };
+  const co2 = await P.handleCheckout({ body: { ...buyer, email: 'quinn@example.com', name: 'Quinn', amount: 100 } }, pdeps());
+  const ev = { type: 'checkout.session.completed', data: { object: { id: co2.body.id, payment_status: 'paid', metadata: { kind: 'frontrow-ticket' } } } };
+  check('an unsigned webhook is refused', (await hook(ev, '')).status === 400);
+  check('a webhook signed with another secret is refused', (await hook(ev, sign(JSON.stringify(ev), 'whsec_other'))).status === 400);
+  check('a stale signature is refused', (await hook(ev, sign(JSON.stringify(ev), WHSEC, Math.floor(Date.now() / 1000) - 600))).status === 400);
+  const b2 = count();
+  const lied = await hook(ev);
+  check('a webhook that says "paid" for an unpaid session makes nothing', lied.status === 200 && lied.body.paid === false && count() === b2, lied.body);
+  sessions.get(co2.body.id).payment_status = 'paid';
+  const okHook = await hook(ev);
+  check('a paid session\'s webhook makes the ticket', okHook.body.created === true && count() === b2 + 1, okHook.body);
+  check('  ...a retry of the same event makes nothing more', (await hook(ev)).body.created === false && count() === b2 + 1);
+  const late = await P.handleClaim({ body: { session_id: co2.body.id } }, pdeps());
+  check('the thank-you page after the webhook still shows the same ticket', T.isCode(late.body.code) && late.body.code === P.codeFor(WHSEC, co2.body.id), late.body);
+  check('other events are ignored', (await hook({ type: 'charge.refunded', data: { object: {} } })).body.ignored === 'charge.refunded');
+
+  // Seats: paid-show holds 2; both are now taken.
+  const full = await P.handleCheckout({ body: { ...buyer, email: 'rae@example.com' } }, pdeps());
+  check('a sold-out night refuses a new checkout', full.status === 409 && full.body.reason === 'sold-out', full.body);
+
+  // Shown for 24 hours, then only by email; never once revoked; never under a rotated secret.
+  const old = await P.handleClaim({ body: { session_id: sid } }, pdeps({ now: () => now + 25 * hour }));
+  check('after 24 hours the page no longer shows the code', old.body.state === 'paid' && !old.body.code && old.body.emailed, old.body);
+  const rot = await P.handleClaim({ body: { session_id: sid } }, pdeps({ stripeWebhookSecret: 'whsec_rotated' }));
+  check('after the secret rotates the page shows no wrong code', !rot.body.code && count() === b2 + 1, rot.body);
+  q1(`UPDATE public.frontrow_tickets SET revoked_at = now() WHERE holder = 'pat@example.com';`);
+  const rev = await P.handleClaim({ body: { session_id: sid } }, pdeps());
+  check('a revoked ticket is not shown', rev.body.state === 'revoked' && !rev.body.code, rev.body);
+
+  // Not a ticket session; or a non-ticket kind in metadata.
+  sessions.set('cs_test_otherproduct01', { id: 'cs_test_otherproduct01', mode: 'payment', payment_status: 'paid', metadata: {}, amount_total: 900, currency: 'usd', created: 1 });
+  check('a paid session that is not a ticket makes nothing', (await P.handleClaim({ body: { session_id: 'cs_test_otherproduct01' } }, pdeps())).status === 404);
+
+  // Pure helpers.
+  check('codeFor is frt_ + 24 and stable', T.isCode(P.codeFor('k', 'cs_test_x')) && P.codeFor('k', 'cs_test_x') === P.codeFor('k', 'cs_test_x') && P.codeFor('k', 'cs_test_x') !== P.codeFor('j', 'cs_test_x'));
+  check('a window without times is null', P.ticketWindow({}) === null);
+  check('a window from the start alone: 30 min before to 4 h after', JSON.stringify(P.ticketWindow({ starts_at: '2026-12-01T20:00:00Z' })) === JSON.stringify({ validFrom: '2026-12-01T19:30:00.000Z', validUntil: '2026-12-02T00:00:00.000Z' }));
+}
+
+// ── 13. Nothing reaches a browser ───────────────────────────────────────────
 console.log('nothing reaches a browser');
 for (const role of ['anon', 'authenticated']) {
-  for (const fn of ['frontrow_box_office_performance', 'frontrow_box_office_issue', 'frontrow_box_office_list', 'frontrow_mail_claim', 'frontrow_mail_report', 'frontrow_mail_retry', 'frontrow_box_office_sold', 'frontrow_mail_get']) {
+  for (const fn of ['frontrow_box_office_performance', 'frontrow_box_office_issue', 'frontrow_box_office_list', 'frontrow_mail_claim', 'frontrow_mail_report', 'frontrow_mail_retry', 'frontrow_box_office_sold', 'frontrow_mail_get', 'frontrow_ticket_sale_night', 'frontrow_ticket_sale_fulfil']) {
     let refused = false;
     try { psql(`SELECT public.${fn}('{}'::jsonb);`, {}, { role }); } catch (e) { refused = /permission denied/.test(e.message); }
     check(`${role} cannot call ${fn}`, refused);
   }
-  for (const t of ['ticket_mail', 'ticket_mail_worker']) {
+  for (const t of ['ticket_mail', 'ticket_mail_worker', 'frontrow_ticket_sales']) {
     let refused = false;
     try { psql(`SELECT count(*) FROM public.${t};`, {}, { role }); } catch (e) { refused = /permission denied/.test(e.message); }
     check(`${role} cannot read ${t}`, refused);

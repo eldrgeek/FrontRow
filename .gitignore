@@ -28,3 +28,4 @@ front-row-vite/dist-spike/
 # Box office mail worker (Mac): its key + token, and its state
 .env.ticket-mail
 state/ticket-mail/
+.env.stripe-frontrow

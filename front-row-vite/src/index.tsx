@@ -26,6 +26,7 @@ import { ShelfPage } from './theater/Shelf';
 import { HousePage } from './theater/House';
 import { GreenRoomPage } from './theater/GreenRoomPage';
 import { BuilderPage } from './builder/BuilderPage';
+import { BuyPage, BuyThanksPage } from './theater/BuyPage';
 
 // SOMA feedback stack — boot wiring (must run before render):
 //  - identity/auth hooks let the soma-feedback widget autofill the signed-in
@@ -48,7 +49,7 @@ function AppRoutes() {
   const { loading } = useAuth();
   const { pathname } = useLocation();
   // The front of house needs no account, so it never waits on the auth check.
-  const isFrontOfHouse = pathname === '/' || pathname === '/show' || pathname.startsWith('/show/');
+  const isFrontOfHouse = pathname === '/' || pathname === '/show' || pathname.startsWith('/show/') || pathname.startsWith('/buy/');
 
   if (loading && !isFrontOfHouse) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>;
@@ -68,6 +69,8 @@ function AppRoutes() {
       <Route path="/" element={<InvitePage />} />
       <Route path="/show/:slug" element={<InvitePage />} />
       <Route path="/show/:slug/ticket" element={<TicketPage />} />
+      <Route path="/buy/thanks" element={<BuyThanksPage />} />
+      <Route path="/buy/:venue/:room/:performance" element={<BuyPage />} />
       <Route path="/show/:slug/lobby" element={<LobbyPage />} />
       <Route path="/show/:slug/hallway" element={<HallwayPage />} />
       <Route path="/show/:slug/revolution" element={<ShelfPage which="revolution" />} />
