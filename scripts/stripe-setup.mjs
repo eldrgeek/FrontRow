@@ -31,8 +31,9 @@ async function stripe(method, path, form) {
   return j;
 }
 
-const acct = await stripe('GET', '/account');
-console.log(`Stripe account: ${acct.settings?.dashboard?.display_name || acct.business_profile?.name || acct.id} (${key.includes('_live_') ? 'LIVE' : 'test'} mode)`);
+// A restricted key made just for ticket sales has no Accounts Read; the name is a courtesy.
+const acct = await stripe('GET', '/account').catch(() => null);
+console.log(`Stripe account: ${acct ? acct.settings?.dashboard?.display_name || acct.business_profile?.name || acct.id : '(name not readable with this key)'} (${key.includes('_live_') ? 'LIVE' : 'test'} mode)`);
 const list = await stripe('GET', '/webhook_endpoints?limit=100');
 const have = list.data.find((e) => e.url === url);
 if (have) {
