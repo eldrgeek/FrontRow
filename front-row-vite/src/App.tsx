@@ -1527,7 +1527,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               chatOpen={chatOpen || afterShow}
             />
           )}
-          {entryShow && holdLeft > 0 && (
+          {/* The house's notice. A waiting performer's green room has its own. */}
+          {entryShow && holdLeft > 0 && !waitingPerformer && (
             <div className="fr-hold" role="status" data-testid="fr-stage-hold">
               The performer&apos;s connection dropped. Holding the stage for {holdLeft} more second{holdLeft === 1 ? '' : 's'}. Stay in your seat.
             </div>
