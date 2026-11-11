@@ -115,6 +115,7 @@ try {
   check('the set is still live after a second performer opens the green room', g?.showState === 'live', JSON.stringify(g?.showState));
   check('the guest kept the seat', g?.selectedSeat === 'seat-3' && (g?.audienceSeats || []).some((s) => s.seatId === 'seat-3'), JSON.stringify(g?.audienceSeats));
   check('the second performer is told the stage is taken', await perfB.getByTestId('fr-stage-busy').count() === 1);
+  check('the notice names who is on stage', /Harold is on stage right now/.test(await perfB.getByTestId('fr-stage-busy').innerText()), await perfB.getByTestId('fr-stage-busy').innerText());
   check('go-on buttons are disabled for the second performer', await perfB.getByTestId('fr-green-onstage').isDisabled());
   await perfB.screenshot({ path: `${SHOTS}/${LABEL}-2-green-busy.png` });
   // B reloads (a reconnect): still nothing happens to the set.
@@ -137,6 +138,7 @@ try {
   A.disconnect();
   await guest.waitForTimeout(1500);
   const held = await guest.getByTestId('fr-stage-hold').count();
+  check('during the hold the second performer is told the stage can be taken', await perfB.getByTestId('fr-stage-held').count() === 1 && !(await perfB.getByTestId('fr-green-onstage').isDisabled()));
   console.log(`info [${LABEL}] hold notice shown to guest: ${held}`);
   await guest.screenshot({ path: `${SHOTS}/${LABEL}-4-hold.png` });
   await guest.waitForTimeout(12000);
