@@ -1,0 +1,148 @@
+/* /watch/<video>: a video with scene-by-scene thumbs. Built on theater.css. */
+.fr-watch .w-main {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fr-watch .w-title { margin: 0; font: 700 clamp(26px, 4vw, 38px)/1.15 var(--serif); color: var(--marquee); }
+.fr-watch .w-lede { margin: 0; color: var(--playbill-dim); font-size: 16px; }
+.fr-watch .w-note { color: var(--playbill-dim); padding: 24px; text-align: center; }
+.fr-watch .w-h2, .fr-watch .w-panel h2 { margin: 8px 0 0; font: 700 22px var(--serif); color: var(--marquee); }
+
+.fr-watch .w-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--brass-lo), 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fr-watch .w-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+.fr-watch .w-now {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--velvet) 80%, #000);
+  border: 1px solid color-mix(in srgb, var(--brass-lo) 50%, transparent);
+  border-radius: 10px;
+}
+.fr-watch .w-now-text { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.fr-watch .w-now-time { font: 13px ui-monospace, Menlo, monospace; color: var(--brass-lo); }
+.fr-watch .w-now-label { font: 600 20px var(--serif); color: var(--playbill); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fr-watch .w-thumbs { display: flex; gap: 8px; flex: none; }
+.fr-watch .w-thumbs button {
+  appearance: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--brass-lo);
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  filter: grayscale(0.7);
+  opacity: 0.8;
+  transition: transform 0.12s, background 0.12s, opacity 0.12s;
+}
+.fr-watch .w-thumbs.big button { width: 60px; height: 60px; font-size: 28px; }
+.fr-watch .w-thumbs button:hover { opacity: 1; filter: none; }
+.fr-watch .w-thumbs button:active { transform: scale(0.94); }
+.fr-watch .w-thumbs button[aria-pressed='true'] { filter: none; opacity: 1; }
+.fr-watch .w-thumbs button[data-v='up'][aria-pressed='true'] { background: color-mix(in srgb, var(--ok) 35%, transparent); border-color: var(--ok); }
+.fr-watch .w-thumbs button[data-v='down'][aria-pressed='true'] { background: rgba(214, 69, 80, 0.35); border-color: #d64550; }
+.fr-watch .w-thumbs button:focus-visible { outline: 3px solid var(--marquee-glow); outline-offset: 2px; }
+
+.fr-watch .w-strip { list-style: none; margin: 0; padding: 0; display: flex; gap: 2px; height: 18px; }
+.fr-watch .w-strip li { flex-basis: 0; min-width: 6px; }
+.fr-watch .w-strip button {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  background: color-mix(in srgb, var(--playbill) 18%, transparent);
+}
+.fr-watch .w-strip li[data-thumb='up'] button { background: var(--ok); }
+.fr-watch .w-strip li[data-thumb='down'] button { background: #d64550; }
+.fr-watch .w-strip li.on button { outline: 2px solid var(--marquee-glow); outline-offset: 1px; }
+.fr-watch .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.fr-watch .w-under { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 14px; color: var(--playbill-dim); }
+.fr-watch .w-saved { color: var(--ok); }
+.fr-watch .w-saved.warn { color: var(--brass-hi); }
+.fr-watch .w-skip { margin-left: auto; }
+
+.fr-watch .w-panel {
+  margin-top: 8px;
+  padding: 24px;
+  background: var(--playbill);
+  color: var(--ink);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-margin-top: 16px;
+}
+.fr-watch .w-panel h2 { color: var(--ink); }
+.fr-watch .w-panel p { margin: 0; }
+.fr-watch .w-panel form { display: flex; flex-direction: column; gap: 14px; }
+.fr-watch .w-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.fr-watch .fr-btn.ghost { background: transparent; color: var(--ink); box-shadow: none; border: 1px solid var(--brass-lo); }
+.fr-watch .fr-btn.ghost:hover { background: #fffaf0; }
+
+.fr-watch .w-scene {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--brass-lo) 60%, transparent);
+  border-radius: 8px;
+  background: #fffaf0;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fr-watch .w-scene p { margin: 0; }
+.fr-watch .w-scene-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fr-watch .w-scene-head strong { font: 600 17px var(--serif); }
+.fr-watch .w-scene-head .w-thumbs { margin-left: auto; }
+.fr-watch .w-scene .w-thumbs button { color: inherit; }
+.fr-watch .w-says { font-style: italic; color: color-mix(in srgb, var(--ink) 70%, transparent); font-size: 14px; }
+.fr-watch .w-field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.fr-watch .w-field textarea, .fr-watch .w-field input {
+  width: 100%;
+  font: 15px var(--sans);
+  padding: 8px 10px;
+  border: 1px solid var(--brass-lo);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+.fr-watch .w-more { display: flex; flex-direction: column; gap: 10px; }
+.fr-watch .w-more summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
+.fr-watch .w-more[open] > .w-scene + .w-scene { margin-top: 10px; }
+
+.fr-watch .w-results { width: 100%; border-collapse: collapse; font-size: 15px; }
+.fr-watch .w-results th, .fr-watch .w-results td { text-align: left; padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--brass-lo) 35%, transparent); }
+.fr-watch .w-results td.bar { width: 40%; }
+.fr-watch .w-results td.bar span { display: block; height: 7px; border-radius: 3px; margin: 2px 0; }
+.fr-watch .w-results td.bar .up { background: var(--ok); }
+.fr-watch .w-results td.bar .down { background: #d64550; }
+
+@media (max-width: 560px) {
+  .fr-watch .w-now { flex-direction: column; align-items: stretch; }
+  .fr-watch .w-thumbs.big { justify-content: center; }
+  .fr-watch .w-skip { margin-left: 0; }
+}

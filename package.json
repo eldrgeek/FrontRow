@@ -24,7 +24,8 @@
     "test:box-office": "node scripts/box-office-selftest.mjs",
     "test:kit-release": "node tests/cross-stack/kit-release.e2e.mjs",
     "test:two-cameras": "node tests/cross-stack/two-cameras.e2e.mjs",
-    "test:show-night": "node tests/cross-stack/show-night.e2e.mjs"
+    "test:show-night": "node tests/cross-stack/show-night.e2e.mjs",
+    "test:video-feedback": "node scripts/video-feedback-selftest.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
