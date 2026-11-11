@@ -1447,7 +1447,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
           {!isLoggedIn && !showStreamChoice && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
-          {isLoggedIn && isPerformer() && (
+          {/* Not for a performer who is waiting on someone else's set: these controls end and reset the show. */}
+          {isLoggedIn && isPerformer() && !stageBusy && (
             <ArtistControls
               performerStream={performerStream}
               onStartStream={() => startPerformerStream()}
@@ -1480,7 +1481,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               }}
             />
           )}
-          {entryShow && entry?.role === 'performer' && isPerformer() && showState !== 'live' && (
+          {/* A second performer keeps the green room (with its "stage is taken" notice) while someone else is live. */}
+          {entryShow && entry?.role === 'performer' && isPerformer() && (showState !== 'live' || !!stageBusy) && (
             <GreenRoom
               show={entryShow}
               stream={performerStream}
