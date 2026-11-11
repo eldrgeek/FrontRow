@@ -288,7 +288,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
     return isArtist;
   };
   // A performer who is not the one on: someone else holds the stage, or a dropped performer's stage is held.
-  const waitingPerformer = !!stageBusy || (holdLeft > 0 && !liveEventRef.current);
+  const waitingPerformer = isArtist && (!!stageBusy || (holdLeft > 0 && !liveEventRef.current));
   seatDataRef.current = { seatId: selectedSeat, userName, userImage, captureMode: userCaptureMode, hasVideoStream: !!userVideoStream };
   chatShownRef.current = chatOpen || afterShow;
   useEffect(() => { if (chatOpen || afterShow) setChatUnread(0); }, [chatOpen, afterShow]);

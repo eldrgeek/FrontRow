@@ -139,7 +139,8 @@ try {
   await guest.waitForTimeout(1500);
   const held = await guest.getByTestId('fr-stage-hold').count();
   check('during the hold the second performer is told the stage can be taken', await perfB.getByTestId('fr-stage-held').count() === 1 && !(await perfB.getByTestId('fr-green-onstage').isDisabled()));
-  console.log(`info [${LABEL}] hold notice shown to guest: ${held}`);
+  check('the guest is told the stage is held (new server only)', held === 1, 'expected to fail on the old server');
+  check('the waiting performer sees one notice, not two', await perfB.getByTestId('fr-stage-hold').count() === 0);
   await guest.screenshot({ path: `${SHOTS}/${LABEL}-4-hold.png` });
   await guest.waitForTimeout(12000);
   const end = await state(guest);
