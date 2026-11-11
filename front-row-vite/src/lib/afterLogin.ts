@@ -3,7 +3,7 @@
 const KEY = 'frontrow_after_login';
 
 function safe(path: string | null | undefined): string | null {
-  return path && /^\/show\/[a-z0-9-]+(\/[a-z-]+)?$/.test(path) ? path : null;
+  return path && (/^\/show\/[a-z0-9-]+(\/[a-z-]+)?$/.test(path) || /^\/watch\/[a-z0-9-]+\/results$/.test(path)) ? path : null;
 }
 
 export function rememberAfterLogin(path: string | null | undefined): void {

@@ -1,0 +1,301 @@
+{
+ "_about": "Videos that /watch/<slug> can show, with their scenes. Scene times come from each video's timeline.json in the project files (show-setup/source-v2, source-v3). youtubeId is empty until the video is on YouTube. show-night is the SOMA Studios branded cut (https://youtu.be/JK5dQnlxdeU): its 3.2 s opener is added to every source-v3 time (measured by matching frames), the opener counts as the Title scene and the end card as Closing. The server checks feedback against this list (server/video-feedback.mjs).",
+ "videos": [
+  {
+   "slug": "show-night",
+   "title": "Front Row Theater: show night",
+   "youtubeId": "JK5dQnlxdeU",
+   "duration": 110.57,
+   "scenes": [
+    {
+     "id": "title",
+     "label": "Title",
+     "start": 0,
+     "end": 6.89,
+     "says": "Front Row Theater. The whole show, in under two minutes."
+    },
+    {
+     "id": "lobby",
+     "label": "The lobby",
+     "start": 6.89,
+     "end": 10.78,
+     "says": "Guests get an invitation, and walk into a lobby with three doors."
+    },
+    {
+     "id": "house",
+     "label": "The live house",
+     "start": 10.78,
+     "end": 15.71,
+     "says": "Center door: the live house. Twelve seats around the stage, with your face on your seat."
+    },
+    {
+     "id": "shelves",
+     "label": "The video shelves",
+     "start": 15.71,
+     "end": 20.94,
+     "says": "Side doors: Songs of the Revolution, and the Performance Library. Shelves of videos."
+    },
+    {
+     "id": "newcard",
+     "label": "New for tonight",
+     "start": 20.94,
+     "end": 22.81,
+     "says": "And new, for tonight."
+    },
+    {
+     "id": "chat",
+     "label": "House chat",
+     "start": 22.81,
+     "end": 28.0,
+     "says": "House chat is open all night. Every seat, and the green room, with a count of what you missed."
+    },
+    {
+     "id": "busy",
+     "label": "One performer at a time",
+     "start": 28.0,
+     "end": 35.16,
+     "says": "One performer holds the stage. Open the green room during someone's set, and you wait your turn. Nothing gets interrupted."
+    },
+    {
+     "id": "hold",
+     "label": "A dropped connection",
+     "start": 35.16,
+     "end": 41.97,
+     "says": "If a performer's connection drops, the stage holds for thirty seconds. They walk back on, or the next act steps up."
+    },
+    {
+     "id": "kept",
+     "label": "Seats kept between acts",
+     "start": 41.97,
+     "end": 46.06,
+     "says": "And between acts, everyone keeps their seat. Many acts. One house."
+    },
+    {
+     "id": "admin",
+     "label": "Becoming an admin",
+     "start": 46.06,
+     "end": 52.25,
+     "says": "Now, you run it. Mike makes you an admin by email. Open slash build, slash front row, and sign in."
+    },
+    {
+     "id": "builder",
+     "label": "The builder",
+     "start": 52.25,
+     "end": 57.43,
+     "says": "This is the builder. Doors, seats, colors, and the curtain. Every change is a new version."
+    },
+    {
+     "id": "shows",
+     "label": "Scheduling a night",
+     "start": 57.43,
+     "end": 63.88,
+     "says": "Shows starts a night. Artist, title, the night, doors, and seats. Click Schedule night, and it gets its own link."
+    },
+    {
+     "id": "steps",
+     "label": "Moving the night forward",
+     "start": 63.88,
+     "end": 69.36,
+     "says": "One button moves it forward. Tickets out. Open doors. Green room. Curtain. After the show."
+    },
+    {
+     "id": "videos",
+     "label": "Adding shelf videos",
+     "start": 69.36,
+     "end": 74.65,
+     "says": "For the shelves, add a title, an artist, and a YouTube link. Nothing uploads to Front Row."
+    },
+    {
+     "id": "tickets",
+     "label": "Tickets and box office",
+     "start": 74.65,
+     "end": 81.95,
+     "says": "Tickets makes links for audience, performers, and crew. The box office sells seats, pay what you want, and prints door cards."
+    },
+    {
+     "id": "ai",
+     "label": "Ask the AI",
+     "start": 81.95,
+     "end": 87.56,
+     "says": "Or just ask. An AI in the builder's room proposes a change. You preview it, and approve it."
+    },
+    {
+     "id": "shownight",
+     "label": "Show night",
+     "start": 87.56,
+     "end": 95.47,
+     "says": "Show night. In the green room, check your camera and mic, start the countdown, and step onto the stage. A phone can be your stage camera."
+    },
+    {
+     "id": "after",
+     "label": "After the show",
+     "start": 95.47,
+     "end": 100.16,
+     "says": "Afterward, paste the YouTube link of the recording, and it lands in the Library."
+    },
+    {
+     "id": "close",
+     "label": "Closing",
+     "start": 100.16,
+     "end": 110.57,
+     "says": "Schedule. Ticket. Showtime. See you in the front row."
+    }
+   ]
+  },
+  {
+   "slug": "admin-guide",
+   "title": "Front Row Theater: the admin guide",
+   "youtubeId": "_mxRSbcwHXA",
+   "duration": 165.06,
+   "scenes": [
+    {
+     "id": "title",
+     "label": "Title",
+     "start": 0,
+     "end": 5.48,
+     "says": "Front Row Theater, for its admins. What we've built, and how to put on a show."
+    },
+    {
+     "id": "lobby",
+     "label": "The lobby",
+     "start": 5.48,
+     "end": 9.93,
+     "says": "Guests get an invitation, then walk into a lobby with three doors."
+    },
+    {
+     "id": "house",
+     "label": "The live house",
+     "start": 9.93,
+     "end": 16.81,
+     "says": "The center door is the live house. Twelve seats around the stage, and guests can put their faces on their seats."
+    },
+    {
+     "id": "shelves",
+     "label": "The video shelves",
+     "start": 16.81,
+     "end": 23.33,
+     "says": "The side doors, Songs of the Revolution and the Performance Library, are shelves of videos to watch."
+    },
+    {
+     "id": "green",
+     "label": "The green room",
+     "start": 23.33,
+     "end": 28.25,
+     "says": "Performers wait in a green room with a countdown, then step onto the stage."
+    },
+    {
+     "id": "admin",
+     "label": "Becoming an admin",
+     "start": 28.25,
+     "end": 40.56,
+     "says": "Now you run it. Mike makes you an admin by your email address. Open front row theater dot netlify dot app, slash build, slash front row, and sign in with that same email."
+    },
+    {
+     "id": "builder",
+     "label": "The builder",
+     "start": 40.56,
+     "end": 49.06,
+     "says": "This is the builder. Up top is your theater: the three doors, and the house with its seats. Every change is saved as a new version."
+    },
+    {
+     "id": "screens",
+     "label": "Screens",
+     "start": 49.06,
+     "end": 53.67,
+     "says": "Screens lists the theaters. Reorder them, add one, or remove a shelf."
+    },
+    {
+     "id": "room",
+     "label": "Setting up a room",
+     "start": 53.67,
+     "end": 61.96,
+     "says": "Pick a screen to set its room, seats and seating, the door title, the marquee, a blurb, and the sign beside the door. Then Apply."
+    },
+    {
+     "id": "look",
+     "label": "Colors and curtain",
+     "start": 61.96,
+     "end": 65.02,
+     "says": "Look sets the five house colors and the curtain."
+    },
+    {
+     "id": "shows",
+     "label": "Scheduling a night",
+     "start": 65.02,
+     "end": 77.34,
+     "says": "Shows is where a night begins. Artist, show title, the night, doors, and seats. Paste a YouTube link to play on stage while guests wait. Click Schedule night, and the night gets its own link."
+    },
+    {
+     "id": "steps",
+     "label": "Moving the night forward",
+     "start": 77.34,
+     "end": 84.78,
+     "says": "Each night has one forward button. Tickets out. Open doors. Green room. Curtain. After the show. Or Cancel."
+    },
+    {
+     "id": "frontdoor",
+     "label": "The front door",
+     "start": 84.78,
+     "end": 92.64,
+     "says": "The front door shows the night that's running, or else the next one. Jess is still up, so move her night to After the show first."
+    },
+    {
+     "id": "videos",
+     "label": "Adding shelf videos",
+     "start": 92.64,
+     "end": 104.06,
+     "says": "For video in the other theaters, pick Songs of the Revolution or the Library. Under Videos on this screen, add a title, the artist, and a link. Click Add video, and it's on the shelf."
+    },
+    {
+     "id": "youtube",
+     "label": "Videos live on YouTube",
+     "start": 104.06,
+     "end": 110.41,
+     "says": "Nothing uploads to Front Row. Put the video on YouTube, unlisted is fine, and paste the link."
+    },
+    {
+     "id": "tickets",
+     "label": "Ticket links",
+     "start": 110.41,
+     "end": 118.18,
+     "says": "Tickets makes ticket links. For the whole theater, one screen, or one night. For audience, performers, crew, or a manager."
+    },
+    {
+     "id": "boxoffice",
+     "label": "The box office",
+     "start": 118.18,
+     "end": 130.2,
+     "says": "The box office emails tickets. Pick the night, paste the guest list, and click Check the list to see everyone who gets mail. Then send. Door cards print codes to hand out at the door."
+    },
+    {
+     "id": "ai",
+     "label": "Ask the AI",
+     "start": 130.2,
+     "end": 140.17,
+     "says": "Or just ask. The builder has a SOMA room, where an AI can propose a change, like a blue curtain. You preview it, approve it, and it lands in the history."
+    },
+    {
+     "id": "shownight",
+     "label": "Show night",
+     "start": 140.17,
+     "end": 151.71,
+     "says": "Show night. Issue the performer a performer ticket. In the green room they check camera and mic, start the countdown, and can open the page on a phone to use it as the stage camera."
+    },
+    {
+     "id": "after",
+     "label": "After the show",
+     "start": 151.71,
+     "end": 159.31,
+     "says": "After the show, put the recording on YouTube and attach the link. With the performer's okay, it lands in the Library."
+    },
+    {
+     "id": "close",
+     "label": "Closing",
+     "start": 159.31,
+     "end": 165.06,
+     "says": "Schedule. Shelve. Ticket. Showtime."
+    }
+   ]
+  }
+ ]
+}

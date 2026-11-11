@@ -28,6 +28,7 @@ import { StageCameraPage } from './theater/StageCamera';
 import { GreenRoomPage } from './theater/GreenRoomPage';
 import { BuilderPage } from './builder/BuilderPage';
 import { BuyPage, BuyThanksPage } from './theater/BuyPage';
+import { WatchPage, WatchResultsPage } from './watch/WatchPage';
 
 // SOMA feedback stack — boot wiring (must run before render):
 //  - identity/auth hooks let the soma-feedback widget autofill the signed-in
@@ -50,7 +51,8 @@ function AppRoutes() {
   const { loading } = useAuth();
   const { pathname } = useLocation();
   // The front of house needs no account, so it never waits on the auth check.
-  const isFrontOfHouse = pathname === '/' || pathname === '/show' || pathname.startsWith('/show/') || pathname.startsWith('/buy/');
+  const isFrontOfHouse = pathname === '/' || pathname === '/show' || pathname.startsWith('/show/') || pathname.startsWith('/buy/')
+    || (pathname.startsWith('/watch/') && !pathname.endsWith('/results'));
 
   if (loading && !isFrontOfHouse) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>Loading...</div>;
@@ -83,6 +85,9 @@ function AppRoutes() {
       <Route path="/show/:slug/stage-camera" element={<StageCameraPage />} />
       {/* Theater kit: the builder, with a SOMA room for the people and AIs designing it. */}
       <Route path="/build/:theater" element={<BuilderPage />} />
+      {/* Our videos with scene-by-scene thumbs; the results are for admins. */}
+      <Route path="/watch/:video" element={<WatchPage />} />
+      <Route path="/watch/:video/results" element={<WatchResultsPage />} />
 
       {/* Protected routes */}
       <Route
