@@ -287,6 +287,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const isPerformer = () => {
     return isArtist;
   };
+  // A performer who is not the one on: someone else holds the stage, or a dropped performer's stage is held.
+  const waitingPerformer = isArtist && (!!stageBusy || (holdLeft > 0 && !liveEventRef.current));
   seatDataRef.current = { seatId: selectedSeat, userName, userImage, captureMode: userCaptureMode, hasVideoStream: !!userVideoStream };
   chatShownRef.current = chatOpen || afterShow;
   useEffect(() => { if (chatOpen || afterShow) setChatUnread(0); }, [chatOpen, afterShow]);
@@ -462,6 +464,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       }
     });
     socketRef.current.on('stage:holding', (data: { until?: number; seconds?: number }) => {
+      setStageBusy(null); // the stage is takeable while it is held
       setHoldUntil(Date.now() + (Number(data?.seconds) || 30) * 1000);
     });
     socketRef.current.on('postshow:chat', () => {
@@ -476,8 +479,9 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       if (isArtistRef.current) {
         const taken = (data.status === 'live' || data.status === 'pre-show') && !!data.artistId && !mine && !data.holdUntil;
         if (!firstStatusSeenRef.current && data.status === 'post-show') socketRef.current?.emit('reset-show'); // a stale bow from the last act
-        if (taken) setStageBusy((b) => b || {});
-        else if (data.status !== 'live' && data.status !== 'pre-show') setStageBusy(null);
+        if (taken) setStageBusy((b) => (b?.by ? b : { by: data.by || b?.by || null }));
+        // Nobody connected holds it (idle, or a held stage another performer may take).
+        else if ((data.status !== 'live' && data.status !== 'pre-show') || data.holdUntil) setStageBusy(null);
         if (data.status !== 'live' && !mine) liveEventRef.current = null;
       }
       firstStatusSeenRef.current = true;
@@ -1448,7 +1452,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
           {/* Not for a performer who is waiting on someone else's set: these controls end and reset the show. */}
-          {isLoggedIn && isPerformer() && !stageBusy && (
+          {isLoggedIn && isPerformer() && !waitingPerformer && (
             <ArtistControls
               performerStream={performerStream}
               onStartStream={() => startPerformerStream()}
@@ -1482,7 +1486,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
             />
           )}
           {/* A second performer keeps the green room (with its "stage is taken" notice) while someone else is live. */}
-          {entryShow && entry?.role === 'performer' && isPerformer() && (showState !== 'live' || !!stageBusy) && (
+          {entryShow && entry?.role === 'performer' && isPerformer() && (showState !== 'live' || waitingPerformer) && (
             <GreenRoom
               show={entryShow}
               stream={performerStream}
@@ -1523,7 +1527,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               chatOpen={chatOpen || afterShow}
             />
           )}
-          {entryShow && holdLeft > 0 && (
+          {/* The house's notice. A waiting performer's green room has its own. */}
+          {entryShow && holdLeft > 0 && !waitingPerformer && (
             <div className="fr-hold" role="status" data-testid="fr-stage-hold">
               The performer&apos;s connection dropped. Holding the stage for {holdLeft} more second{holdLeft === 1 ? '' : 's'}. Stay in your seat.
             </div>

@@ -1074,6 +1074,7 @@ io.on('connection', (socket) => {
   socket.emit('show-status-update', {
     status: R.show.status,
     artistId: R.show.artistId,
+    by: R.show.artistName || null, // who is at the mic, for a second performer's green room
     venueConfig: R.show.venueConfig,
     performerOnStage: R.show.performerOnStage,
     performerPosition: R.show.performerPosition,
@@ -1253,7 +1254,7 @@ io.on('connection', (socket) => {
       R.show.artistName = (data && cleanChat(data.name, 40)) || R.show.artistName || null;
       R.show.performerOnStage = false;
       io.to(R.channel).emit('performer:onStage', { onStage: false, socketId: socket.id });
-      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, resumed: true });
+      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, by: R.show.artistName || null, resumed: true });
     }
     // Left over from the last act: clear the stage, keep the house.
     else if (R.show.status !== 'idle' && R.show.status !== 'pre-show') {
@@ -1268,7 +1269,7 @@ io.on('connection', (socket) => {
       R.show.artistKey = stageKey;
       R.show.artistName = (data && cleanChat(data.name, 40)) || null;
       R.show.startTime = Date.now();
-      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id });
+      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, by: R.show.artistName || null });
     }
     console.log(`[LIVE] Artist ${socket.id} is now LIVE! Broadcasting to ${io.engine.clientsCount} connected clients.`);
 
@@ -1378,7 +1379,7 @@ io.on('connection', (socket) => {
         
         console.log('🎭 Countdown finished - show is now LIVE!');
         io.to(R.channel).emit('countdown-finished', { artistId: socket.id });
-        io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id });
+        io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, by: R.show.artistName || null });
         
         // Notify artist about audience members for WebRTC
         Object.values(R.show.audienceSeats).forEach(audience => {
@@ -1535,7 +1536,7 @@ io.on('connection', (socket) => {
       R.show.artistId = socket.id;
       R.show.artistKey = stageKey;
       R.show.artistName = (data && cleanChat(data.name, 40)) || R.show.artistName || null;
-      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, resumed: true });
+      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, by: R.show.artistName || null, resumed: true });
     }
     R.show.performerOnStage = true;
     R.show.performerPosition = { x: 0, z: -18 }; // start at back of stage
