@@ -56,3 +56,9 @@
 .fr-green .stagecam .qr svg { display: block; width: 100%; height: auto; }
 .fr-green .stagecam-pv { display: block; width: 180px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 6px; background: #000; margin: 8px 0; }
 .fr-stagecam .pv { max-width: 560px; }
+
+/* A stage someone else holds, and the house chat button (2026-11-11). */
+.fr-green .busy { margin: 0 0 14px; padding: 12px 16px; border: 1px solid #d4af37; border-radius: 8px; background: rgba(212, 175, 55, 0.12); color: #f4ead3; font-size: 15px; line-height: 1.45; }
+.fr-green .fr-link-btn { display: block; margin-top: 8px; padding: 0; border: 0; background: none; color: #c9b48a; text-decoration: underline; font-size: 13px; cursor: pointer; }
+.fr-green .fr-g-chat { margin-left: 14px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d4af37; background: transparent; color: #f6e3a1; font-size: 13px; cursor: pointer; }
+.fr-green .fr-g-btn:disabled { opacity: 0.45; cursor: not-allowed; }

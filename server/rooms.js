@@ -82,6 +82,8 @@ function newShowState() {
     performerOnStage: false,
     performerPosition: { x: 0, z: -8 },
     spotlightActive: false,
+    // Set while a live performer's connection is down: { socketId, key, until, timer }.
+    hold: null,
   };
 }
 
@@ -164,12 +166,20 @@ function createRegistry(opts = {}) {
     return r;
   }
 
-  /** Clears a house's show and returns the fresh state (stops its countdown). */
-  function resetShow(r) {
+  /** Clears a house's show and returns the fresh state (stops its countdown and any stage hold). */
+  function resetShow(r, keep = {}) {
     const iv = r.show && r.show.countdown && r.show.countdown.interval;
     if (iv) clearInterval(iv);
+    if (r.show && r.show.hold && r.show.hold.timer) clearTimeout(r.show.hold.timer);
     const from = r.show ? r.show.status : 'idle';
+    const before = r.show;
     r.show = watchedShow(r);
+    // keep.seats: the stage resets, the house does not. Guests stay in their
+    // seats between acts and when a performer's connection comes and goes.
+    if (keep.seats && before) {
+      r.show.audienceSeats = before.audienceSeats;
+      r.show.venueConfig = before.venueConfig;
+    }
     if (from !== 'idle') emitStatus(r, from, 'idle');
     return r.show;
   }

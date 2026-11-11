@@ -92,7 +92,7 @@ const PORT = 38000 + Math.floor(Math.random() * 1000);
 const URL = `http://127.0.0.1:${PORT}`;
 const srv = spawn(process.execPath, ['index.js'], {
   cwd: path.join(root, 'server'),
-  env: { ...process.env, PORT: String(PORT), ENABLE_TEST_ENDPOINTS: 'true', SUPABASE_SERVICE_ROLE_KEY: 'dummy', MAX_HOUSES: '6', MAX_SEATS: '12' },
+  env: { ...process.env, PORT: String(PORT), ENABLE_TEST_ENDPOINTS: 'true', SUPABASE_SERVICE_ROLE_KEY: 'dummy', MAX_HOUSES: '6', MAX_SEATS: '12', FRONTROW_STAGE_HOLD_MS: '1000', FRONTROW_INTERMISSION_MS: '200' },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let srvLog = '';
@@ -195,12 +195,56 @@ try {
   const hist = await ask(live2, 'postshow:history', null, 'postshow:history');
   ok(Array.isArray(hist) && hist.length === 0, 'chat history is per house');
 
+  // The stage never stalls and the house never empties by accident (the
+  // library is live, lib2 performing, Bo in seat-3).
+  const seatsNow = async () => (await api('GET', '/api/test/state?venue=front-row&room=library')).body.seats.occupiedCount;
+  const libStatus = async () => (await api('GET', '/api/test/state?venue=front-row&room=library')).body.show.status;
+  const p2 = await guest({ venue: 'front-row', room: 'library', stageKey: 'second-performer' });
+  p2.emit('reset-show');
+  await sleep(150);
+  ok(saw(p2, 'stage:busy') && (await libStatus()) === 'live', 'a second performer\'s reset is refused while the first is on');
+  ok((await seatsNow()) === 1 && !saw(lib1, 'all-seats-empty'), 'and nobody is unseated');
+  p2.emit('artist-go-live');
+  p2.emit('artist-end-show');
+  p2.emit('start-countdown', { seconds: 30 });
+  await sleep(150);
+  ok((await libStatus()) === 'live' && !saw(lib1, 'show-status-update', (d) => d.artistId === p2.id), 'nor can they take or end a stage someone holds');
+
+  lib2.disconnect();
+  await sleep(200);
+  ok(saw(lib1, 'stage:holding', (d) => d.seconds === 1) && (await libStatus()) === 'live', 'a performer who drops mid-set gets a held stage');
+  p2.emit('reset-show');
+  await sleep(100);
+  ok((await libStatus()) === 'live', 'a reset cannot clear a held stage');
+  p2.emit('artist-go-live', { name: 'Harold' });
+  await sleep(150);
+  ok(saw(lib1, 'show-status-update', (d) => d.status === 'live' && d.artistId === p2.id && d.resumed), 'another performer takes the held stage');
+  ok((await seatsNow()) === 1, 'with the house still seated');
+  await sleep(1100);
+  ok((await libStatus()) === 'live', 'the old hold does not end the new performer\'s set');
+
+  p2.disconnect();
+  await sleep(1500);
+  ok(saw(lib1, 'show-status-update', (d) => d.status === 'post-show' && d.reason === 'performer-lost'), 'a hold nobody answers ends the set by itself');
+  ok(saw(lib1, 'show-state-change', (d) => d.status === 'idle' && d.seatsKept) && (await libStatus()) === 'idle', 'then the stage is idle');
+  ok((await seatsNow()) === 1 && !saw(lib1, 'all-seats-empty'), 'and the house kept its seats');
+
+  const p3 = await guest({ venue: 'front-row', room: 'library' });
+  p3.emit('performer:goLive', { name: 'Noel' });
+  await sleep(150);
+  p3.emit('artist-end-show');
+  await sleep(500);
+  ok((await libStatus()) === 'idle' && (await seatsNow()) === 1, 'ending a set keeps the seats for the next act');
+  const hist2 = await ask(lib1, 'postshow:history', null, 'postshow:history');
+  ok(Array.isArray(hist2) && hist2.some((l) => l.text === 'what a night'), 'chat survives the curtain going up');
+  p3.disconnect();
+
   // Signaling never crosses houses
   live1.emit('offer', { sdp: 'x', targetSocketId: lib1.id });
-  lib2.emit('offer', { sdp: 'y', targetSocketId: lib1.id });
+  lib3.emit('offer', { sdp: 'y', targetSocketId: lib1.id });
   await sleep(150);
   ok(!saw(lib1, 'offer', (d) => d.offererSocketId === live1.id), 'an offer from another house is dropped');
-  ok(saw(lib1, 'offer', (d) => d.offererSocketId === lib2.id), 'an offer within the house is relayed');
+  ok(saw(lib1, 'offer', (d) => d.offererSocketId === lib3.id), 'an offer within the house is relayed');
 
   // Reactions and spotlight
   lib1.emit('audience:reaction', { type: 'clap' });

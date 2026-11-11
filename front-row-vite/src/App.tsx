@@ -78,6 +78,22 @@ export interface AppEntry {
    *  means ?theater=&screen= on the URL, else Front Row's live screen. */
   venue?: string;
   room?: string;
+  /** Performer only: who is actually at the mic (the signed-in admin), told to the house. */
+  performingAs?: string;
+}
+
+/** One key per performer tab, so frontrow-server knows them when they reconnect to a held stage. */
+function stageKeyForTab(): string {
+  try {
+    let k = sessionStorage.getItem('frontrow_stage_key');
+    if (!k) {
+      k = `sk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+      sessionStorage.setItem('frontrow_stage_key', k);
+    }
+    return k;
+  } catch {
+    return `sk-${Date.now().toString(36)}-nostore`;
+  }
 }
 
 function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
@@ -199,8 +215,27 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const prevShowState = useRef<ShowState>('idle');
   // The post-show panel stays open after the server resets the house to idle.
   const [afterShow, setAfterShow] = useState(false);
+  // The house chat can be opened at any time, not only after the set.
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const chatShownRef = useRef(false);
+  // Another performer holds the stage (frontrow-server 'stage:busy', or a live show found on arrival).
+  const [stageBusy, setStageBusy] = useState<{ by?: string | null } | null>(null);
+  // The performer's connection dropped; the server holds the stage until this time.
+  const [holdUntil, setHoldUntil] = useState<number | null>(null);
+  const [holdLeft, setHoldLeft] = useState(0);
+  // What this performer last did to go on, so a reconnect can walk back on.
+  const liveEventRef = useRef<'artist-go-live' | 'performer:goLive' | null>(null);
+  const everConnectedRef = useRef(false);
+  const firstStatusSeenRef = useRef(false);
+  const seatDataRef = useRef<{ seatId: string | null; userName: string; userImage: string | null; captureMode: string; hasVideoStream: boolean }>({ seatId: null, userName: '', userImage: null, captureMode: 'photo', hasVideoStream: false });
+  const performingAs = entry?.performingAs || entry?.name || '';
+  const goOn = (ev: 'artist-go-live' | 'performer:goLive') => {
+    liveEventRef.current = ev;
+    socketRef.current?.emit(ev, { name: performingAs });
+  };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- the socket is a ref; re-read it each time the panel opens
-  const postShowChannel = useMemo(() => socketChat(socketRef.current), [afterShow]);
+  const postShowChannel = useMemo(() => socketChat(socketRef.current), [afterShow, chatOpen, socketConnected]);
   useEffect(() => {
     const was = prevShowState.current;
     prevShowState.current = showState;
@@ -252,6 +287,20 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   const isPerformer = () => {
     return isArtist;
   };
+  seatDataRef.current = { seatId: selectedSeat, userName, userImage, captureMode: userCaptureMode, hasVideoStream: !!userVideoStream };
+  chatShownRef.current = chatOpen || afterShow;
+  useEffect(() => { if (chatOpen || afterShow) setChatUnread(0); }, [chatOpen, afterShow]);
+  useEffect(() => {
+    if (!holdUntil) { setHoldLeft(0); return; }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((holdUntil - Date.now()) / 1000));
+      setHoldLeft(left);
+      if (left <= 0) setHoldUntil(null);
+    };
+    tick();
+    const iv = window.setInterval(tick, 500);
+    return () => window.clearInterval(iv);
+  }, [holdUntil]);
 
   const resetArtistStatus = () => {
     sessionStorage.removeItem('frontrow_is_artist');
@@ -369,7 +418,9 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
   // --- Socket.IO Setup ---
   useEffect(() => {
     console.log('Connecting to backend:', config.socketUrl);
-    socketRef.current = io(config.socketUrl, { query: socketQueryFor(scopeRef.current, entry ? house.seats.length : undefined) });
+    const socketQuery: Record<string, string> = socketQueryFor(scopeRef.current, entry ? house.seats.length : undefined);
+    if (entry?.role === 'performer') socketQuery.stageKey = stageKeyForTab();
+    socketRef.current = io(config.socketUrl, { query: socketQuery });
     socketRef.current.on('house:refused', (data: { reason?: string }) => {
       console.warn('frontrow-server refused this house:', data?.reason, scopeRef.current);
     });
@@ -378,15 +429,58 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       setMySocketId(socketRef.current?.id || '');
       setSocketConnected(true);
 
+      const reconnect = everConnectedRef.current;
+      everConnectedRef.current = true;
+      firstStatusSeenRef.current = false;
       if (isArtistRef.current) {
-        console.log('🎭 Artist connected - requesting show reset from backend');
-        socketRef.current.emit('reset-show');
+        // A performer's page no longer resets the house when it connects: that
+        // ended a live set, and unseated everyone, whenever a second performer
+        // opened the green room or the first one's wifi blinked. On a
+        // reconnect mid-set, walk back on to the held stage instead.
+        if (reconnect && liveEventRef.current) {
+          socketRef.current.emit(liveEventRef.current, { name: performingAs });
+        }
+      } else if (reconnect && seatDataRef.current.seatId) {
+        // The server freed this seat when the connection dropped. Sit back down.
+        const d = seatDataRef.current;
+        socketRef.current.emit('select-seat', { seatId: d.seatId, userName: d.userName, userImage: d.userImage, captureMode: d.captureMode, hasVideoStream: d.hasVideoStream });
+        socketRef.current.once('seat-selected', (r: { success?: boolean }) => {
+          if (r && !r.success) setSelectedSeat(null); // someone took it meanwhile: pick another
+        });
       }
+    });
+
+    socketRef.current.on('stage:busy', (data: { by?: string | null }) => {
+      setStageBusy({ by: data?.by });
+      if (liveEventRef.current) {
+        // Someone else took the stage while this performer was away.
+        liveEventRef.current = null;
+        liveKit.disconnect().then(() => {
+          localStreamRef.current = null;
+          setPerformerStream(null);
+        });
+      }
+    });
+    socketRef.current.on('stage:holding', (data: { until?: number; seconds?: number }) => {
+      setHoldUntil(Date.now() + (Number(data?.seconds) || 30) * 1000);
+    });
+    socketRef.current.on('postshow:chat', () => {
+      if (!chatShownRef.current) setChatUnread((n) => Math.min(99, n + 1));
     });
 
     socketRef.current.on('show-status-update', async (data) => {
       console.log('Show Status Update:', data);
       setShowState(data.status);
+      setHoldUntil(data.holdUntil ? Date.now() + Math.max(0, data.holdUntil - Date.now()) : null);
+      const mine = !!data.artistId && data.artistId === socketRef.current?.id;
+      if (isArtistRef.current) {
+        const taken = (data.status === 'live' || data.status === 'pre-show') && !!data.artistId && !mine && !data.holdUntil;
+        if (!firstStatusSeenRef.current && data.status === 'post-show') socketRef.current?.emit('reset-show'); // a stale bow from the last act
+        if (taken) setStageBusy((b) => b || {});
+        else if (data.status !== 'live' && data.status !== 'pre-show') setStageBusy(null);
+        if (data.status !== 'live' && !mine) liveEventRef.current = null;
+      }
+      firstStatusSeenRef.current = true;
       // Phase 2: sync venueConfig on join/update
       if (data.venueConfig) {
         setVenueConfig(data.venueConfig);
@@ -435,6 +529,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       console.log('Show State Change:', data);
       setShowState(data.status);
       if (data.status === 'idle') {
+        setStageBusy(null);
+        setHoldUntil(null);
         setPerformerStream(null);
         setIsCountdownActive(false);
         setCountdownTime(0);
@@ -539,12 +635,12 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         if (localStreamRef.current) {
           console.log('🎥 Camera already active - going live with existing stream...');
           setPerformerStream(localStreamRef.current);
-          socketRef.current?.emit('artist-go-live');
+          goOn('artist-go-live');
         } else {
           console.log('🎥 Camera not active - starting camera first...');
           try {
             await startCameraPreview();
-            socketRef.current?.emit('artist-go-live');
+            goOn('artist-go-live');
           } catch (err) {
             console.error('❌ Failed to start camera automatically:', err);
             alert('Failed to start camera automatically. Please turn on camera manually.');
@@ -967,7 +1063,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
     if (localStreamRef.current) {
       console.log('🎥 Camera already active');
       if (showState === 'live') {
-        socketRef.current?.emit('artist-go-live');
+        goOn('artist-go-live');
       }
       return;
     }
@@ -987,7 +1083,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
         setIsCameraPreview(true);
       }
       if (showState === 'live') {
-        socketRef.current?.emit('artist-go-live');
+        goOn('artist-go-live');
       }
     } catch (err) {
       console.error('Error starting camera preview:', err);
@@ -1018,7 +1114,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
       }
       // On the big screen ('artist-go-live'), or standing on the stage itself
       // ('performer:goLive': the video becomes a figure that walks downstage).
-      socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
+      goOn(onStage ? 'performer:goLive' : 'artist-go-live');
       console.log('🎭 LiveKit: Performer stream started');
     } catch (err) {
       console.error('Error starting performer stream:', err);
@@ -1351,7 +1447,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
           {!isLoggedIn && !showStreamChoice && !isPerformer() && (
             <UserInputForm onSubmit={handleNameAndImageSubmit} />
           )}
-          {isLoggedIn && isPerformer() && (
+          {/* Not for a performer who is waiting on someone else's set: these controls end and reset the show. */}
+          {isLoggedIn && isPerformer() && !stageBusy && (
             <ArtistControls
               performerStream={performerStream}
               onStartStream={() => startPerformerStream()}
@@ -1384,7 +1481,8 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               }}
             />
           )}
-          {entryShow && entry?.role === 'performer' && isPerformer() && showState !== 'live' && (
+          {/* A second performer keeps the green room (with its "stage is taken" notice) while someone else is live. */}
+          {entryShow && entry?.role === 'performer' && isPerformer() && (showState !== 'live' || !!stageBusy) && (
             <GreenRoom
               show={entryShow}
               stream={performerStream}
@@ -1395,8 +1493,14 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               onStopCountdown={stopCountdown}
               onStartCamera={startCameraPreview}
               stageCamera={<StageCameraLink slug={entryShow.slug} artist={entryShow.artist} scope={scope} stageStream={stageStream} />}
+              performingAs={performingAs}
+              stageBusy={stageBusy}
+              holdSeconds={holdLeft}
+              onClearStage={() => { socketRef.current?.emit('reset-show'); setStageBusy(null); }}
+              onChat={() => setChatOpen(true)}
+              chatUnread={chatUnread}
               onGoLive={(onStage) => {
-                if (localStreamRef.current) socketRef.current?.emit(onStage ? 'performer:goLive' : 'artist-go-live');
+                if (localStreamRef.current) goOn(onStage ? 'performer:goLive' : 'artist-go-live');
                 else startPerformerStream(onStage);
               }}
             />
@@ -1414,14 +1518,28 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               live={!!userVideoStream}
               onLive={handleLiveSeat}
               liveError={liveSeatError}
+              onChat={() => setChatOpen((o) => !o)}
+              chatUnread={chatUnread}
+              chatOpen={chatOpen || afterShow}
             />
           )}
-          {entryShow && afterShow && (
+          {entryShow && holdLeft > 0 && (
+            <div className="fr-hold" role="status" data-testid="fr-stage-hold">
+              The performer&apos;s connection dropped. Holding the stage for {holdLeft} more second{holdLeft === 1 ? '' : 's'}. Stay in your seat.
+            </div>
+          )}
+          {entryShow && !socketConnected && isLoggedIn && everConnectedRef.current && (
+            <div className="fr-hold" role="status" data-testid="fr-reconnecting">
+              Your connection dropped. Reconnecting, and your seat is being kept.
+            </div>
+          )}
+          {entryShow && (afterShow || chatOpen) && (
             <PostShow
               show={entryShow}
-              name={isPerformer() ? entryShow.artist : userName}
+              name={isPerformer() ? performingAs || entryShow.artist : userName}
               channel={postShowChannel}
-              onClose={() => setAfterShow(false)}
+              variant={afterShow ? 'after' : 'house'}
+              onClose={() => { setAfterShow(false); setChatOpen(false); }}
             />
           )}
           {/* Phase 2: Reaction buttons — audience only in user ViewState */}
@@ -1500,7 +1618,7 @@ function TheaterApp({ entry }: { entry?: AppEntry } = {}): JSX.Element {
               <button
                 onClick={() => {
                   startPerformerStream();
-                  socketRef.current?.emit('artist-go-live');
+                  goOn('artist-go-live');
                 }}
                 style={{
                   background: '#cc0000',

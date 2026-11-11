@@ -973,6 +973,56 @@ function sendModalNotification(data) {
 }
 
 
+// ── The stage never stalls and the house never empties by accident ─────────
+// (cohost rule, spec 2026-10-30: "a dropped connection stalls nothing").
+// One performer holds the stage. If their connection drops mid-set the stage is
+// held for STAGE_HOLD_MS; they can walk back on, or any other performer can
+// take it. If nobody does, the set ends on its own. Guests keep their seats
+// through all of it.
+const STAGE_HOLD_MS = Math.max(1000, Number(process.env.FRONTROW_STAGE_HOLD_MS) || 30000);
+const INTERMISSION_MS = Math.max(50, Number(process.env.FRONTROW_INTERMISSION_MS) || 5000);
+
+/** The socket that holds the stage and is still connected, else null. */
+function stageHolder(R) {
+  const id = R.show.artistId;
+  if (!id || !R.members.has(id)) return null;
+  if (R.show.status !== 'live' && R.show.status !== 'pre-show') return null;
+  return id;
+}
+
+/** Another connected performer holds the stage: tell this one, change nothing. */
+function refuseIfStageTaken(R, socket) {
+  const holder = stageHolder(R);
+  if (!holder || holder === socket.id) return false;
+  socket.emit('stage:busy', { status: R.show.status, by: R.show.artistName || null });
+  return true;
+}
+
+function clearStageHold(R) {
+  const h = R.show.hold;
+  if (h && h.timer) clearTimeout(h.timer);
+  R.show.hold = null;
+}
+
+/** The set is over: lights up, seats kept, back to idle after a short bow. */
+function endSet(R, reason) {
+  clearStageHold(R);
+  R.show.status = 'post-show';
+  R.show.artistId = null;
+  R.show.artistName = null;
+  R.show.startTime = null;
+  R.show.performerOnStage = false;
+  io.to(R.channel).emit('performer:onStage', { onStage: false });
+  io.to(R.channel).emit('show-status-update', { status: 'post-show', reason: reason || 'ended', venueConfig: R.show.venueConfig });
+  const show = R.show;
+  setTimeout(() => {
+    if (R.show !== show || R.show.status !== 'post-show') return; // someone has taken the stage since
+    registry.resetShow(R, { seats: true });
+    io.to(R.channel).emit('show-state-change', { status: 'idle', seatsKept: true });
+    registry.maybeDrop(R);
+  }, INTERMISSION_MS);
+}
+
 // --- Socket.IO for WebRTC Signaling and Real-time Updates ---
 io.on('connection', (socket) => {
   // Which house this socket is in, fixed for the life of the connection: a
@@ -988,6 +1038,8 @@ io.on('connection', (socket) => {
   socket.join(R.channel);
   R.members.add(socket.id);
   socket.data.house = R.key;
+  // A performer's page sends the same key on every reconnect, so a held stage knows them.
+  const stageKey = typeof query.stageKey === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(query.stageKey) ? query.stageKey : null;
   console.log('a user connected:', socket.id, 'house', R.key);
   logTestEvent('user-connected', { socketId: socket.id, house: R.key });
   socket.emit('house:joined', { venue: R.venue, room: R.room, livekitRoom: R.livekitRoom, maxSeats: R.maxSeats });
@@ -1026,6 +1078,7 @@ io.on('connection', (socket) => {
     performerOnStage: R.show.performerOnStage,
     performerPosition: R.show.performerPosition,
     spotlightActive: R.show.spotlightActive,
+    holdUntil: R.show.hold ? R.show.hold.until : null,
   });
 
   // WebRTC Signaling: Relays messages between peers
@@ -1163,7 +1216,7 @@ io.on('connection', (socket) => {
   // Artist will call socket.emit('artist-go-live') from frontend to initiate stream setup
   // and handle WebRTC peer connection creation for each audience member.
   // The backend primarily orchestrates the signaling and broadcast of status.
-  socket.on('artist-go-live', () => {
+  socket.on('artist-go-live', (data) => {
     console.log(`🎭 Artist ${socket.id} attempting to go live. Current show status: ${R.show.status}`);
     
     // If already live and same artist, just proceed with WebRTC setup
@@ -1189,18 +1242,31 @@ io.on('connection', (socket) => {
       console.log(`[LIVE] WebRTC setup complete for already-live artist. ${connectedAudience} audience members will receive offers.`);
       return; // Exit early since show is already live
     }
-    // Auto-reset show if it's not in idle state or pre-show
-    else if (R.show.status !== 'idle' && R.show.status !== 'pre-show') {
-      console.log('🔧 Auto-resetting show state to idle for new artist');
-      registry.resetShow(R);
-      io.to(R.channel).emit('show-state-change', { status: 'idle' });
+    // Someone else is on (and connected): the stage is theirs until they end.
+    if (refuseIfStageTaken(R, socket)) return;
+    // Live, but its performer is gone (a held stage, or their own reconnect):
+    // this performer takes it as it stands. Nobody is unseated.
+    if (R.show.status === 'live') {
+      clearStageHold(R);
+      R.show.artistId = socket.id;
+      R.show.artistKey = stageKey;
+      R.show.artistName = (data && cleanChat(data.name, 40)) || R.show.artistName || null;
+      R.show.performerOnStage = false;
+      io.to(R.channel).emit('performer:onStage', { onStage: false, socketId: socket.id });
+      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, resumed: true });
     }
-    
+    // Left over from the last act: clear the stage, keep the house.
+    else if (R.show.status !== 'idle' && R.show.status !== 'pre-show') {
+      registry.resetShow(R, { seats: true });
+      io.to(R.channel).emit('show-state-change', { status: 'idle', seatsKept: true });
+    }
+
     // Now proceed with going live (if not already live)
     if (R.show.status !== 'live') {
       R.show.status = 'live';
-      R.chat.length = 0;
       R.show.artistId = socket.id; // The socket that sent 'artist-go-live' is the artist
+      R.show.artistKey = stageKey;
+      R.show.artistName = (data && cleanChat(data.name, 40)) || null;
       R.show.startTime = Date.now();
       io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id });
     }
@@ -1230,38 +1296,27 @@ io.on('connection', (socket) => {
       console.warn('Artist tried to end show when no show is live.');
       return;
     }
-    R.show.status = 'post-show';
-    io.to(R.channel).emit('show-status-update', { status: 'post-show' });
+    // Only the performer on stage ends the set (or anyone, once they are gone).
+    if (refuseIfStageTaken(R, socket)) return;
     console.log(`Artist ${socket.id} has ended the show.`);
-    R.show.artistId = null; // Clear artist
-    R.show.startTime = null;
-
-    // Reset after a short delay for post-show message display
-    setTimeout(() => {
-        // Clear audience seats
-        for (const seatId in R.show.audienceSeats) {
-            delete R.show.audienceSeats[seatId];
-        }
-        // Clear user profiles
-        for (const socketId in R.profiles) {
-            delete R.profiles[socketId];
-        }
-        io.to(R.channel).emit('all-seats-empty');
-        R.show.status = 'idle';
-        R.show.countdown = { isActive: false, timeRemaining: 0, totalTime: 0 };
-        registry.maybeDrop(R);
-        console.log('Show cycle reset to idle after post-show.');
-    }, 5000); // 5 seconds post-show display
+    // The house keeps its seats: the next act walks on to the same audience.
+    endSet(R, 'ended');
   });
 
   // Reset show state (called when artist connects)
   socket.on('reset-show', () => {
     console.log(`🎭 Artist ${socket.id} requesting show reset`);
     
-    // Clear any existing countdown interval
-    registry.resetShow(R);
-    io.to(R.channel).emit('show-state-change', { status: 'idle' });
-    console.log('Show state reset to idle');
+    // A performer's page used to send this on every connect, which ended a
+    // live set and unseated the house whenever a second performer opened the
+    // green room or the first one's wifi blinked. Now: never while a connected
+    // performer holds the stage, never while a dropped one's stage is held,
+    // and the seats always stay.
+    if (refuseIfStageTaken(R, socket)) return;
+    if (R.show.hold) { socket.emit('stage:busy', { status: 'holding', by: R.show.artistName || null }); return; }
+    registry.resetShow(R, { seats: true });
+    io.to(R.channel).emit('show-state-change', { status: 'idle', seatsKept: true });
+    console.log('Stage reset to idle (seats kept)');
   });
 
   // Countdown management
@@ -1270,8 +1325,12 @@ io.on('connection', (socket) => {
     
     console.log(`🎬 Artist ${socket.id} requesting countdown start:`, data);
     
-    // Set this socket as the artist if not already set
-    if (!R.show.artistId) {
+    if (refuseIfStageTaken(R, socket)) return;
+    // Set this socket as the artist if nobody connected holds the stage
+    if (!R.show.artistId || !R.members.has(R.show.artistId)) {
+      clearStageHold(R);
+      R.show.artistKey = stageKey;
+      R.show.artistName = (data && cleanChat(data.name, 40)) || null;
       R.show.artistId = socket.id;
       console.log(`🎭 Artist ${socket.id} set as active artist`);
     }
@@ -1315,7 +1374,6 @@ io.on('connection', (socket) => {
         R.show.countdown.interval = null;
         R.show.countdown.isActive = false;
         R.show.status = 'live';
-        R.chat.length = 0;
         R.show.startTime = Date.now();
         
         console.log('🎭 Countdown finished - show is now LIVE!');
@@ -1468,8 +1526,17 @@ io.on('connection', (socket) => {
   });
 
   // ── Phase 2: Performer go live from backstage ──────────────────────────
-  socket.on('performer:goLive', () => {
+  socket.on('performer:goLive', (data) => {
     console.log(`🎭 Performer ${socket.id} going live from backstage`);
+    if (refuseIfStageTaken(R, socket)) return;
+    if (R.show.status === 'live' && R.show.artistId !== socket.id) {
+      // Walking back on to a held stage (or taking one whose performer left).
+      clearStageHold(R);
+      R.show.artistId = socket.id;
+      R.show.artistKey = stageKey;
+      R.show.artistName = (data && cleanChat(data.name, 40)) || R.show.artistName || null;
+      io.to(R.channel).emit('show-status-update', { status: 'live', artistId: socket.id, resumed: true });
+    }
     R.show.performerOnStage = true;
     R.show.performerPosition = { x: 0, z: -18 }; // start at back of stage
     // Leave backstage
@@ -1480,8 +1547,9 @@ io.on('connection', (socket) => {
     // Transition show to live if not already
     if (R.show.status !== 'live') {
       R.show.status = 'live';
-      R.chat.length = 0;
       R.show.artistId = socket.id;
+      R.show.artistKey = stageKey;
+      R.show.artistName = (data && cleanChat(data.name, 40)) || null;
       R.show.startTime = Date.now();
       io.to(R.channel).emit('show-status-update', {
         status: 'live',
@@ -1495,13 +1563,10 @@ io.on('connection', (socket) => {
 
   socket.on('performer:goOffstage', () => {
     console.log(`🎭 Performer ${socket.id} going offstage`);
+    if (refuseIfStageTaken(R, socket)) return;
     R.show.performerOnStage = false;
     io.to(R.channel).emit('performer:onStage', { onStage: false, socketId: socket.id });
-    if (R.show.status === 'live') {
-      R.show.status = 'post-show';
-      R.show.artistId = null;
-      io.to(R.channel).emit('show-status-update', { status: 'post-show', venueConfig: R.show.venueConfig });
-    }
+    if (R.show.status === 'live' && (R.show.artistId === socket.id || !stageHolder(R))) endSet(R, 'ended');
   });
 
   // ── Phase 2: Performer position ────────────────────────────────────────
@@ -1571,6 +1636,19 @@ io.on('connection', (socket) => {
     delete R.profiles[socket.id]; // Remove profile from in-memory store
     delete R.show.backstageClients[socket.id];
     R.members.delete(socket.id);
+    if (R.show.artistId === socket.id && R.show.status === 'live') {
+      // The performer dropped mid-set. Hold the stage; do not end the night.
+      clearStageHold(R);
+      const show = R.show;
+      const until = Date.now() + STAGE_HOLD_MS;
+      const timer = setTimeout(() => {
+        if (R.show !== show || R.show.artistId !== socket.id || R.show.status !== 'live') return;
+        console.log(`Stage hold ran out for ${socket.id}: ending the set, seats kept`);
+        endSet(R, 'performer-lost');
+      }, STAGE_HOLD_MS);
+      R.show.hold = { socketId: socket.id, key: R.show.artistKey || null, until, timer };
+      io.to(R.channel).emit('stage:holding', { until, seconds: Math.round(STAGE_HOLD_MS / 1000), by: R.show.artistName || null });
+    }
     if (R.show.artistId === socket.id && R.show.status === 'pre-show') {
       // A performer who leaves mid-countdown takes the countdown with them.
       registry.resetShow(R);
