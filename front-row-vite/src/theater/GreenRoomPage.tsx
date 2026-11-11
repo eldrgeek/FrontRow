@@ -39,7 +39,9 @@ export function GreenRoomPage(): JSX.Element {
     return <Navigate to={`/login?next=${encodeURIComponent(showPath(show, 'green-room'))}`} replace />;
   }
   if (gate === 'yes') {
-    return <App entry={{ name: show.artist, showSlug: show.slug, role: 'performer' }} />;
+    const meta = (session?.user?.user_metadata || {}) as { full_name?: string; name?: string };
+    const who = (meta.full_name || meta.name || session?.user?.email?.split('@')[0] || '').slice(0, 40);
+    return <App entry={{ name: show.artist, showSlug: show.slug, role: 'performer', performingAs: who || show.artist }} />;
   }
   return (
     <div className="fr" data-testid="fr-green-gate">

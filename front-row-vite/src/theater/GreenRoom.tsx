@@ -22,6 +22,15 @@ interface Props {
   onStartCamera: () => void;
   /** The stage camera panel (StageCamera.tsx StageCameraLink). */
   stageCamera?: React.ReactNode;
+  /** Who is at the mic (the signed-in name), when it differs from the bill. */
+  performingAs?: string;
+  /** Another performer holds the stage: going on is refused until it frees. */
+  stageBusy?: { by?: string | null } | null;
+  /** Seconds left on a held stage (its performer's connection dropped). */
+  holdSeconds?: number;
+  onClearStage?: () => void;
+  onChat?: () => void;
+  chatUnread?: number;
 }
 
 function useMicLevel(stream: MediaStream | null): number {
@@ -99,10 +108,34 @@ export function GreenRoom(p: Props): JSX.Element {
   }, [p.countdownTime, p.isCountdownActive]);
 
   const places = p.isCountdownActive && p.countdownTime <= 15;
+  const busy = !!p.stageBusy;
 
   return (
     <div className="fr-green" data-testid="fr-green-room">
-      <div className="hd">Green room · only {p.show.artist} can see this</div>
+      <div className="hd">
+        Green room · only performers can see this{p.performingAs && p.performingAs !== p.show.artist ? ` · you are ${p.performingAs}` : ''}
+        {p.onChat && (
+          <button type="button" className="fr-g-chat" onClick={p.onChat} data-testid="fr-green-chat">
+            House chat{(p.chatUnread || 0) > 0 ? ` (${p.chatUnread})` : ''}
+          </button>
+        )}
+      </div>
+      {busy && (
+        <div className="busy" role="status" data-testid="fr-stage-busy">
+          <b>{p.stageBusy?.by ? `${p.stageBusy.by} is on stage right now.` : 'Someone is on stage right now.'}</b>{' '}
+          The stage frees when their set ends, and you can go on then. Opening this page did not interrupt them.
+          {p.onClearStage && (
+            <button type="button" className="fr-link-btn" onClick={() => { if (window.confirm('Only do this if nobody is really performing. Clear the stage?')) p.onClearStage?.(); }} data-testid="fr-stage-clear">
+              Nobody is performing: clear the stage
+            </button>
+          )}
+        </div>
+      )}
+      {!busy && (p.holdSeconds || 0) > 0 && (
+        <div className="busy" role="status" data-testid="fr-stage-held">
+          <b>The last performer&apos;s connection dropped.</b> The stage is held for {p.holdSeconds} more seconds. You can step on now and the house stays seated.
+        </div>
+      )}
       <div className="cols">
         <section className="pv">
           {p.stream ? (
@@ -132,14 +165,14 @@ export function GreenRoom(p: Props): JSX.Element {
           <div className="ctl">
             {!p.isCountdownActive ? (
               <>
-                <button type="button" className="fr-g-btn" onClick={() => p.onStartCountdown(600)} data-testid="fr-green-start10">Start 10-minute countdown</button>
-                <button type="button" className="fr-g-btn" onClick={() => p.onStartCountdown(120)}>2 minutes</button>
+                <button type="button" className="fr-g-btn" disabled={busy} onClick={() => p.onStartCountdown(600)} data-testid="fr-green-start10">Start 10-minute countdown</button>
+                <button type="button" className="fr-g-btn" disabled={busy} onClick={() => p.onStartCountdown(120)}>2 minutes</button>
               </>
             ) : (
               <button type="button" className="fr-g-btn" onClick={p.onStopCountdown}>Hold the countdown</button>
             )}
-            <button type="button" className="fr-g-btn go" onClick={() => p.onGoLive(true)} data-testid="fr-green-onstage">Step onto the stage</button>
-            <button type="button" className="fr-g-btn go" onClick={() => p.onGoLive(false)} data-testid="fr-green-golive">Go on, big screen</button>
+            <button type="button" className="fr-g-btn go" disabled={busy} onClick={() => p.onGoLive(true)} data-testid="fr-green-onstage">Step onto the stage</button>
+            <button type="button" className="fr-g-btn go" disabled={busy} onClick={() => p.onGoLive(false)} data-testid="fr-green-golive">Go on, big screen</button>
           </div>
           <div className="grid" aria-label="Who is in the house">
             {seated.map(([seatId, u]) => (
